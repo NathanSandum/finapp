@@ -1,0 +1,31 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+
+# Tauri
+desktop/target/
+desktop/gen/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Claude Code
+.agents/
+.claude/skills/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "skills": {
+    "brownfield-adoption": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "e997d18a9b50260c4a9610314661d3650cb88307cbcb651af63f77d774136f91"
+    },
+    "cavekit-writing": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "9e38301abcb97caba3e1df8be9ced32d824987ce301516542afd26e472563fbf"
+    },
+    "caveman": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "ebb01062940ae646986ff634bf899d2d72d72d366ddcb528124a3b48aed36c2c"
+    },
+    "context-architecture": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "af717800ecc2dd57839353b156ec70cc91491eaebae9c2ed09e6c56e6c3af1ad"
+    },
+    "convergence-monitoring": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "20b3f953b57725c5757057ff2f5a52975eee88b2cdef1dbd49f64f91df9fa99b"
+    },
+    "design-system": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "8ac35576f73d7a3769c262f44d77ce213a4763ffb92995333d698868d978a981"
+    },
+    "documentation-inversion": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "a4d8407fc8915e2de912e0c9860d7a5a9247b641d06e60167c5023798de51fa5"
+    },
+    "impl-tracking": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "0d7670d57064568afc85ef2776436784ae8c7e05f9317874502e94792278a5af"
+    },
+    "methodology": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "b2717bffeed9c2e611f2cd37f6000538e65d28a539dc211277dbc6098cb37f9c"
+    },
+    "peer-review": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "8215fb99850729388d5377094a406eb5bf5e6059fcdbf8f766541b6274e89bdc"
+    },
+    "peer-review-loop": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "114387b846122a785ce1315a86a036420ffff05beed16f87d72889e5bb564340"
+    },
+    "prompt-pipeline": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "3e6e45286ec01b6110fa674d3188e5040874f84b192a7ef9fbea372aa3d024b4"
+    },
+    "revision": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "32c5b8971d91e45a547f50c52e8073f699c24bfd68ea7b20e4690b277c2b27e3"
+    },
+    "speculative-pipeline": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "cd4f784029d8f49ad9ba0c81ec8e84c199ff45770b13fdc5b168df7acd4ce545"
+    },
+    "ui-craft": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "4fa2ca4bbb6bb80fe604f8344f47edfd3ecd68f68ae041b42f5bea4e09afb044"
+    },
+    "validation-first": {
+      "source": "JuliusBrussee/cavekit",
+      "sourceType": "github",
+      "computedHash": "d969f599f8afe4f80729e9f0615c2e18cf81960160578411165abbc140742508"
+    }
+  }
+}
