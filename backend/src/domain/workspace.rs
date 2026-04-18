@@ -10,13 +10,15 @@ use crate::schema::{membership_events, workspace_members, workspaces};
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 #[serde(transparent)]
-pub struct WorkspaceRef {
-    pub id: String,
-}
+pub struct WorkspaceRef(String);
 
 impl WorkspaceRef {
     pub fn new(id: &str) -> Self {
-        WorkspaceRef { id: id.to_string() }
+        WorkspaceRef(id.to_string())
+    }
+
+    pub fn id(&self) -> &str {
+        &self.0
     }
 }
 
@@ -31,7 +33,7 @@ pub struct Workspace {
 
 impl Workspace {
     pub fn as_ref(&self) -> WorkspaceRef {
-        WorkspaceRef { id: self.id.clone() }
+        WorkspaceRef(self.id.clone())
     }
 
     pub fn from_ref(
@@ -39,18 +41,11 @@ impl Workspace {
         conn: &mut SqliteConnection,
     ) -> Result<Option<Workspace>, AppError> {
         workspaces::table
-            .find(&workspace_ref.id)
+            .find(&workspace_ref.0)
             .select(Workspace::as_select())
             .first(conn)
             .optional()
             .map_err(|err| AppError::Internal(format!("workspace lookup failed: {err}")))
-    }
-
-    pub fn from_id(
-        id: &str,
-        conn: &mut SqliteConnection,
-    ) -> Result<Option<Workspace>, AppError> {
-        Self::from_ref(&WorkspaceRef::new(id), conn)
     }
 
     pub fn for_user(

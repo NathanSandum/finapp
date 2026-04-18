@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 
 use crate::auth::AuthUser;
 use crate::domain::user::{User, UserRef};
-use crate::domain::workspace::{NewWorkspace, Workspace};
+use crate::domain::workspace::{NewWorkspace, Workspace, WorkspaceRef};
 use crate::error::AppError;
 use crate::permissions;
 use crate::DbPool;
@@ -59,11 +59,11 @@ pub async fn list(
 pub async fn get(
     Extension(pool): Extension<DbPool>,
     AuthUser(user): AuthUser,
-    Path(workspace_id): Path<String>,
+    Path(workspace_id): Path<WorkspaceRef>,
 ) -> Result<Json<Value>, AppError> {
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let ws = Workspace::from_id(&workspace_id, &mut conn)?
+    let ws = Workspace::from_ref(&workspace_id, &mut conn)?
         .ok_or(AppError::Forbidden)?;
 
     // Non-member gets 403 (indistinguishable from not-found per spec)
@@ -93,8 +93,8 @@ pub async fn get(
 
 #[derive(Deserialize)]
 pub struct RemoveMemberPath {
-    workspace_id: String,
-    user_id: UserRef,
+    workspace_id: WorkspaceRef,
+    user: UserRef,
 }
 
 pub async fn remove_member(
@@ -104,13 +104,13 @@ pub async fn remove_member(
 ) -> Result<Json<Value>, AppError> {
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let ws = Workspace::from_id(&path.workspace_id, &mut conn)?
+    let ws = Workspace::from_ref(&path.workspace_id, &mut conn)?
         .ok_or(AppError::Forbidden)?;
 
     let actor_role = ws.user_role(&actor, &mut conn)?
         .ok_or(AppError::Forbidden)?;
 
-    let target = User::from_ref(&path.user_id, &mut conn)?
+    let target = User::from_ref(&path.user, &mut conn)?
         .ok_or(AppError::NotFound("user".into()))?;
 
     let target_role = ws.user_role(&target, &mut conn)?

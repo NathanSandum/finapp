@@ -51,13 +51,15 @@ impl AccountType {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 #[serde(transparent)]
-pub struct AccountRef {
-    pub id: String,
-}
+pub struct AccountRef(String);
 
 impl AccountRef {
     pub fn new(id: &str) -> Self {
-        AccountRef { id: id.to_string() }
+        AccountRef(id.to_string())
+    }
+
+    pub fn id(&self) -> &str {
+        &self.0
     }
 }
 
@@ -76,20 +78,16 @@ pub struct Account {
 
 impl Account {
     pub fn as_ref(&self) -> AccountRef {
-        AccountRef { id: self.id.clone() }
+        AccountRef(self.id.clone())
     }
 
     pub fn from_ref(account_ref: &AccountRef, conn: &mut SqliteConnection) -> Result<Option<Account>, AppError> {
         accounts::table
-            .find(&account_ref.id)
+            .find(&account_ref.0)
             .select(Account::as_select())
             .first(conn)
             .optional()
             .map_err(|err| AppError::Internal(format!("account lookup failed: {err}")))
-    }
-
-    pub fn from_id(id: &str, conn: &mut SqliteConnection) -> Result<Option<Account>, AppError> {
-        Self::from_ref(&AccountRef::new(id), conn)
     }
 
     pub fn for_workspace(

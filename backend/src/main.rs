@@ -34,7 +34,7 @@ async fn main() {
         .route("/workspaces", get(routes::workspaces::list))
         .route("/workspaces/{workspace_id}", get(routes::workspaces::get))
         .route(
-            "/workspaces/{workspace_id}/members/{user_id}",
+            "/workspaces/{workspace_id}/members/{user}",
             delete(routes::workspaces::remove_member),
         )
         // Categories

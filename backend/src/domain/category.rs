@@ -11,13 +11,15 @@ use crate::schema::categories;
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 #[serde(transparent)]
-pub struct CategoryRef {
-    pub id: String,
-}
+pub struct CategoryRef(String);
 
 impl CategoryRef {
     pub fn new(id: &str) -> Self {
-        CategoryRef { id: id.to_string() }
+        CategoryRef(id.to_string())
+    }
+
+    pub fn id(&self) -> &str {
+        &self.0
     }
 }
 
@@ -35,20 +37,16 @@ pub struct Category {
 
 impl Category {
     pub fn as_ref(&self) -> CategoryRef {
-        CategoryRef { id: self.id.clone() }
+        CategoryRef(self.id.clone())
     }
 
     pub fn from_ref(category_ref: &CategoryRef, conn: &mut SqliteConnection) -> Result<Option<Category>, AppError> {
         categories::table
-            .find(&category_ref.id)
+            .find(&category_ref.0)
             .select(Category::as_select())
             .first(conn)
             .optional()
             .map_err(|err| AppError::Internal(format!("category lookup failed: {err}")))
-    }
-
-    pub fn from_id(id: &str, conn: &mut SqliteConnection) -> Result<Option<Category>, AppError> {
-        Self::from_ref(&CategoryRef::new(id), conn)
     }
 
     pub fn for_workspace(

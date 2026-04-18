@@ -14,13 +14,15 @@ use crate::schema::users;
 /// Deserializes from a plain string (e.g. in path parameters).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 #[serde(transparent)]
-pub struct UserRef {
-    pub id: String,
-}
+pub struct UserRef(String);
 
 impl UserRef {
     pub fn new(id: &str) -> Self {
-        UserRef { id: id.to_string() }
+        UserRef(id.to_string())
+    }
+
+    pub fn id(&self) -> &str {
+        &self.0
     }
 }
 
@@ -37,22 +39,16 @@ pub struct User {
 
 impl User {
     pub fn as_ref(&self) -> UserRef {
-        UserRef { id: self.id.clone() }
+        UserRef(self.id.clone())
     }
-}
 
-impl User {
     pub fn from_ref(user_ref: &UserRef, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {
         users::table
-            .find(&user_ref.id)
+            .find(&user_ref.0)
             .select(User::as_select())
             .first(conn)
             .optional()
             .map_err(|err| AppError::Internal(format!("user lookup failed: {err}")))
-    }
-
-    pub fn from_id(id: &str, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {
-        Self::from_ref(&UserRef::new(id), conn)
     }
 
     pub fn from_email(email: &str, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {

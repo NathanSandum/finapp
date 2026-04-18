@@ -12,13 +12,15 @@ use crate::schema::{line_items, transactions};
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 #[serde(transparent)]
-pub struct TransactionRef {
-    pub id: String,
-}
+pub struct TransactionRef(String);
 
 impl TransactionRef {
     pub fn new(id: &str) -> Self {
-        TransactionRef { id: id.to_string() }
+        TransactionRef(id.to_string())
+    }
+
+    pub fn id(&self) -> &str {
+        &self.0
     }
 }
 
@@ -40,20 +42,16 @@ pub struct Transaction {
 
 impl Transaction {
     pub fn as_ref(&self) -> TransactionRef {
-        TransactionRef { id: self.id.clone() }
+        TransactionRef(self.id.clone())
     }
 
     pub fn from_ref(transaction_ref: &TransactionRef, conn: &mut SqliteConnection) -> Result<Option<Transaction>, AppError> {
         transactions::table
-            .find(&transaction_ref.id)
+            .find(&transaction_ref.0)
             .select(Transaction::as_select())
             .first(conn)
             .optional()
             .map_err(|err| AppError::Internal(format!("transaction lookup failed: {err}")))
-    }
-
-    pub fn from_id(id: &str, conn: &mut SqliteConnection) -> Result<Option<Transaction>, AppError> {
-        Self::from_ref(&TransactionRef::new(id), conn)
     }
 
     pub fn for_account(
