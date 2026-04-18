@@ -1,21 +1,9 @@
-impl From<diesel::result::Error> for AppError {
-    fn from(e: diesel::result::Error) -> Self {
-        match e {
-            diesel::result::Error::DatabaseError(
-                diesel::result::DatabaseErrorKind::UniqueViolation,
-                _,
-            ) => AppError::Conflict("unique constraint violated".into()),
-            diesel::result::Error::NotFound => AppError::NotFound("record not found".into()),
-            _ => AppError::Internal,
-        }
-    }
-}
-
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
+use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use serde::Serialize;
 
 #[derive(Debug)]
@@ -25,7 +13,19 @@ pub enum AppError {
     Unauthorized,
     Conflict(String),
     Validation(Vec<FieldError>),
-    Internal,
+    Internal(String),
+}
+
+impl From<DieselError> for AppError {
+    fn from(err: DieselError) -> Self {
+        match err {
+            DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
+                AppError::Conflict("unique constraint violated".into())
+            }
+            DieselError::NotFound => AppError::NotFound("record not found".into()),
+            other => AppError::Internal(format!("diesel: {other}")),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -65,10 +65,13 @@ impl IntoResponse for AppError {
                 StatusCode::UNPROCESSABLE_ENTITY,
                 ErrorBody { code: "validation_error", message: "validation failed".into(), fields: Some(fields) },
             ),
-            AppError::Internal => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ErrorBody { code: "internal_error", message: "an unexpected error occurred".into(), fields: None },
-            ),
+            AppError::Internal(detail) => {
+                eprintln!("internal error: {detail}");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ErrorBody { code: "internal_error", message: "an unexpected error occurred".into(), fields: None },
+                )
+            }
         };
         (status, Json(body)).into_response()
     }
@@ -117,7 +120,7 @@ mod tests {
 
     #[tokio::test]
     async fn internal_is_500() {
-        assert_eq!(status(AppError::Internal).await, 500);
+        assert_eq!(status(AppError::Internal("test".into())).await, 500);
     }
 
     #[tokio::test]
@@ -130,10 +133,10 @@ mod tests {
 
     #[tokio::test]
     async fn internal_does_not_leak_details() {
-        let body = body_json(AppError::Internal).await;
+        let body = body_json(AppError::Internal("secret database password".into())).await;
         let msg = body["message"].as_str().unwrap();
-        assert!(!msg.contains("panic"), "internal error leaks details");
-        assert!(!msg.contains("thread"), "internal error leaks details");
+        assert!(!msg.contains("secret"), "internal error leaks details");
+        assert!(!msg.contains("database"), "internal error leaks details");
     }
 
     #[tokio::test]
