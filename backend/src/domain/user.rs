@@ -10,6 +10,18 @@ use uuid::Uuid;
 use crate::error::AppError;
 use crate::schema::users;
 
+/// Lightweight identity reference — just an id, no DB load required.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserRef {
+    pub id: String,
+}
+
+impl UserRef {
+    pub fn new(id: &str) -> Self {
+        UserRef { id: id.to_string() }
+    }
+}
+
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = users)]
 pub struct User {
@@ -22,6 +34,21 @@ pub struct User {
 }
 
 impl User {
+    pub fn as_ref(&self) -> UserRef {
+        UserRef { id: self.id.clone() }
+    }
+}
+
+impl User {
+    pub fn from_id(id: &str, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {
+        users::table
+            .find(id)
+            .select(User::as_select())
+            .first(conn)
+            .optional()
+            .map_err(|err| AppError::Internal(format!("user lookup failed: {err}")))
+    }
+
     pub fn from_email(email: &str, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {
         users::table
             .filter(users::email.eq(email))

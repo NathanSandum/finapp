@@ -18,6 +18,18 @@ pub struct Workspace {
 }
 
 impl Workspace {
+    pub fn from_id(
+        id: &str,
+        conn: &mut SqliteConnection,
+    ) -> Result<Option<Workspace>, AppError> {
+        workspaces::table
+            .find(id)
+            .select(Workspace::as_select())
+            .first(conn)
+            .optional()
+            .map_err(|err| AppError::Internal(format!("workspace lookup failed: {err}")))
+    }
+
     pub fn for_user(
         user: &User,
         conn: &mut SqliteConnection,
