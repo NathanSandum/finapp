@@ -24,7 +24,7 @@ desktop/gen/
 
 # Claude Code
 .agents/
-.claude/skills/
+.claude/
 
 # OS
 .DS_Store
