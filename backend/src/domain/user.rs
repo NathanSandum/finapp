@@ -16,15 +16,6 @@ use crate::schema::users;
 #[serde(transparent)]
 pub struct UserRef(String);
 
-impl UserRef {
-    pub fn new(id: &str) -> Self {
-        UserRef(id.to_string())
-    }
-
-    pub fn id(&self) -> &str {
-        &self.0
-    }
-}
 
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = users)]

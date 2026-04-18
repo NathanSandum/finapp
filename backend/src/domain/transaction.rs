@@ -14,15 +14,6 @@ use crate::schema::{line_items, transactions};
 #[serde(transparent)]
 pub struct TransactionRef(String);
 
-impl TransactionRef {
-    pub fn new(id: &str) -> Self {
-        TransactionRef(id.to_string())
-    }
-
-    pub fn id(&self) -> &str {
-        &self.0
-    }
-}
 
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = transactions)]

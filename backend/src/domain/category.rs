@@ -13,15 +13,6 @@ use crate::schema::categories;
 #[serde(transparent)]
 pub struct CategoryRef(String);
 
-impl CategoryRef {
-    pub fn new(id: &str) -> Self {
-        CategoryRef(id.to_string())
-    }
-
-    pub fn id(&self) -> &str {
-        &self.0
-    }
-}
 
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = categories)]

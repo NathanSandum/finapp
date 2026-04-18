@@ -12,15 +12,6 @@ use crate::schema::{membership_events, workspace_members, workspaces};
 #[serde(transparent)]
 pub struct WorkspaceRef(String);
 
-impl WorkspaceRef {
-    pub fn new(id: &str) -> Self {
-        WorkspaceRef(id.to_string())
-    }
-
-    pub fn id(&self) -> &str {
-        &self.0
-    }
-}
 
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = workspaces)]

@@ -43,7 +43,7 @@ mod tests {
     use super::*;
 
     fn user(id: &str) -> UserRef {
-        UserRef::new(id)
+        serde_json::from_value(serde_json::json!(id)).unwrap()
     }
 
     // ── has_permission ───────────────────────────────────────────────────

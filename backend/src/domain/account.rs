@@ -53,15 +53,6 @@ impl AccountType {
 #[serde(transparent)]
 pub struct AccountRef(String);
 
-impl AccountRef {
-    pub fn new(id: &str) -> Self {
-        AccountRef(id.to_string())
-    }
-
-    pub fn id(&self) -> &str {
-        &self.0
-    }
-}
 
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = accounts)]
