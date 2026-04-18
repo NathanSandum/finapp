@@ -4,8 +4,9 @@ use serde_json::{json, Value};
 
 use crate::auth::AuthUser;
 use crate::domain::user::User;
-use crate::domain::workspace::{NewWorkspace, Role, Workspace};
+use crate::domain::workspace::{NewWorkspace, Workspace};
 use crate::error::AppError;
+use crate::permissions;
 use crate::DbPool;
 
 #[derive(Deserialize)]
@@ -115,15 +116,8 @@ pub async fn remove_member(
     let target_role = ws.user_role(&target, &mut conn)?
         .ok_or(AppError::NotFound("member".into()))?;
 
-    let is_self = actor.id == target.id;
-
-    // Owners can only be removed by themselves (no coups)
-    if target_role >= Role::Owner && !is_self {
-        return Err(AppError::Forbidden);
-    }
-
-    // Non-self removal requires owner
-    if !is_self && actor_role < Role::Owner {
+    let resource = permissions::membership_resource(&actor.as_ref(), &target.as_ref(), &target_role);
+    if !actor_role.has_permission(permissions::Action::Delete, resource) {
         return Err(AppError::Forbidden);
     }
 

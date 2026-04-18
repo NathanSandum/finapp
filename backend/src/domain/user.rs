@@ -10,6 +10,18 @@ use uuid::Uuid;
 use crate::error::AppError;
 use crate::schema::users;
 
+/// Lightweight identity reference — just an id, no DB load required.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserRef {
+    pub id: String,
+}
+
+impl UserRef {
+    pub fn new(id: &str) -> Self {
+        UserRef { id: id.to_string() }
+    }
+}
+
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = users)]
 pub struct User {
@@ -19,6 +31,12 @@ pub struct User {
     pub password_hash: String,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+}
+
+impl User {
+    pub fn as_ref(&self) -> UserRef {
+        UserRef { id: self.id.clone() }
+    }
 }
 
 impl User {

@@ -1,6 +1,7 @@
 mod auth;
 mod domain;
 mod error;
+mod permissions;
 mod routes;
 mod schema;
 mod test_helpers;
