@@ -70,15 +70,22 @@ pub async fn create(
     ))
 }
 
+#[derive(Deserialize)]
+pub struct AccountPath {
+    #[allow(dead_code)]
+    workspace: String,
+    account: AccountRef,
+}
+
 pub async fn delete(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
-    Path((_workspace_id, account_id)): Path<(String, AccountRef)>,
+    Path(path): Path<AccountPath>,
 ) -> Result<Json<Value>, AppError> {
     member.require_role(&Role::Editor)?;
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let acct = Account::from_ref(&account_id, &mut conn)?
+    let acct = Account::from_ref(&path.account, &mut conn)?
         .ok_or(AppError::NotFound("account".into()))?;
 
     if acct.workspace_id != member.workspace.id {
@@ -93,11 +100,11 @@ pub async fn delete(
 pub async fn balance(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
-    Path((_workspace_id, account_id)): Path<(String, AccountRef)>,
+    Path(path): Path<AccountPath>,
 ) -> Result<Json<Value>, AppError> {
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let acct = Account::from_ref(&account_id, &mut conn)?
+    let acct = Account::from_ref(&path.account, &mut conn)?
         .ok_or(AppError::NotFound("account".into()))?;
 
     if acct.workspace_id != member.workspace.id {

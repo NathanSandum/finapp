@@ -59,11 +59,11 @@ pub async fn list(
 pub async fn get(
     Extension(pool): Extension<DbPool>,
     AuthUser(user): AuthUser,
-    Path(workspace_id): Path<WorkspaceRef>,
+    Path(workspace): Path<WorkspaceRef>,
 ) -> Result<Json<Value>, AppError> {
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let ws = Workspace::from_ref(&workspace_id, &mut conn)?
+    let ws = Workspace::from_ref(&workspace, &mut conn)?
         .ok_or(AppError::Forbidden)?;
 
     // Non-member gets 403 (indistinguishable from not-found per spec)
@@ -93,7 +93,7 @@ pub async fn get(
 
 #[derive(Deserialize)]
 pub struct RemoveMemberPath {
-    workspace_id: WorkspaceRef,
+    workspace: WorkspaceRef,
     user: UserRef,
 }
 
@@ -104,7 +104,7 @@ pub async fn remove_member(
 ) -> Result<Json<Value>, AppError> {
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let ws = Workspace::from_ref(&path.workspace_id, &mut conn)?
+    let ws = Workspace::from_ref(&path.workspace, &mut conn)?
         .ok_or(AppError::Forbidden)?;
 
     let actor_role = ws.user_role(&actor, &mut conn)?

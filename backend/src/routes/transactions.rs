@@ -9,14 +9,21 @@ use crate::domain::workspace::Role;
 use crate::error::AppError;
 use crate::DbPool;
 
+#[derive(Deserialize)]
+pub struct AccountTransactionsPath {
+    #[allow(dead_code)]
+    workspace: String,
+    account: AccountRef,
+}
+
 pub async fn list(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
-    Path((_workspace_id, account_id)): Path<(String, AccountRef)>,
+    Path(path): Path<AccountTransactionsPath>,
 ) -> Result<Json<Value>, AppError> {
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let acct = Account::from_ref(&account_id, &mut conn)?
+    let acct = Account::from_ref(&path.account, &mut conn)?
         .ok_or(AppError::NotFound("account".into()))?;
 
     if acct.workspace_id != member.workspace.id {
@@ -64,8 +71,8 @@ pub struct LineItemRequest {
 
 #[derive(Deserialize)]
 pub struct CreateTransactionRequest {
-    account_id: AccountRef,
-    transfer_account_id: Option<AccountRef>,
+    account: AccountRef,
+    transfer_account: Option<AccountRef>,
     date: String,
     description: Option<String>,
     amount: i32,
@@ -81,7 +88,7 @@ pub async fn create(
     member.require_role(&Role::Editor)?;
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let acct = Account::from_ref(&body.account_id, &mut conn)?
+    let acct = Account::from_ref(&body.account, &mut conn)?
         .ok_or(AppError::NotFound("account".into()))?;
 
     if acct.workspace_id != member.workspace.id {
@@ -118,8 +125,8 @@ pub async fn create(
     if let Some(cleared) = body.cleared {
         builder = builder.cleared(cleared);
     }
-    if let Some(ref transfer_id) = body.transfer_account_id {
-        let transfer_acct = Account::from_ref(transfer_id, &mut conn)?
+    if let Some(ref transfer_ref) = body.transfer_account {
+        let transfer_acct = Account::from_ref(transfer_ref, &mut conn)?
             .ok_or(AppError::NotFound("transfer account".into()))?;
         if transfer_acct.workspace_id != member.workspace.id {
             return Err(AppError::NotFound("transfer account".into()));
@@ -157,15 +164,22 @@ pub async fn create(
     ))
 }
 
+#[derive(Deserialize)]
+pub struct DeleteTransactionPath {
+    #[allow(dead_code)]
+    workspace: String,
+    transaction: TransactionRef,
+}
+
 pub async fn delete(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
-    Path((_workspace_id, transaction_id)): Path<(String, TransactionRef)>,
+    Path(path): Path<DeleteTransactionPath>,
 ) -> Result<Json<Value>, AppError> {
     member.require_role(&Role::Editor)?;
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let txn = Transaction::from_ref(&transaction_id, &mut conn)?
+    let txn = Transaction::from_ref(&path.transaction, &mut conn)?
         .ok_or(AppError::NotFound("transaction".into()))?;
 
     if txn.workspace_id != member.workspace.id {

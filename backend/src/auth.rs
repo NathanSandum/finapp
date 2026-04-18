@@ -56,7 +56,7 @@ impl<S: Send + Sync> FromRequestParts<S> for WorkspaceMember {
         let workspace_id = parts
             .extensions
             .get::<Path<WorkspacePathParam>>()
-            .map(|p| p.workspace_id.clone());
+            .map(|p| p.workspace.clone());
 
         // Fall back to extracting from URI path segments
         let workspace_id = match workspace_id {
@@ -95,7 +95,7 @@ impl<S: Send + Sync> FromRequestParts<S> for WorkspaceMember {
 
 #[derive(serde::Deserialize)]
 struct WorkspacePathParam {
-    workspace_id: String,
+    workspace: String,
 }
 
 fn extract_workspace_id_from_uri(parts: &Parts) -> Result<String, AppError> {

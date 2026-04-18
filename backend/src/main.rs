@@ -32,44 +32,44 @@ async fn main() {
         .route("/auth/logout", post(routes::auth::logout))
         .route("/workspaces", post(routes::workspaces::create))
         .route("/workspaces", get(routes::workspaces::list))
-        .route("/workspaces/{workspace_id}", get(routes::workspaces::get))
+        .route("/workspaces/{workspace}", get(routes::workspaces::get))
         .route(
-            "/workspaces/{workspace_id}/members/{user}",
+            "/workspaces/{workspace}/members/{user}",
             delete(routes::workspaces::remove_member),
         )
         // Categories
         .route(
-            "/workspaces/{workspace_id}/categories",
+            "/workspaces/{workspace}/categories",
             get(routes::categories::list).post(routes::categories::create),
         )
         .route(
-            "/workspaces/{workspace_id}/categories/{category_id}",
+            "/workspaces/{workspace}/categories/{category}",
             delete(routes::categories::delete),
         )
         // Accounts
         .route(
-            "/workspaces/{workspace_id}/accounts",
+            "/workspaces/{workspace}/accounts",
             get(routes::accounts::list).post(routes::accounts::create),
         )
         .route(
-            "/workspaces/{workspace_id}/accounts/{account_id}",
+            "/workspaces/{workspace}/accounts/{account}",
             delete(routes::accounts::delete),
         )
         .route(
-            "/workspaces/{workspace_id}/accounts/{account_id}/balance",
+            "/workspaces/{workspace}/accounts/{account}/balance",
             get(routes::accounts::balance),
         )
         // Transactions
         .route(
-            "/workspaces/{workspace_id}/transactions",
+            "/workspaces/{workspace}/transactions",
             post(routes::transactions::create),
         )
         .route(
-            "/workspaces/{workspace_id}/accounts/{account_id}/transactions",
+            "/workspaces/{workspace}/accounts/{account}/transactions",
             get(routes::transactions::list),
         )
         .route(
-            "/workspaces/{workspace_id}/transactions/{transaction_id}",
+            "/workspaces/{workspace}/transactions/{transaction}",
             delete(routes::transactions::delete),
         )
         .layer(Extension(pool))

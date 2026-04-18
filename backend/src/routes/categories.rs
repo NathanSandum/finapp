@@ -60,15 +60,22 @@ pub async fn create(
     ))
 }
 
+#[derive(Deserialize)]
+pub struct DeleteCategoryPath {
+    #[allow(dead_code)]
+    workspace: String,
+    category: CategoryRef,
+}
+
 pub async fn delete(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
-    Path((_workspace_id, category_id)): Path<(String, CategoryRef)>,
+    Path(path): Path<DeleteCategoryPath>,
 ) -> Result<Json<Value>, AppError> {
     member.require_role(&Role::Editor)?;
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let cat = Category::from_ref(&category_id, &mut conn)?
+    let cat = Category::from_ref(&path.category, &mut conn)?
         .ok_or(AppError::NotFound("category".into()))?;
 
     if cat.workspace_id != member.workspace.id {
