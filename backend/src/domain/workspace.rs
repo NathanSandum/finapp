@@ -2,6 +2,7 @@ use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use uuid::Uuid;
 
+use crate::domain::user::User;
 use crate::error::AppError;
 use crate::schema::{membership_events, workspace_members, workspaces};
 
@@ -17,38 +18,26 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn find_by_id(
+    pub fn for_user(
+        user: &User,
         conn: &mut SqliteConnection,
-        id: &str,
-    ) -> Result<Option<Workspace>, AppError> {
-        workspaces::table
-            .find(id)
-            .select(Workspace::as_select())
-            .first(conn)
-            .optional()
-            .map_err(|err| AppError::Internal(format!("workspace lookup failed: {err}")))
-    }
-
-    pub fn find_all_for_user(
-        conn: &mut SqliteConnection,
-        user_id: &str,
     ) -> Result<Vec<Workspace>, AppError> {
         workspace_members::table
-            .filter(workspace_members::user_id.eq(user_id))
+            .filter(workspace_members::user_id.eq(&user.id))
             .inner_join(workspaces::table.on(workspaces::id.eq(workspace_members::workspace_id)))
             .select(Workspace::as_select())
             .load(conn)
             .map_err(|err| AppError::Internal(format!("find workspaces for user failed: {err}")))
     }
 
-    pub fn role_for_user(
+    pub fn user_role(
+        &self,
+        user: &User,
         conn: &mut SqliteConnection,
-        workspace_id: &str,
-        user_id: &str,
     ) -> Result<Option<Role>, AppError> {
         workspace_members::table
-            .filter(workspace_members::workspace_id.eq(workspace_id))
-            .filter(workspace_members::user_id.eq(user_id))
+            .filter(workspace_members::workspace_id.eq(&self.id))
+            .filter(workspace_members::user_id.eq(&user.id))
             .select(workspace_members::role)
             .first::<String>(conn)
             .optional()
@@ -56,12 +45,9 @@ impl Workspace {
             .map_err(|err| AppError::Internal(format!("role lookup failed: {err}")))
     }
 
-    pub fn owner_count(
-        conn: &mut SqliteConnection,
-        workspace_id: &str,
-    ) -> Result<i64, AppError> {
+    pub fn num_owners(&self, conn: &mut SqliteConnection) -> Result<i64, AppError> {
         workspace_members::table
-            .filter(workspace_members::workspace_id.eq(workspace_id))
+            .filter(workspace_members::workspace_id.eq(&self.id))
             .filter(workspace_members::role.eq(Role::Owner.as_str()))
             .count()
             .get_result(conn)
@@ -69,24 +55,24 @@ impl Workspace {
     }
 
     pub fn members(
+        &self,
         conn: &mut SqliteConnection,
-        workspace_id: &str,
     ) -> Result<Vec<WorkspaceMember>, AppError> {
         workspace_members::table
-            .filter(workspace_members::workspace_id.eq(workspace_id))
+            .filter(workspace_members::workspace_id.eq(&self.id))
             .select(WorkspaceMember::as_select())
             .load(conn)
             .map_err(|err| AppError::Internal(format!("members query failed: {err}")))
     }
 
     pub fn is_member(
+        &self,
+        user: &User,
         conn: &mut SqliteConnection,
-        workspace_id: &str,
-        user_id: &str,
     ) -> Result<bool, AppError> {
         workspace_members::table
-            .filter(workspace_members::workspace_id.eq(workspace_id))
-            .filter(workspace_members::user_id.eq(user_id))
+            .filter(workspace_members::workspace_id.eq(&self.id))
+            .filter(workspace_members::user_id.eq(&user.id))
             .count()
             .get_result::<i64>(conn)
             .map(|count| count > 0)
@@ -94,15 +80,15 @@ impl Workspace {
     }
 
     pub fn remove_member(
+        &self,
+        user: &User,
+        actor: &User,
         conn: &mut SqliteConnection,
-        workspace_id: &str,
-        user_id: &str,
-        actor_id: &str,
     ) -> Result<(), AppError> {
         conn.transaction::<_, AppError, _>(|conn| {
             let role = workspace_members::table
-                .filter(workspace_members::workspace_id.eq(workspace_id))
-                .filter(workspace_members::user_id.eq(user_id))
+                .filter(workspace_members::workspace_id.eq(&self.id))
+                .filter(workspace_members::user_id.eq(&user.id))
                 .select(workspace_members::role)
                 .first::<String>(conn)
                 .optional()?
@@ -110,7 +96,7 @@ impl Workspace {
 
             if role == Role::Owner.as_str() {
                 let owner_count: i64 = workspace_members::table
-                    .filter(workspace_members::workspace_id.eq(workspace_id))
+                    .filter(workspace_members::workspace_id.eq(&self.id))
                     .filter(workspace_members::role.eq(Role::Owner.as_str()))
                     .count()
                     .get_result(conn)?;
@@ -122,25 +108,15 @@ impl Workspace {
                 }
             }
 
-            let now = chrono::Utc::now().naive_utc();
-            let event_type = if user_id == actor_id { "left" } else { "removed" };
+            let event_type = if user.id == actor.id { "left" } else { "removed" };
 
-            diesel::insert_into(membership_events::table)
-                .values(NewMembershipEvent {
-                    id: Uuid::new_v4().to_string(),
-                    workspace_id: workspace_id.to_string(),
-                    user_id: user_id.to_string(),
-                    actor_id: actor_id.to_string(),
-                    event_type: event_type.to_string(),
-                    role: None,
-                    created_at: now,
-                })
-                .execute(conn)?;
+            NewMembershipEvent::new(&self.id, &user.id, &actor.id, event_type, None)
+                .insert(conn)?;
 
             diesel::delete(
                 workspace_members::table
-                    .filter(workspace_members::workspace_id.eq(workspace_id))
-                    .filter(workspace_members::user_id.eq(user_id)),
+                    .filter(workspace_members::workspace_id.eq(&self.id))
+                    .filter(workspace_members::user_id.eq(&user.id)),
             )
             .execute(conn)?;
 
@@ -170,6 +146,8 @@ pub struct MembershipEvent {
     pub created_at: NaiveDateTime,
 }
 
+// ── Insertables ──────────────────────────────────────────────────────────────
+
 #[derive(Insertable)]
 #[diesel(table_name = workspaces)]
 struct NewWorkspaceRow {
@@ -191,6 +169,33 @@ struct NewMembershipEvent {
     created_at: NaiveDateTime,
 }
 
+impl NewMembershipEvent {
+    fn new(
+        workspace_id: &str,
+        user_id: &str,
+        actor_id: &str,
+        event_type: &str,
+        role: Option<&str>,
+    ) -> Self {
+        NewMembershipEvent {
+            id: Uuid::new_v4().to_string(),
+            workspace_id: workspace_id.to_string(),
+            user_id: user_id.to_string(),
+            actor_id: actor_id.to_string(),
+            event_type: event_type.to_string(),
+            role: role.map(|r| r.to_string()),
+            created_at: chrono::Utc::now().naive_utc(),
+        }
+    }
+
+    fn insert(self, conn: &mut SqliteConnection) -> Result<(), AppError> {
+        diesel::insert_into(membership_events::table)
+            .values(self)
+            .execute(conn)?;
+        Ok(())
+    }
+}
+
 #[derive(Insertable)]
 #[diesel(table_name = workspace_members)]
 struct NewWorkspaceMember {
@@ -208,10 +213,10 @@ pub struct NewWorkspace {
 }
 
 impl NewWorkspace {
-    pub fn new(name: &str, creator_id: &str) -> Self {
+    pub fn new(name: &str, creator: &User) -> Self {
         NewWorkspace {
             name: name.to_string(),
-            creator_id: creator_id.to_string(),
+            creator_id: creator.id.clone(),
         }
     }
 
@@ -230,17 +235,14 @@ impl NewWorkspace {
                 .returning(Workspace::as_returning())
                 .get_result(conn)?;
 
-            diesel::insert_into(membership_events::table)
-                .values(NewMembershipEvent {
-                    id: Uuid::new_v4().to_string(),
-                    workspace_id: workspace_id.clone(),
-                    user_id: self.creator_id.clone(),
-                    actor_id: self.creator_id.clone(),
-                    event_type: "owner_assigned".to_string(),
-                    role: Some(Role::Owner.as_str().to_string()),
-                    created_at: now,
-                })
-                .execute(conn)?;
+            NewMembershipEvent::new(
+                &workspace_id,
+                &self.creator_id,
+                &self.creator_id,
+                "owner_assigned",
+                Some(Role::Owner.as_str()),
+            )
+            .insert(conn)?;
 
             diesel::insert_into(workspace_members::table)
                 .values(NewWorkspaceMember {
@@ -292,16 +294,15 @@ mod tests {
     use crate::domain::user::NewUser;
     use crate::test_helpers::setup_test_db;
 
-    fn make_user(conn: &mut SqliteConnection, email: &str) -> String {
+    fn make_user(conn: &mut SqliteConnection, email: &str) -> User {
         NewUser::new(email, "Test User", "password")
             .expect("new user should succeed")
             .insert(conn)
             .expect("user insert should succeed")
-            .id
     }
 
-    fn make_workspace(conn: &mut SqliteConnection, name: &str, creator_id: &str) -> Workspace {
-        NewWorkspace::new(name, creator_id)
+    fn make_workspace(conn: &mut SqliteConnection, name: &str, creator: &User) -> Workspace {
+        NewWorkspace::new(name, creator)
             .insert(conn)
             .expect("workspace creation should succeed")
     }
@@ -309,8 +310,8 @@ mod tests {
     #[test]
     fn create_workspace_succeeds() {
         let mut conn = setup_test_db();
-        let user_id = make_user(&mut conn, "alice@example.com");
-        let ws = make_workspace(&mut conn, "My Finances", &user_id);
+        let user = make_user(&mut conn, "alice@example.com");
+        let ws = make_workspace(&mut conn, "My Finances", &user);
         assert_eq!(ws.name, "My Finances");
         assert!(!ws.id.is_empty());
     }
@@ -318,10 +319,10 @@ mod tests {
     #[test]
     fn creator_is_assigned_owner() {
         let mut conn = setup_test_db();
-        let user_id = make_user(&mut conn, "alice@example.com");
-        let ws = make_workspace(&mut conn, "My Finances", &user_id);
+        let user = make_user(&mut conn, "alice@example.com");
+        let ws = make_workspace(&mut conn, "My Finances", &user);
 
-        let role = Workspace::role_for_user(&mut conn, &ws.id, &user_id)
+        let role = ws.user_role(&user, &mut conn)
             .expect("role query should succeed")
             .expect("creator should have a role");
 
@@ -331,20 +332,20 @@ mod tests {
     #[test]
     fn user_can_belong_to_multiple_workspaces() {
         let mut conn = setup_test_db();
-        let user_id = make_user(&mut conn, "alice@example.com");
-        make_workspace(&mut conn, "Workspace A", &user_id);
-        make_workspace(&mut conn, "Workspace B", &user_id);
+        let user = make_user(&mut conn, "alice@example.com");
+        make_workspace(&mut conn, "Workspace A", &user);
+        make_workspace(&mut conn, "Workspace B", &user);
 
-        let workspaces = Workspace::find_all_for_user(&mut conn, &user_id)
-            .expect("find_all should succeed");
+        let workspaces = Workspace::for_user(&user, &mut conn)
+            .expect("for_user should succeed");
         assert_eq!(workspaces.len(), 2);
     }
 
     #[test]
     fn owner_event_is_appended_to_log() {
         let mut conn = setup_test_db();
-        let user_id = make_user(&mut conn, "alice@example.com");
-        let ws = make_workspace(&mut conn, "My Finances", &user_id);
+        let user = make_user(&mut conn, "alice@example.com");
+        let ws = make_workspace(&mut conn, "My Finances", &user);
 
         let events: Vec<MembershipEvent> = membership_events::table
             .filter(membership_events::workspace_id.eq(&ws.id))
@@ -360,27 +361,27 @@ mod tests {
     #[test]
     fn remove_last_owner_is_rejected_atomically() {
         let mut conn = setup_test_db();
-        let user_id = make_user(&mut conn, "alice@example.com");
-        let ws = make_workspace(&mut conn, "My Finances", &user_id);
+        let user = make_user(&mut conn, "alice@example.com");
+        let ws = make_workspace(&mut conn, "My Finances", &user);
 
-        let err = Workspace::remove_member(&mut conn, &ws.id, &user_id, &user_id)
+        let err = ws.remove_member(&user, &user, &mut conn)
             .expect_err("removing last owner should fail");
 
         assert!(matches!(err, AppError::Conflict(_)));
 
-        let count = Workspace::owner_count(&mut conn, &ws.id)
-            .expect("owner count should succeed");
+        let count = ws.num_owners(&mut conn)
+            .expect("num_owners should succeed");
         assert_eq!(count, 1, "workspace must still have one owner");
     }
 
     #[test]
     fn non_member_has_no_role() {
         let mut conn = setup_test_db();
-        let owner_id = make_user(&mut conn, "owner@example.com");
-        let outsider_id = make_user(&mut conn, "outsider@example.com");
-        let ws = make_workspace(&mut conn, "My Finances", &owner_id);
+        let owner = make_user(&mut conn, "owner@example.com");
+        let outsider = make_user(&mut conn, "outsider@example.com");
+        let ws = make_workspace(&mut conn, "My Finances", &owner);
 
-        let role = Workspace::role_for_user(&mut conn, &ws.id, &outsider_id)
+        let role = ws.user_role(&outsider, &mut conn)
             .expect("role query should succeed");
         assert!(role.is_none(), "outsider should have no role");
     }
@@ -388,13 +389,13 @@ mod tests {
     #[test]
     fn is_member_returns_false_for_non_member() {
         let mut conn = setup_test_db();
-        let owner_id = make_user(&mut conn, "owner@example.com");
-        let outsider_id = make_user(&mut conn, "outsider@example.com");
-        let ws = make_workspace(&mut conn, "My Finances", &owner_id);
+        let owner = make_user(&mut conn, "owner@example.com");
+        let outsider = make_user(&mut conn, "outsider@example.com");
+        let ws = make_workspace(&mut conn, "My Finances", &owner);
 
-        assert!(!Workspace::is_member(&mut conn, &ws.id, &outsider_id)
+        assert!(!ws.is_member(&outsider, &mut conn)
             .expect("is_member should succeed"));
-        assert!(Workspace::is_member(&mut conn, &ws.id, &owner_id)
+        assert!(ws.is_member(&owner, &mut conn)
             .expect("is_member should succeed"));
     }
 
@@ -406,17 +407,17 @@ mod tests {
         let ws_a = make_workspace(&mut conn, "Workspace A", &user_a);
         let ws_b = make_workspace(&mut conn, "Workspace B", &user_b);
 
-        let members_b = Workspace::members(&mut conn, &ws_b.id)
+        let members_b = ws_b.members(&mut conn)
             .expect("members query should succeed");
         assert!(
-            members_b.iter().all(|m| m.user_id != user_a),
+            members_b.iter().all(|m| m.user_id != user_a.id),
             "user_a must not appear in workspace B"
         );
 
-        let members_a = Workspace::members(&mut conn, &ws_a.id)
+        let members_a = ws_a.members(&mut conn)
             .expect("members query should succeed");
         assert!(
-            members_a.iter().all(|m| m.user_id != user_b),
+            members_a.iter().all(|m| m.user_id != user_b.id),
             "user_b must not appear in workspace A"
         );
     }
@@ -429,8 +430,8 @@ mod tests {
         make_workspace(&mut conn, "A's Workspace", &user_a);
         make_workspace(&mut conn, "B's Workspace", &user_b);
 
-        let a_workspaces = Workspace::find_all_for_user(&mut conn, &user_a)
-            .expect("find_all_for_user should succeed");
+        let a_workspaces = Workspace::for_user(&user_a, &mut conn)
+            .expect("for_user should succeed");
 
         assert_eq!(a_workspaces.len(), 1);
         assert_eq!(a_workspaces[0].name, "A's Workspace");
@@ -439,24 +440,24 @@ mod tests {
     #[test]
     fn non_owner_can_be_removed() {
         let mut conn = setup_test_db();
-        let owner_id = make_user(&mut conn, "owner@example.com");
-        let editor_id = make_user(&mut conn, "editor@example.com");
-        let ws = make_workspace(&mut conn, "My Finances", &owner_id);
+        let owner = make_user(&mut conn, "owner@example.com");
+        let editor = make_user(&mut conn, "editor@example.com");
+        let ws = make_workspace(&mut conn, "My Finances", &owner);
 
         diesel::insert_into(workspace_members::table)
             .values(NewWorkspaceMember {
                 workspace_id: ws.id.clone(),
-                user_id: editor_id.clone(),
+                user_id: editor.id.clone(),
                 role: Role::Editor.as_str().to_string(),
                 joined_at: chrono::Utc::now().naive_utc(),
             })
             .execute(&mut conn)
             .expect("insert editor should succeed");
 
-        Workspace::remove_member(&mut conn, &ws.id, &editor_id, &owner_id)
+        ws.remove_member(&editor, &owner, &mut conn)
             .expect("removing editor should succeed");
 
-        let role = Workspace::role_for_user(&mut conn, &ws.id, &editor_id)
+        let role = ws.user_role(&editor, &mut conn)
             .expect("role query should succeed");
         assert!(role.is_none(), "editor should no longer be a member");
     }

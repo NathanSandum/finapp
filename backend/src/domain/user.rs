@@ -22,7 +22,7 @@ pub struct User {
 }
 
 impl User {
-    pub fn from_email(conn: &mut SqliteConnection, email: &str) -> Result<Option<User>, AppError> {
+    pub fn from_email(email: &str, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {
         users::table
             .filter(users::email.eq(email))
             .select(User::as_select())
@@ -135,7 +135,7 @@ mod tests {
         let mut conn = setup_test_db();
         create_user(&mut conn, "alice@example.com");
 
-        let found = User::from_email(&mut conn, "alice@example.com")
+        let found = User::from_email("alice@example.com", &mut conn)
             .expect("query should succeed")
             .expect("user should be found");
 
@@ -145,7 +145,7 @@ mod tests {
     #[test]
     fn from_email_returns_none_for_unknown() {
         let mut conn = setup_test_db();
-        let found = User::from_email(&mut conn, "nobody@example.com")
+        let found = User::from_email("nobody@example.com", &mut conn)
             .expect("query should succeed");
         assert!(found.is_none());
     }
