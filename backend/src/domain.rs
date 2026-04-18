@@ -1,4 +1,5 @@
 pub mod account;
+pub mod baseline;
 pub mod category;
 pub mod transaction;
 pub mod user;
