@@ -65,13 +65,10 @@ impl IntoResponse for AppError {
                 StatusCode::UNPROCESSABLE_ENTITY,
                 ErrorBody { code: "validation_error", message: "validation failed".into(), fields: Some(fields) },
             ),
-            AppError::Internal(detail) => {
-                eprintln!("internal error: {detail}");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    ErrorBody { code: "internal_error", message: "an unexpected error occurred".into(), fields: None },
-                )
-            }
+            AppError::Internal(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ErrorBody { code: "internal_error", message: "an unexpected error occurred".into(), fields: None },
+            ),
         };
         (status, Json(body)).into_response()
     }
