@@ -260,11 +260,28 @@ impl NewWorkspace {
 
 // ── Role ─────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Role {
-    Owner,
-    Editor,
     Viewer,
+    Editor,
+    Owner,
+}
+
+impl PartialOrd for Role {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Role {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let level = |r: &Role| match r {
+            Role::Viewer => 0,
+            Role::Editor => 1,
+            Role::Owner => 2,
+        };
+        level(self).cmp(&level(other))
+    }
 }
 
 impl Role {

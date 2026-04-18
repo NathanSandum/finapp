@@ -117,15 +117,8 @@ fn extract_workspace_id_from_uri(parts: &Parts) -> Result<String, AppError> {
 }
 
 impl WorkspaceMember {
-    /// Check that the member has at least the required role.
     pub fn require_role(&self, minimum: &Role) -> Result<(), AppError> {
-        let level = |r: &Role| match r {
-            Role::Owner => 3,
-            Role::Editor => 2,
-            Role::Viewer => 1,
-        };
-
-        if level(&self.role) >= level(minimum) {
+        if self.role >= *minimum {
             Ok(())
         } else {
             Err(AppError::Forbidden)
