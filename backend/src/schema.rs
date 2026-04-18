@@ -105,7 +105,18 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    sessions (id) {
+        id -> Text,
+        user_id -> Text,
+        token_hash -> Text,
+        expires_at -> Timestamp,
+        created_at -> Timestamp,
+    }
+}
+
 diesel::joinable!(workspace_members -> workspaces (workspace_id));
+diesel::joinable!(sessions -> users (user_id));
 diesel::joinable!(categories -> workspaces (workspace_id));
 diesel::joinable!(accounts -> workspaces (workspace_id));
 diesel::joinable!(transactions -> workspaces (workspace_id));
@@ -122,4 +133,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     transactions,
     line_items,
     baselines,
+    sessions,
+    users,
 );
