@@ -1,3 +1,4 @@
+mod error;
 mod test_helpers;
 
 use axum::{routing::get, Json, Router};
