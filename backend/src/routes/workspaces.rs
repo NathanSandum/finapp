@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::auth::AuthUser;
-use crate::domain::user::User;
+use crate::domain::user::{User, UserRef};
 use crate::domain::workspace::{NewWorkspace, Workspace};
 use crate::error::AppError;
 use crate::permissions;
@@ -94,7 +94,7 @@ pub async fn get(
 #[derive(Deserialize)]
 pub struct RemoveMemberPath {
     workspace_id: String,
-    user_id: String,
+    user_id: UserRef,
 }
 
 pub async fn remove_member(
@@ -110,7 +110,7 @@ pub async fn remove_member(
     let actor_role = ws.user_role(&actor, &mut conn)?
         .ok_or(AppError::Forbidden)?;
 
-    let target = User::from_id(&path.user_id, &mut conn)?
+    let target = User::from_ref(&path.user_id, &mut conn)?
         .ok_or(AppError::NotFound("user".into()))?;
 
     let target_role = ws.user_role(&target, &mut conn)?

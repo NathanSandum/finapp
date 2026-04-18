@@ -37,6 +37,41 @@ async fn main() {
             "/workspaces/{workspace_id}/members/{user_id}",
             delete(routes::workspaces::remove_member),
         )
+        // Categories
+        .route(
+            "/workspaces/{workspace_id}/categories",
+            get(routes::categories::list).post(routes::categories::create),
+        )
+        .route(
+            "/workspaces/{workspace_id}/categories/{category_id}",
+            delete(routes::categories::delete),
+        )
+        // Accounts
+        .route(
+            "/workspaces/{workspace_id}/accounts",
+            get(routes::accounts::list).post(routes::accounts::create),
+        )
+        .route(
+            "/workspaces/{workspace_id}/accounts/{account_id}",
+            delete(routes::accounts::delete),
+        )
+        .route(
+            "/workspaces/{workspace_id}/accounts/{account_id}/balance",
+            get(routes::accounts::balance),
+        )
+        // Transactions
+        .route(
+            "/workspaces/{workspace_id}/transactions",
+            post(routes::transactions::create),
+        )
+        .route(
+            "/workspaces/{workspace_id}/accounts/{account_id}/transactions",
+            get(routes::transactions::list),
+        )
+        .route(
+            "/workspaces/{workspace_id}/transactions/{transaction_id}",
+            delete(routes::transactions::delete),
+        )
         .layer(Extension(pool))
         .layer(CorsLayer::permissive());
 

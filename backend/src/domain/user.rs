@@ -11,7 +11,9 @@ use crate::error::AppError;
 use crate::schema::users;
 
 /// Lightweight identity reference — just an id, no DB load required.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Deserializes from a plain string (e.g. in path parameters).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(transparent)]
 pub struct UserRef {
     pub id: String,
 }
@@ -40,13 +42,17 @@ impl User {
 }
 
 impl User {
-    pub fn from_id(id: &str, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {
+    pub fn from_ref(user_ref: &UserRef, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {
         users::table
-            .find(id)
+            .find(&user_ref.id)
             .select(User::as_select())
             .first(conn)
             .optional()
             .map_err(|err| AppError::Internal(format!("user lookup failed: {err}")))
+    }
+
+    pub fn from_id(id: &str, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {
+        Self::from_ref(&UserRef::new(id), conn)
     }
 
     pub fn from_email(email: &str, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {

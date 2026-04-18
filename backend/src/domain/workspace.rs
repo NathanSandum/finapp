@@ -8,6 +8,18 @@ use crate::schema::{membership_events, workspace_members, workspaces};
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(transparent)]
+pub struct WorkspaceRef {
+    pub id: String,
+}
+
+impl WorkspaceRef {
+    pub fn new(id: &str) -> Self {
+        WorkspaceRef { id: id.to_string() }
+    }
+}
+
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = workspaces)]
 pub struct Workspace {
@@ -18,16 +30,27 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn from_id(
-        id: &str,
+    pub fn as_ref(&self) -> WorkspaceRef {
+        WorkspaceRef { id: self.id.clone() }
+    }
+
+    pub fn from_ref(
+        workspace_ref: &WorkspaceRef,
         conn: &mut SqliteConnection,
     ) -> Result<Option<Workspace>, AppError> {
         workspaces::table
-            .find(id)
+            .find(&workspace_ref.id)
             .select(Workspace::as_select())
             .first(conn)
             .optional()
             .map_err(|err| AppError::Internal(format!("workspace lookup failed: {err}")))
+    }
+
+    pub fn from_id(
+        id: &str,
+        conn: &mut SqliteConnection,
+    ) -> Result<Option<Workspace>, AppError> {
+        Self::from_ref(&WorkspaceRef::new(id), conn)
     }
 
     pub fn for_user(

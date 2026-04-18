@@ -9,6 +9,18 @@ use crate::schema::categories;
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(transparent)]
+pub struct CategoryRef {
+    pub id: String,
+}
+
+impl CategoryRef {
+    pub fn new(id: &str) -> Self {
+        CategoryRef { id: id.to_string() }
+    }
+}
+
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = categories)]
 pub struct Category {
@@ -22,6 +34,23 @@ pub struct Category {
 }
 
 impl Category {
+    pub fn as_ref(&self) -> CategoryRef {
+        CategoryRef { id: self.id.clone() }
+    }
+
+    pub fn from_ref(category_ref: &CategoryRef, conn: &mut SqliteConnection) -> Result<Option<Category>, AppError> {
+        categories::table
+            .find(&category_ref.id)
+            .select(Category::as_select())
+            .first(conn)
+            .optional()
+            .map_err(|err| AppError::Internal(format!("category lookup failed: {err}")))
+    }
+
+    pub fn from_id(id: &str, conn: &mut SqliteConnection) -> Result<Option<Category>, AppError> {
+        Self::from_ref(&CategoryRef::new(id), conn)
+    }
+
     pub fn for_workspace(
         workspace: &Workspace,
         conn: &mut SqliteConnection,

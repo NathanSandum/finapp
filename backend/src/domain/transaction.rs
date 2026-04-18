@@ -10,6 +10,18 @@ use crate::schema::{line_items, transactions};
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(transparent)]
+pub struct TransactionRef {
+    pub id: String,
+}
+
+impl TransactionRef {
+    pub fn new(id: &str) -> Self {
+        TransactionRef { id: id.to_string() }
+    }
+}
+
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = transactions)]
 pub struct Transaction {
@@ -27,6 +39,23 @@ pub struct Transaction {
 }
 
 impl Transaction {
+    pub fn as_ref(&self) -> TransactionRef {
+        TransactionRef { id: self.id.clone() }
+    }
+
+    pub fn from_ref(transaction_ref: &TransactionRef, conn: &mut SqliteConnection) -> Result<Option<Transaction>, AppError> {
+        transactions::table
+            .find(&transaction_ref.id)
+            .select(Transaction::as_select())
+            .first(conn)
+            .optional()
+            .map_err(|err| AppError::Internal(format!("transaction lookup failed: {err}")))
+    }
+
+    pub fn from_id(id: &str, conn: &mut SqliteConnection) -> Result<Option<Transaction>, AppError> {
+        Self::from_ref(&TransactionRef::new(id), conn)
+    }
+
     pub fn for_account(
         account: &Account,
         conn: &mut SqliteConnection,
