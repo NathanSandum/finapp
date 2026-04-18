@@ -106,16 +106,26 @@ pub async fn remove_member(
     let ws = Workspace::from_id(&path.workspace_id, &mut conn)?
         .ok_or(AppError::Forbidden)?;
 
-    // Only owners can remove members (unless removing self)
     let actor_role = ws.user_role(&actor, &mut conn)?
         .ok_or(AppError::Forbidden)?;
 
-    if path.user_id != actor.id && actor_role < Role::Owner {
+    let target = User::from_id(&path.user_id, &mut conn)?
+        .ok_or(AppError::NotFound("user".into()))?;
+
+    let target_role = ws.user_role(&target, &mut conn)?
+        .ok_or(AppError::NotFound("member".into()))?;
+
+    let is_self = actor.id == target.id;
+
+    // Owners can only be removed by themselves (no coups)
+    if target_role >= Role::Owner && !is_self {
         return Err(AppError::Forbidden);
     }
 
-    let target = User::from_id(&path.user_id, &mut conn)?
-        .ok_or(AppError::NotFound("user".into()))?;
+    // Non-self removal requires owner
+    if !is_self && actor_role < Role::Owner {
+        return Err(AppError::Forbidden);
+    }
 
     ws.remove_member(&target, &actor, &mut conn)?;
 
