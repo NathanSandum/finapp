@@ -1,3 +1,16 @@
+impl From<diesel::result::Error> for AppError {
+    fn from(e: diesel::result::Error) -> Self {
+        match e {
+            diesel::result::Error::DatabaseError(
+                diesel::result::DatabaseErrorKind::UniqueViolation,
+                _,
+            ) => AppError::Conflict("unique constraint violated".into()),
+            diesel::result::Error::NotFound => AppError::NotFound("record not found".into()),
+            _ => AppError::Internal,
+        }
+    }
+}
+
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},

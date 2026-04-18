@@ -1,4 +1,6 @@
+mod domain;
 mod error;
+mod schema;
 mod test_helpers;
 
 use axum::{routing::get, Json, Router};
