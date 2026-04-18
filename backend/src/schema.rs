@@ -92,6 +92,19 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    baselines (id) {
+        id -> Text,
+        workspace_id -> Text,
+        category_id -> Text,
+        period_type -> Text,
+        period_start -> Text,
+        amount -> Integer,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
 diesel::joinable!(workspace_members -> workspaces (workspace_id));
 diesel::joinable!(categories -> workspaces (workspace_id));
 diesel::joinable!(accounts -> workspaces (workspace_id));
@@ -99,6 +112,8 @@ diesel::joinable!(transactions -> workspaces (workspace_id));
 diesel::joinable!(transactions -> accounts (account_id));
 diesel::joinable!(line_items -> transactions (transaction_id));
 diesel::joinable!(line_items -> categories (category_id));
+diesel::joinable!(baselines -> workspaces (workspace_id));
+diesel::joinable!(baselines -> categories (category_id));
 diesel::allow_tables_to_appear_in_same_query!(
     workspace_members,
     workspaces,
@@ -106,4 +121,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     accounts,
     transactions,
     line_items,
+    baselines,
 );
