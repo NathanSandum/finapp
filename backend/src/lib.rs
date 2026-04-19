@@ -53,6 +53,11 @@ pub fn build_router(pool: DbPool) -> Router {
             "/workspaces/{workspace}/accounts/{account}/balance",
             get(routes::accounts::balance),
         )
+        // Import
+        .route(
+            "/workspaces/{workspace}/import",
+            post(routes::import::import),
+        )
         // Transactions
         .route(
             "/workspaces/{workspace}/transactions",

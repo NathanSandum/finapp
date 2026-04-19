@@ -620,3 +620,192 @@ async fn transfer_transaction_records_transfer_account() {
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(txn_body["transfer_account"], sav_id);
 }
+
+// ── Import tests ───────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn import_creates_accounts_categories_and_transactions() {
+    let app = app();
+    let (token, _, ws_id) = setup_workspace(&app).await;
+
+    let (status, body) = post(
+        &app,
+        &format!("/workspaces/{ws_id}/import"),
+        Some(&token),
+        json!({
+            "transactions": [
+                {
+                    "account": "Chequing",
+                    "account_type": "chequing",
+                    "date": "2026-01-02",
+                    "description": "Household Expenses",
+                    "amount": -12318,
+                    "category": "Household Expenses",
+                    "cleared": true
+                },
+                {
+                    "account": "Chequing",
+                    "account_type": "chequing",
+                    "date": "2026-01-02",
+                    "description": "Cafes",
+                    "amount": -901,
+                    "category": "Cafes",
+                    "cleared": true
+                },
+                {
+                    "account": "Chequing",
+                    "account_type": "chequing",
+                    "date": "2026-01-05",
+                    "description": "Benefits and Tax Credits",
+                    "amount": 13325,
+                    "category": "Benefits and Tax Credits",
+                    "cleared": true
+                }
+            ]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "import failed: {body}");
+    assert_eq!(body["accounts_created"], 1);
+    assert_eq!(body["categories_created"], 3);
+    assert_eq!(body["transactions_created"], 3);
+
+    // Verify accounts exist
+    let (_, acct_body) = get(&app, &format!("/workspaces/{ws_id}/accounts"), &token).await;
+    let accounts = acct_body["accounts"].as_array().unwrap();
+    assert_eq!(accounts.len(), 1);
+    assert_eq!(accounts[0]["name"], "Chequing");
+
+    // Verify categories exist
+    let (_, cat_body) = get(&app, &format!("/workspaces/{ws_id}/categories"), &token).await;
+    assert_eq!(cat_body["categories"].as_array().unwrap().len(), 3);
+}
+
+#[tokio::test]
+async fn import_reuses_existing_accounts_and_categories() {
+    let app = app();
+    let (token, _, ws_id) = setup_workspace(&app).await;
+
+    // Pre-create an account and category
+    post(
+        &app,
+        &format!("/workspaces/{ws_id}/accounts"),
+        Some(&token),
+        json!({ "name": "Chequing", "account_type": "chequing" }),
+    )
+    .await;
+    post(
+        &app,
+        &format!("/workspaces/{ws_id}/categories"),
+        Some(&token),
+        json!({ "name": "Cafes" }),
+    )
+    .await;
+
+    let (status, body) = post(
+        &app,
+        &format!("/workspaces/{ws_id}/import"),
+        Some(&token),
+        json!({
+            "transactions": [
+                {
+                    "account": "Chequing",
+                    "account_type": "chequing",
+                    "date": "2026-01-06",
+                    "description": "Cafes",
+                    "amount": -1506,
+                    "category": "Cafes",
+                    "cleared": true
+                }
+            ]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "import failed: {body}");
+    assert_eq!(body["accounts_created"], 0);
+    assert_eq!(body["categories_created"], 0);
+    assert_eq!(body["transactions_created"], 1);
+
+    // Should still only have 1 account, 1 category
+    let (_, acct_body) = get(&app, &format!("/workspaces/{ws_id}/accounts"), &token).await;
+    assert_eq!(acct_body["accounts"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn import_multiple_accounts() {
+    let app = app();
+    let (token, _, ws_id) = setup_workspace(&app).await;
+
+    let (status, body) = post(
+        &app,
+        &format!("/workspaces/{ws_id}/import"),
+        Some(&token),
+        json!({
+            "transactions": [
+                {
+                    "account": "Chequing",
+                    "account_type": "chequing",
+                    "date": "2026-01-02",
+                    "description": "Groceries",
+                    "amount": -5000,
+                    "category": "Household Expenses",
+                    "cleared": true
+                },
+                {
+                    "account": "Credit Card",
+                    "account_type": "credit",
+                    "date": "2026-01-03",
+                    "description": "Recreation",
+                    "amount": -2559,
+                    "category": "Recreation",
+                    "cleared": true
+                }
+            ]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["accounts_created"], 2);
+    assert_eq!(body["transactions_created"], 2);
+}
+
+#[tokio::test]
+async fn import_empty_transactions_succeeds() {
+    let app = app();
+    let (token, _, ws_id) = setup_workspace(&app).await;
+
+    let (status, body) = post(
+        &app,
+        &format!("/workspaces/{ws_id}/import"),
+        Some(&token),
+        json!({ "transactions": [] }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["transactions_created"], 0);
+}
+
+#[tokio::test]
+async fn import_non_member_denied() {
+    let app = app();
+    let (_, _, ws_id) = setup_workspace(&app).await;
+    let (outsider_token, _) = register(&app, "outsider@example.com").await;
+
+    let (status, _) = post(
+        &app,
+        &format!("/workspaces/{ws_id}/import"),
+        Some(&outsider_token),
+        json!({
+            "transactions": [{
+                "account": "Chequing",
+                "account_type": "chequing",
+                "date": "2026-01-02",
+                "amount": -1000,
+                "category": "Test",
+                "cleared": true
+            }]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
