@@ -9,6 +9,7 @@ use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
+use backend::domain::category::CategoryRef;
 use backend::test_helpers::MIGRATIONS;
 use backend::DbPool;
 
@@ -232,7 +233,7 @@ async fn category_crud() {
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
-    let cat_id = body["id"].as_str().unwrap().to_string();
+    let category: CategoryRef = serde_json::from_value(body["id"].clone()).unwrap();
     assert_eq!(body["name"], "Groceries");
 
     // List
@@ -243,7 +244,7 @@ async fn category_crud() {
     // Delete
     let (status, _) = delete(
         &app,
-        &format!("/workspaces/{ws_id}/categories/{cat_id}"),
+        &format!("/workspaces/{ws_id}/categories/{category}"),
         &token,
     )
     .await;
@@ -327,7 +328,7 @@ async fn transaction_lifecycle() {
         json!({ "name": "Groceries" }),
     )
     .await;
-    let cat_id = cat_body["id"].as_str().unwrap();
+    let category: CategoryRef = serde_json::from_value(cat_body["id"].clone()).unwrap();
 
     // Create transaction
     let (status, txn_body) = post(
@@ -341,7 +342,7 @@ async fn transaction_lifecycle() {
             "amount": -5000,
             "cleared": true,
             "line_items": [
-                { "category_id": cat_id, "amount": -5000 }
+                { "category_id": category, "amount": -5000 }
             ]
         }),
     )
@@ -410,7 +411,7 @@ async fn transaction_validation_errors() {
         json!({ "name": "Groceries" }),
     )
     .await;
-    let cat_id = cat_body["id"].as_str().unwrap();
+    let category: CategoryRef = serde_json::from_value(cat_body["id"].clone()).unwrap();
 
     // Mismatched line items sum
     let (status, body) = post(
@@ -422,7 +423,7 @@ async fn transaction_validation_errors() {
             "date": "2026-04-15",
             "amount": -5000,
             "line_items": [
-                { "category_id": cat_id, "amount": -3000 }
+                { "category_id": category, "amount": -3000 }
             ]
         }),
     )
@@ -534,7 +535,7 @@ async fn balance_only_includes_cleared() {
         json!({ "name": "Income" }),
     )
     .await;
-    let cat_id = cat_body["id"].as_str().unwrap();
+    let category: CategoryRef = serde_json::from_value(cat_body["id"].clone()).unwrap();
 
     // Cleared transaction
     post(
@@ -546,7 +547,7 @@ async fn balance_only_includes_cleared() {
             "date": "2026-04-10",
             "amount": 100000,
             "cleared": true,
-            "line_items": [{ "category_id": cat_id, "amount": 100000 }]
+            "line_items": [{ "category_id": category, "amount": 100000 }]
         }),
     )
     .await;
@@ -560,7 +561,7 @@ async fn balance_only_includes_cleared() {
             "account": acct_id,
             "date": "2026-04-12",
             "amount": -5000,
-            "line_items": [{ "category_id": cat_id, "amount": -5000 }]
+            "line_items": [{ "category_id": category, "amount": -5000 }]
         }),
     )
     .await;
@@ -606,7 +607,7 @@ async fn transfer_transaction_records_transfer_account() {
         json!({ "name": "Transfer" }),
     )
     .await;
-    let cat_id = cat_body["id"].as_str().unwrap();
+    let category: CategoryRef = serde_json::from_value(cat_body["id"].clone()).unwrap();
 
     let (status, txn_body) = post(
         &app,
@@ -617,7 +618,7 @@ async fn transfer_transaction_records_transfer_account() {
             "transfer_account": sav_id,
             "date": "2026-04-15",
             "amount": -10000,
-            "line_items": [{ "category_id": cat_id, "amount": -10000 }]
+            "line_items": [{ "category_id": category, "amount": -10000 }]
         }),
     )
     .await;
@@ -627,8 +628,7 @@ async fn transfer_transaction_records_transfer_account() {
 
 // ── Baseline tests ─────────────────────────────────────────────────────────
 
-/// Helper: create a category and return its id.
-async fn create_category(app: &Router, ws_id: &str, token: &str, name: &str) -> String {
+async fn create_category(app: &Router, ws_id: &str, token: &str, name: &str) -> CategoryRef {
     let (_, body) = post(
         app,
         &format!("/workspaces/{ws_id}/categories"),
@@ -636,14 +636,14 @@ async fn create_category(app: &Router, ws_id: &str, token: &str, name: &str) -> 
         json!({ "name": name }),
     )
     .await;
-    body["id"].as_str().unwrap().to_string()
+    serde_json::from_value(body["id"].clone()).unwrap()
 }
 
 #[tokio::test]
 async fn create_and_list_baselines() {
     let app = app();
     let (token, _, ws_id) = setup_workspace(&app).await;
-    let cat_id = create_category(&app, &ws_id, &token, "Groceries").await;
+    let category = create_category(&app, &ws_id, &token, "Groceries").await;
 
     // Create baseline
     let (status, body) = post(
@@ -651,7 +651,7 @@ async fn create_and_list_baselines() {
         &format!("/workspaces/{ws_id}/baselines"),
         Some(&token),
         json!({
-            "category": cat_id,
+            "category": category,
             "period_type": "monthly",
             "period_start": "2026-04-01",
             "amount": -50000,
@@ -661,7 +661,7 @@ async fn create_and_list_baselines() {
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(body["amount"], -50000);
     assert_eq!(body["period_type"], "monthly");
-    assert_eq!(body["category"], cat_id);
+    assert_eq!(body["category"], category.to_string());
 
     // List baselines for this period
     let (status, body) = get(
@@ -680,14 +680,14 @@ async fn create_and_list_baselines() {
 async fn update_baseline_amount() {
     let app = app();
     let (token, _, ws_id) = setup_workspace(&app).await;
-    let cat_id = create_category(&app, &ws_id, &token, "Groceries").await;
+    let category = create_category(&app, &ws_id, &token, "Groceries").await;
 
     let (_, body) = post(
         &app,
         &format!("/workspaces/{ws_id}/baselines"),
         Some(&token),
         json!({
-            "category": cat_id,
+            "category": category,
             "period_type": "monthly",
             "period_start": "2026-04-01",
             "amount": -50000,
@@ -721,14 +721,14 @@ async fn update_baseline_amount() {
 async fn duplicate_baseline_rejected() {
     let app = app();
     let (token, _, ws_id) = setup_workspace(&app).await;
-    let cat_id = create_category(&app, &ws_id, &token, "Groceries").await;
+    let category = create_category(&app, &ws_id, &token, "Groceries").await;
 
     post(
         &app,
         &format!("/workspaces/{ws_id}/baselines"),
         Some(&token),
         json!({
-            "category": cat_id,
+            "category": category,
             "period_type": "monthly",
             "period_start": "2026-04-01",
             "amount": -50000,
@@ -741,7 +741,7 @@ async fn duplicate_baseline_rejected() {
         &format!("/workspaces/{ws_id}/baselines"),
         Some(&token),
         json!({
-            "category": cat_id,
+            "category": category,
             "period_type": "monthly",
             "period_start": "2026-04-01",
             "amount": -60000,
@@ -755,7 +755,7 @@ async fn duplicate_baseline_rejected() {
 async fn baseline_summary_with_actuals() {
     let app = app();
     let (token, _, ws_id) = setup_workspace(&app).await;
-    let cat_id = create_category(&app, &ws_id, &token, "Groceries").await;
+    let category = create_category(&app, &ws_id, &token, "Groceries").await;
 
     // Create account for transactions
     let (_, acct_body) = post(
@@ -773,7 +773,7 @@ async fn baseline_summary_with_actuals() {
         &format!("/workspaces/{ws_id}/baselines"),
         Some(&token),
         json!({
-            "category": cat_id,
+            "category": category,
             "period_type": "monthly",
             "period_start": "2026-04-01",
             "amount": -50000,
@@ -791,7 +791,7 @@ async fn baseline_summary_with_actuals() {
             "date": "2026-04-10",
             "amount": -45000,
             "cleared": true,
-            "line_items": [{ "category_id": cat_id, "amount": -45000 }]
+            "line_items": [{ "category_id": category, "amount": -45000 }]
         }),
     )
     .await;
@@ -815,7 +815,7 @@ async fn baseline_summary_with_actuals() {
 async fn non_member_cannot_access_baselines() {
     let app = app();
     let (token, _, ws_id) = setup_workspace(&app).await;
-    let cat_id = create_category(&app, &ws_id, &token, "Groceries").await;
+    let category = create_category(&app, &ws_id, &token, "Groceries").await;
 
     // Create a baseline as owner
     post(
@@ -823,7 +823,7 @@ async fn non_member_cannot_access_baselines() {
         &format!("/workspaces/{ws_id}/baselines"),
         Some(&token),
         json!({
-            "category": cat_id,
+            "category": category,
             "period_type": "monthly",
             "period_start": "2026-04-01",
             "amount": -50000,

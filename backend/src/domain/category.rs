@@ -9,9 +9,15 @@ use crate::schema::categories;
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
 pub struct CategoryRef(String);
+
+impl std::fmt::Display for CategoryRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
 
 
 #[derive(Debug, Queryable, Selectable)]
