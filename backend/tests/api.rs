@@ -272,7 +272,7 @@ async fn account_crud_and_balance() {
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
-    let acct_id = body["id"].as_str().unwrap().to_string();
+    let account_id = body["id"].as_str().unwrap().to_string();
     assert_eq!(body["currency"], "CAD");
 
     // List
@@ -283,7 +283,7 @@ async fn account_crud_and_balance() {
     // Balance (should be 0)
     let (status, body) = get(
         &app,
-        &format!("/workspaces/{ws_id}/accounts/{acct_id}/balance"),
+        &format!("/workspaces/{ws_id}/accounts/{account_id}/balance"),
         &token,
     )
     .await;
@@ -293,7 +293,7 @@ async fn account_crud_and_balance() {
     // Delete
     let (status, _) = delete(
         &app,
-        &format!("/workspaces/{ws_id}/accounts/{acct_id}"),
+        &format!("/workspaces/{ws_id}/accounts/{account_id}"),
         &token,
     )
     .await;
@@ -312,14 +312,14 @@ async fn transaction_lifecycle() {
     let (token, _, ws_id) = setup_workspace(&app).await;
 
     // Create account + category
-    let (_, acct_body) = post(
+    let (_, account_body) = post(
         &app,
         &format!("/workspaces/{ws_id}/accounts"),
         Some(&token),
         json!({ "name": "Chequing", "account_type": "chequing" }),
     )
     .await;
-    let acct_id = acct_body["id"].as_str().unwrap();
+    let account_id = account_body["id"].as_str().unwrap();
 
     let (_, cat_body) = post(
         &app,
@@ -336,7 +336,7 @@ async fn transaction_lifecycle() {
         &format!("/workspaces/{ws_id}/transactions"),
         Some(&token),
         json!({
-            "account": acct_id,
+            "account": account_id,
             "date": "2026-04-15",
             "description": "Weekly groceries",
             "amount": -5000,
@@ -355,7 +355,7 @@ async fn transaction_lifecycle() {
     // List transactions for account
     let (status, body) = get(
         &app,
-        &format!("/workspaces/{ws_id}/accounts/{acct_id}/transactions"),
+        &format!("/workspaces/{ws_id}/accounts/{account_id}/transactions"),
         &token,
     )
     .await;
@@ -365,7 +365,7 @@ async fn transaction_lifecycle() {
     // Balance should reflect cleared transaction
     let (_, balance_body) = get(
         &app,
-        &format!("/workspaces/{ws_id}/accounts/{acct_id}/balance"),
+        &format!("/workspaces/{ws_id}/accounts/{account_id}/balance"),
         &token,
     )
     .await;
@@ -383,7 +383,7 @@ async fn transaction_lifecycle() {
     // Balance should be back to 0
     let (_, balance_body) = get(
         &app,
-        &format!("/workspaces/{ws_id}/accounts/{acct_id}/balance"),
+        &format!("/workspaces/{ws_id}/accounts/{account_id}/balance"),
         &token,
     )
     .await;
@@ -395,14 +395,14 @@ async fn transaction_validation_errors() {
     let app = app();
     let (token, _, ws_id) = setup_workspace(&app).await;
 
-    let (_, acct_body) = post(
+    let (_, account_body) = post(
         &app,
         &format!("/workspaces/{ws_id}/accounts"),
         Some(&token),
         json!({ "name": "Chequing", "account_type": "chequing" }),
     )
     .await;
-    let acct_id = acct_body["id"].as_str().unwrap();
+    let account_id = account_body["id"].as_str().unwrap();
 
     let (_, cat_body) = post(
         &app,
@@ -419,7 +419,7 @@ async fn transaction_validation_errors() {
         &format!("/workspaces/{ws_id}/transactions"),
         Some(&token),
         json!({
-            "account": acct_id,
+            "account": account_id,
             "date": "2026-04-15",
             "amount": -5000,
             "line_items": [
@@ -437,7 +437,7 @@ async fn transaction_validation_errors() {
         &format!("/workspaces/{ws_id}/transactions"),
         Some(&token),
         json!({
-            "account": acct_id,
+            "account": account_id,
             "date": "2026-04-15",
             "amount": -5000,
             "line_items": []
@@ -519,14 +519,14 @@ async fn balance_only_includes_cleared() {
     let app = app();
     let (token, _, ws_id) = setup_workspace(&app).await;
 
-    let (_, acct_body) = post(
+    let (_, account_body) = post(
         &app,
         &format!("/workspaces/{ws_id}/accounts"),
         Some(&token),
         json!({ "name": "Chequing", "account_type": "chequing" }),
     )
     .await;
-    let acct_id = acct_body["id"].as_str().unwrap();
+    let account_id = account_body["id"].as_str().unwrap();
 
     let (_, cat_body) = post(
         &app,
@@ -543,7 +543,7 @@ async fn balance_only_includes_cleared() {
         &format!("/workspaces/{ws_id}/transactions"),
         Some(&token),
         json!({
-            "account": acct_id,
+            "account": account_id,
             "date": "2026-04-10",
             "amount": 100000,
             "cleared": true,
@@ -558,7 +558,7 @@ async fn balance_only_includes_cleared() {
         &format!("/workspaces/{ws_id}/transactions"),
         Some(&token),
         json!({
-            "account": acct_id,
+            "account": account_id,
             "date": "2026-04-12",
             "amount": -5000,
             "line_items": [{ "category_id": category, "amount": -5000 }]
@@ -568,7 +568,7 @@ async fn balance_only_includes_cleared() {
 
     let (_, body) = get(
         &app,
-        &format!("/workspaces/{ws_id}/accounts/{acct_id}/balance"),
+        &format!("/workspaces/{workspace}/accounts/{account_id}/balance"),
         &token,
     )
     .await;

@@ -57,15 +57,15 @@ pub async fn create(
     if let Some(ref currency) = body.currency {
         builder = builder.currency(currency);
     }
-    let acct = builder.insert(&mut conn)?;
+    let account = builder.insert(&mut conn)?;
 
     Ok((
         axum::http::StatusCode::CREATED,
         Json(json!({
-            "id": acct.id,
-            "name": acct.name,
-            "account_type": acct.account_type,
-            "currency": acct.currency,
+            "id": account.id,
+            "name": account.name,
+            "account_type": account.account_type,
+            "currency": account.currency,
         })),
     ))
 }
@@ -85,14 +85,14 @@ pub async fn delete(
     member.require_role(&Role::Editor)?;
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let acct = Account::from_ref(&path.account, &mut conn)?
+    let account = Account::from_ref(&path.account, &mut conn)?
         .ok_or(AppError::NotFound("account".into()))?;
 
-    if acct.workspace != member.workspace {
+    if account.workspace != member.workspace {
         return Err(AppError::NotFound("account".into()));
     }
 
-    acct.soft_delete(&mut conn)?;
+    account.soft_delete(&mut conn)?;
 
     Ok(Json(json!({ "status": "ok" })))
 }
