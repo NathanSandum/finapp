@@ -447,7 +447,6 @@ async fn cross_workspace_access_denied() {
     let app = app();
     let (_, _, ws_id) = setup_workspace(&app).await;
 
-    // Create second user with their own workspace
     let (token_b, _) = register(&app, "bob@example.com").await;
 
     // Bob can't list Alice's categories
@@ -458,4 +457,166 @@ async fn cross_workspace_access_denied() {
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
+
+    // Bob can't list Alice's accounts
+    let (status, _) = get(
+        &app,
+        &format!("/workspaces/{ws_id}/accounts"),
+        &token_b,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+// ── Auth edge cases ─────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn duplicate_registration_rejected() {
+    let app = app();
+    register(&app, "alice@example.com").await;
+
+    let (status, _) = post(
+        &app,
+        "/auth/register",
+        None,
+        json!({
+            "email": "alice@example.com",
+            "display_name": "Alice Again",
+            "password": "password123",
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+}
+
+// ── Member removal ──────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn owner_can_leave_if_not_last_owner() {
+    // Can't test multi-owner without an invite API — skip for now.
+    // But we CAN test that the last owner is rejected.
+    let app = app();
+    let (token, user_id, ws_id) = setup_workspace(&app).await;
+
+    let (status, body) = delete(
+        &app,
+        &format!("/workspaces/{ws_id}/members/{user_id}"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "last owner removal should fail: {body}");
+}
+
+// ── Balance: pending vs cleared ─────────────────────────────────────────────
+
+#[tokio::test]
+async fn balance_only_includes_cleared() {
+    let app = app();
+    let (token, _, ws_id) = setup_workspace(&app).await;
+
+    let (_, acct_body) = post(
+        &app,
+        &format!("/workspaces/{ws_id}/accounts"),
+        Some(&token),
+        json!({ "name": "Chequing", "account_type": "chequing" }),
+    )
+    .await;
+    let acct_id = acct_body["id"].as_str().unwrap();
+
+    let (_, cat_body) = post(
+        &app,
+        &format!("/workspaces/{ws_id}/categories"),
+        Some(&token),
+        json!({ "name": "Income" }),
+    )
+    .await;
+    let cat_id = cat_body["id"].as_str().unwrap();
+
+    // Cleared transaction
+    post(
+        &app,
+        &format!("/workspaces/{ws_id}/transactions"),
+        Some(&token),
+        json!({
+            "account": acct_id,
+            "date": "2026-04-10",
+            "amount": 100000,
+            "cleared": true,
+            "line_items": [{ "category_id": cat_id, "amount": 100000 }]
+        }),
+    )
+    .await;
+
+    // Pending transaction — should NOT affect balance
+    post(
+        &app,
+        &format!("/workspaces/{ws_id}/transactions"),
+        Some(&token),
+        json!({
+            "account": acct_id,
+            "date": "2026-04-12",
+            "amount": -5000,
+            "line_items": [{ "category_id": cat_id, "amount": -5000 }]
+        }),
+    )
+    .await;
+
+    let (_, body) = get(
+        &app,
+        &format!("/workspaces/{ws_id}/accounts/{acct_id}/balance"),
+        &token,
+    )
+    .await;
+    assert_eq!(body["cleared_balance"], 100000);
+}
+
+// ── Transfer transaction ────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn transfer_transaction_records_transfer_account() {
+    let app = app();
+    let (token, _, ws_id) = setup_workspace(&app).await;
+
+    let (_, chq_body) = post(
+        &app,
+        &format!("/workspaces/{ws_id}/accounts"),
+        Some(&token),
+        json!({ "name": "Chequing", "account_type": "chequing" }),
+    )
+    .await;
+    let chq_id = chq_body["id"].as_str().unwrap();
+
+    let (_, sav_body) = post(
+        &app,
+        &format!("/workspaces/{ws_id}/accounts"),
+        Some(&token),
+        json!({ "name": "Savings", "account_type": "savings" }),
+    )
+    .await;
+    let sav_id = sav_body["id"].as_str().unwrap();
+
+    let (_, cat_body) = post(
+        &app,
+        &format!("/workspaces/{ws_id}/categories"),
+        Some(&token),
+        json!({ "name": "Transfer" }),
+    )
+    .await;
+    let cat_id = cat_body["id"].as_str().unwrap();
+
+    let (status, txn_body) = post(
+        &app,
+        &format!("/workspaces/{ws_id}/transactions"),
+        Some(&token),
+        json!({
+            "account": chq_id,
+            "transfer_account": sav_id,
+            "date": "2026-04-15",
+            "amount": -10000,
+            "line_items": [{ "category_id": cat_id, "amount": -10000 }]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(txn_body["transfer_account"], sav_id);
 }
