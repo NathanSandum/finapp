@@ -29,7 +29,7 @@ impl Role {
 
 /// Determine the resource type for a membership action.
 pub fn membership_resource(actor: &UserRef, target: &UserRef, target_role: &Role) -> Resource {
-    if actor.id == target.id {
+    if actor == target {
         Resource::WorkspaceSelf
     } else if *target_role >= Role::Owner {
         Resource::WorkspaceOwner
@@ -43,7 +43,7 @@ mod tests {
     use super::*;
 
     fn user(id: &str) -> UserRef {
-        UserRef::new(id)
+        serde_json::from_value(serde_json::json!(id)).unwrap()
     }
 
     // ── has_permission ───────────────────────────────────────────────────

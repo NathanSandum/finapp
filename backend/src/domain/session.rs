@@ -21,7 +21,8 @@ fn hash_token(token: &str) -> String {
 #[diesel(table_name = sessions)]
 pub struct Session {
     pub id: String,
-    pub user_id: String,
+    #[diesel(column_name = user_id)]
+    pub user: String,
     pub token_hash: String,
     pub expires_at: NaiveDateTime,
     pub created_at: NaiveDateTime,
@@ -64,7 +65,8 @@ impl Session {
 #[diesel(table_name = sessions)]
 struct NewSessionRow {
     id: String,
-    user_id: String,
+    #[diesel(column_name = user_id)]
+    user: String,
     token_hash: String,
     expires_at: NaiveDateTime,
     created_at: NaiveDateTime,
@@ -89,7 +91,7 @@ impl NewSession {
         diesel::insert_into(sessions::table)
             .values(NewSessionRow {
                 id: Uuid::new_v4().to_string(),
-                user_id: user.id.clone(),
+                user: user.id.clone(),
                 token_hash,
                 expires_at,
                 created_at: now,
@@ -167,7 +169,7 @@ mod tests {
         diesel::insert_into(sessions::table)
             .values(NewSessionRow {
                 id: Uuid::new_v4().to_string(),
-                user_id: user.id.clone(),
+                user: user.id.clone(),
                 token_hash,
                 expires_at: expired,
                 created_at: now,

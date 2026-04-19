@@ -49,11 +49,17 @@ impl AccountType {
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(transparent)]
+pub struct AccountRef(String);
+
+
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = accounts)]
 pub struct Account {
     pub id: String,
-    pub workspace_id: String,
+    #[diesel(column_name = workspace_id)]
+    pub workspace: String,
     pub name: String,
     pub account_type: String,
     pub currency: String,
@@ -63,6 +69,19 @@ pub struct Account {
 }
 
 impl Account {
+    pub fn as_ref(&self) -> AccountRef {
+        AccountRef(self.id.clone())
+    }
+
+    pub fn from_ref(account_ref: &AccountRef, conn: &mut SqliteConnection) -> Result<Option<Account>, AppError> {
+        accounts::table
+            .find(&account_ref.0)
+            .select(Account::as_select())
+            .first(conn)
+            .optional()
+            .map_err(|err| AppError::Internal(format!("account lookup failed: {err}")))
+    }
+
     pub fn for_workspace(
         workspace: &Workspace,
         conn: &mut SqliteConnection,
@@ -95,7 +114,8 @@ impl Account {
 #[diesel(table_name = accounts)]
 struct NewAccountRow {
     id: String,
-    workspace_id: String,
+    #[diesel(column_name = workspace_id)]
+    workspace: String,
     name: String,
     account_type: String,
     currency: String,
@@ -104,7 +124,7 @@ struct NewAccountRow {
 }
 
 pub struct NewAccount {
-    workspace_id: String,
+    workspace: String,
     name: String,
     account_type: AccountType,
     currency: String,
@@ -113,7 +133,7 @@ pub struct NewAccount {
 impl NewAccount {
     pub fn new(workspace: &Workspace, name: &str, account_type: AccountType) -> Self {
         NewAccount {
-            workspace_id: workspace.id.clone(),
+            workspace: workspace.id.clone(),
             name: name.to_string(),
             account_type,
             currency: "CAD".to_string(),
@@ -130,7 +150,7 @@ impl NewAccount {
         diesel::insert_into(accounts::table)
             .values(NewAccountRow {
                 id: Uuid::new_v4().to_string(),
-                workspace_id: self.workspace_id,
+                workspace: self.workspace,
                 name: self.name.clone(),
                 account_type: self.account_type.as_str().to_string(),
                 currency: self.currency,
@@ -176,7 +196,7 @@ mod tests {
         assert_eq!(acct.name, "Chequing");
         assert_eq!(acct.account_type, "chequing");
         assert_eq!(acct.currency, "CAD");
-        assert_eq!(acct.workspace_id, ws.id);
+        assert_eq!(acct.workspace, ws.id);
     }
 
     #[test]

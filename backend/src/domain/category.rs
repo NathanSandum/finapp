@@ -9,11 +9,17 @@ use crate::schema::categories;
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(transparent)]
+pub struct CategoryRef(String);
+
+
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = categories)]
 pub struct Category {
     pub id: String,
-    pub workspace_id: String,
+    #[diesel(column_name = workspace_id)]
+    pub workspace: String,
     pub name: String,
     pub description: Option<String>,
     pub deleted_at: Option<NaiveDateTime>,
@@ -22,6 +28,19 @@ pub struct Category {
 }
 
 impl Category {
+    pub fn as_ref(&self) -> CategoryRef {
+        CategoryRef(self.id.clone())
+    }
+
+    pub fn from_ref(category_ref: &CategoryRef, conn: &mut SqliteConnection) -> Result<Option<Category>, AppError> {
+        categories::table
+            .find(&category_ref.0)
+            .select(Category::as_select())
+            .first(conn)
+            .optional()
+            .map_err(|err| AppError::Internal(format!("category lookup failed: {err}")))
+    }
+
     pub fn for_workspace(
         workspace: &Workspace,
         conn: &mut SqliteConnection,
@@ -50,7 +69,8 @@ impl Category {
 #[diesel(table_name = categories)]
 struct NewCategoryRow {
     id: String,
-    workspace_id: String,
+    #[diesel(column_name = workspace_id)]
+    workspace: String,
     name: String,
     description: Option<String>,
     created_at: NaiveDateTime,
@@ -58,7 +78,7 @@ struct NewCategoryRow {
 }
 
 pub struct NewCategory {
-    workspace_id: String,
+    workspace: String,
     name: String,
     description: Option<String>,
 }
@@ -66,7 +86,7 @@ pub struct NewCategory {
 impl NewCategory {
     pub fn new(workspace: &Workspace, name: &str) -> Self {
         NewCategory {
-            workspace_id: workspace.id.clone(),
+            workspace: workspace.id.clone(),
             name: name.to_string(),
             description: None,
         }
@@ -82,7 +102,7 @@ impl NewCategory {
         diesel::insert_into(categories::table)
             .values(NewCategoryRow {
                 id: Uuid::new_v4().to_string(),
-                workspace_id: self.workspace_id,
+                workspace: self.workspace,
                 name: self.name.clone(),
                 description: self.description,
                 created_at: now,
@@ -152,7 +172,7 @@ mod tests {
 
         assert_eq!(cat.name, "Groceries");
         assert_eq!(cat.description, Some("Food and household items".to_string()));
-        assert_eq!(cat.workspace_id, ws.id);
+        assert_eq!(cat.workspace, ws.id);
     }
 
     #[test]

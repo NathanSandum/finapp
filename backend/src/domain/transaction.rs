@@ -10,13 +10,21 @@ use crate::schema::{line_items, transactions};
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(transparent)]
+pub struct TransactionRef(String);
+
+
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = transactions)]
 pub struct Transaction {
     pub id: String,
-    pub workspace_id: String,
-    pub account_id: String,
-    pub transfer_account_id: Option<String>,
+    #[diesel(column_name = workspace_id)]
+    pub workspace: String,
+    #[diesel(column_name = account_id)]
+    pub account: String,
+    #[diesel(column_name = transfer_account_id)]
+    pub transfer_account: Option<String>,
     pub date: String,
     pub description: String,
     pub amount: i32,
@@ -27,6 +35,19 @@ pub struct Transaction {
 }
 
 impl Transaction {
+    pub fn as_ref(&self) -> TransactionRef {
+        TransactionRef(self.id.clone())
+    }
+
+    pub fn from_ref(transaction_ref: &TransactionRef, conn: &mut SqliteConnection) -> Result<Option<Transaction>, AppError> {
+        transactions::table
+            .find(&transaction_ref.0)
+            .select(Transaction::as_select())
+            .first(conn)
+            .optional()
+            .map_err(|err| AppError::Internal(format!("transaction lookup failed: {err}")))
+    }
+
     pub fn for_account(
         account: &Account,
         conn: &mut SqliteConnection,
@@ -76,8 +97,10 @@ impl Transaction {
 #[diesel(table_name = line_items)]
 pub struct LineItem {
     pub id: String,
-    pub transaction_id: String,
-    pub category_id: String,
+    #[diesel(column_name = transaction_id)]
+    pub transaction: String,
+    #[diesel(column_name = category_id)]
+    pub category: String,
     pub amount: i32,
     pub note: Option<String>,
     pub created_at: NaiveDateTime,
@@ -90,9 +113,12 @@ pub struct LineItem {
 #[diesel(table_name = transactions)]
 struct NewTransactionRow {
     id: String,
-    workspace_id: String,
-    account_id: String,
-    transfer_account_id: Option<String>,
+    #[diesel(column_name = workspace_id)]
+    workspace: String,
+    #[diesel(column_name = account_id)]
+    account: String,
+    #[diesel(column_name = transfer_account_id)]
+    transfer_account: Option<String>,
     date: String,
     description: String,
     amount: i32,
@@ -105,8 +131,10 @@ struct NewTransactionRow {
 #[diesel(table_name = line_items)]
 struct NewLineItemRow {
     id: String,
-    transaction_id: String,
-    category_id: String,
+    #[diesel(column_name = transaction_id)]
+    transaction: String,
+    #[diesel(column_name = category_id)]
+    category: String,
     amount: i32,
     note: Option<String>,
     created_at: NaiveDateTime,
@@ -116,15 +144,15 @@ struct NewLineItemRow {
 // ── NewTransaction ───────────────────────────────────────────────────────────
 
 pub struct LineItemInput {
-    pub category_id: String,
+    pub category: String,
     pub amount: i32,
     pub note: Option<String>,
 }
 
 impl LineItemInput {
-    pub fn new(category: &Category, amount: i32) -> Self {
+    pub fn new(cat: &Category, amount: i32) -> Self {
         LineItemInput {
-            category_id: category.id.clone(),
+            category: cat.id.clone(),
             amount,
             note: None,
         }
@@ -137,9 +165,9 @@ impl LineItemInput {
 }
 
 pub struct NewTransaction {
-    workspace_id: String,
-    account_id: String,
-    transfer_account_id: Option<String>,
+    workspace: String,
+    account: String,
+    transfer_account: Option<String>,
     date: String,
     description: String,
     amount: i32,
@@ -156,9 +184,9 @@ impl NewTransaction {
         line_items: Vec<LineItemInput>,
     ) -> Self {
         NewTransaction {
-            workspace_id: workspace.id.clone(),
-            account_id: account.id.clone(),
-            transfer_account_id: None,
+            workspace: workspace.id.clone(),
+            account: account.id.clone(),
+            transfer_account: None,
             date: date.to_string(),
             description: String::new(),
             amount,
@@ -178,7 +206,7 @@ impl NewTransaction {
     }
 
     pub fn transfer_to(mut self, account: &Account) -> Self {
-        self.transfer_account_id = Some(account.id.clone());
+        self.transfer_account = Some(account.id.clone());
         self
     }
 
@@ -219,9 +247,9 @@ impl NewTransaction {
             let txn = diesel::insert_into(transactions::table)
                 .values(NewTransactionRow {
                     id: txn_id.clone(),
-                    workspace_id: self.workspace_id,
-                    account_id: self.account_id,
-                    transfer_account_id: self.transfer_account_id,
+                    workspace: self.workspace,
+                    account: self.account,
+                    transfer_account: self.transfer_account,
                     date: self.date,
                     description: self.description,
                     amount: self.amount,
@@ -236,8 +264,8 @@ impl NewTransaction {
                 diesel::insert_into(line_items::table)
                     .values(NewLineItemRow {
                         id: Uuid::new_v4().to_string(),
-                        transaction_id: txn_id.clone(),
-                        category_id: li.category_id,
+                        transaction: txn_id.clone(),
+                        category: li.category,
                         amount: li.amount,
                         note: li.note,
                         created_at: now,
@@ -439,7 +467,7 @@ mod tests {
             .insert(&mut f.conn)
             .unwrap();
 
-        assert_eq!(txn.transfer_account_id, Some(savings.id));
+        assert_eq!(txn.transfer_account, Some(savings.id));
     }
 
     #[test]

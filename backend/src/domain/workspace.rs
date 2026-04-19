@@ -8,6 +8,11 @@ use crate::schema::{membership_events, workspace_members, workspaces};
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(transparent)]
+pub struct WorkspaceRef(String);
+
+
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = workspaces)]
 pub struct Workspace {
@@ -18,12 +23,16 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn from_id(
-        id: &str,
+    pub fn as_ref(&self) -> WorkspaceRef {
+        WorkspaceRef(self.id.clone())
+    }
+
+    pub fn from_ref(
+        workspace_ref: &WorkspaceRef,
         conn: &mut SqliteConnection,
     ) -> Result<Option<Workspace>, AppError> {
         workspaces::table
-            .find(id)
+            .find(&workspace_ref.0)
             .select(Workspace::as_select())
             .first(conn)
             .optional()
@@ -140,8 +149,10 @@ impl Workspace {
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = workspace_members)]
 pub struct WorkspaceMember {
-    pub workspace_id: String,
-    pub user_id: String,
+    #[diesel(column_name = workspace_id)]
+    pub workspace: String,
+    #[diesel(column_name = user_id)]
+    pub user: String,
     pub role: String,
     pub joined_at: NaiveDateTime,
 }
@@ -150,9 +161,12 @@ pub struct WorkspaceMember {
 #[diesel(table_name = membership_events)]
 pub struct MembershipEvent {
     pub id: String,
-    pub workspace_id: String,
-    pub user_id: String,
-    pub actor_id: String,
+    #[diesel(column_name = workspace_id)]
+    pub workspace: String,
+    #[diesel(column_name = user_id)]
+    pub user: String,
+    #[diesel(column_name = actor_id)]
+    pub actor: String,
     pub event_type: String,
     pub role: Option<String>,
     pub created_at: NaiveDateTime,
@@ -173,9 +187,12 @@ struct NewWorkspaceRow {
 #[diesel(table_name = membership_events)]
 struct NewMembershipEvent {
     id: String,
-    workspace_id: String,
-    user_id: String,
-    actor_id: String,
+    #[diesel(column_name = workspace_id)]
+    workspace: String,
+    #[diesel(column_name = user_id)]
+    user: String,
+    #[diesel(column_name = actor_id)]
+    actor: String,
     event_type: String,
     role: Option<String>,
     created_at: NaiveDateTime,
@@ -183,17 +200,17 @@ struct NewMembershipEvent {
 
 impl NewMembershipEvent {
     fn new(
-        workspace_id: &str,
-        user_id: &str,
-        actor_id: &str,
+        workspace: &str,
+        user: &str,
+        actor: &str,
         event_type: &str,
         role: Option<&str>,
     ) -> Self {
         NewMembershipEvent {
             id: Uuid::new_v4().to_string(),
-            workspace_id: workspace_id.to_string(),
-            user_id: user_id.to_string(),
-            actor_id: actor_id.to_string(),
+            workspace: workspace.to_string(),
+            user: user.to_string(),
+            actor: actor.to_string(),
             event_type: event_type.to_string(),
             role: role.map(|r| r.to_string()),
             created_at: chrono::Utc::now().naive_utc(),
@@ -211,8 +228,10 @@ impl NewMembershipEvent {
 #[derive(Insertable)]
 #[diesel(table_name = workspace_members)]
 struct NewWorkspaceMember {
-    workspace_id: String,
-    user_id: String,
+    #[diesel(column_name = workspace_id)]
+    workspace: String,
+    #[diesel(column_name = user_id)]
+    user: String,
     role: String,
     joined_at: NaiveDateTime,
 }
@@ -258,8 +277,8 @@ impl NewWorkspace {
 
             diesel::insert_into(workspace_members::table)
                 .values(NewWorkspaceMember {
-                    workspace_id: workspace_id.clone(),
-                    user_id: self.creator_id,
+                    workspace: workspace_id.clone(),
+                    user: self.creator_id,
                     role: Role::Owner.as_str().to_string(),
                     joined_at: now,
                 })
@@ -439,14 +458,14 @@ mod tests {
         let members_b = ws_b.members(&mut conn)
             .expect("members query should succeed");
         assert!(
-            members_b.iter().all(|m| m.user_id != user_a.id),
+            members_b.iter().all(|m| m.user != user_a.id),
             "user_a must not appear in workspace B"
         );
 
         let members_a = ws_a.members(&mut conn)
             .expect("members query should succeed");
         assert!(
-            members_a.iter().all(|m| m.user_id != user_b.id),
+            members_a.iter().all(|m| m.user != user_b.id),
             "user_b must not appear in workspace A"
         );
     }
@@ -475,8 +494,8 @@ mod tests {
 
         diesel::insert_into(workspace_members::table)
             .values(NewWorkspaceMember {
-                workspace_id: ws.id.clone(),
-                user_id: editor.id.clone(),
+                workspace: ws.id.clone(),
+                user: editor.id.clone(),
                 role: Role::Editor.as_str().to_string(),
                 joined_at: chrono::Utc::now().naive_utc(),
             })

@@ -11,16 +11,11 @@ use crate::error::AppError;
 use crate::schema::users;
 
 /// Lightweight identity reference — just an id, no DB load required.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UserRef {
-    pub id: String,
-}
+/// Deserializes from a plain string (e.g. in path parameters).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(transparent)]
+pub struct UserRef(String);
 
-impl UserRef {
-    pub fn new(id: &str) -> Self {
-        UserRef { id: id.to_string() }
-    }
-}
 
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = users)]
@@ -35,14 +30,12 @@ pub struct User {
 
 impl User {
     pub fn as_ref(&self) -> UserRef {
-        UserRef { id: self.id.clone() }
+        UserRef(self.id.clone())
     }
-}
 
-impl User {
-    pub fn from_id(id: &str, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {
+    pub fn from_ref(user_ref: &UserRef, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {
         users::table
-            .find(id)
+            .find(&user_ref.0)
             .select(User::as_select())
             .first(conn)
             .optional()
