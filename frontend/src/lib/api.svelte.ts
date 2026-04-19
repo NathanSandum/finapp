@@ -95,6 +95,43 @@ export async function createAccount(
 	return res.json();
 }
 
+export async function listCategories(workspace: string) {
+	const res = await request('GET', `/workspaces/${workspace}/categories`);
+	if (!res.ok) throw await res.json();
+	return res.json();
+}
+
+export async function createCategory(workspace: string, name: string, description?: string) {
+	const res = await request('POST', `/workspaces/${workspace}/categories`, {
+		name,
+		description
+	});
+	if (!res.ok) throw await res.json();
+	return res.json();
+}
+
+export async function listBaselines(workspace: string, periodStart: string) {
+	const res = await request(
+		'GET',
+		`/workspaces/${workspace}/baselines?period_start=${periodStart}`
+	);
+	if (!res.ok) throw await res.json();
+	return res.json();
+}
+
+export async function baselineSummary(
+	workspace: string,
+	periodStart: string,
+	periodEnd: string
+) {
+	const res = await request(
+		'GET',
+		`/workspaces/${workspace}/baselines/summary?period_start=${periodStart}&period_end=${periodEnd}`
+	);
+	if (!res.ok) throw await res.json();
+	return res.json();
+}
+
 export async function createTransaction(
 	workspace: string,
 	account: string,
