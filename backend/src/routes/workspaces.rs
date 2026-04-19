@@ -75,7 +75,7 @@ pub async fn get(
         .iter()
         .map(|m| {
             json!({
-                "user_id": m.user_id,
+                "user": m.user,
                 "role": m.role,
                 "joined_at": m.joined_at.to_string(),
             })

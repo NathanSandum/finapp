@@ -18,7 +18,8 @@ pub struct CategoryRef(String);
 #[diesel(table_name = categories)]
 pub struct Category {
     pub id: String,
-    pub workspace_id: String,
+    #[diesel(column_name = workspace_id)]
+    pub workspace: String,
     pub name: String,
     pub description: Option<String>,
     pub deleted_at: Option<NaiveDateTime>,
@@ -68,7 +69,8 @@ impl Category {
 #[diesel(table_name = categories)]
 struct NewCategoryRow {
     id: String,
-    workspace_id: String,
+    #[diesel(column_name = workspace_id)]
+    workspace: String,
     name: String,
     description: Option<String>,
     created_at: NaiveDateTime,
@@ -76,7 +78,7 @@ struct NewCategoryRow {
 }
 
 pub struct NewCategory {
-    workspace_id: String,
+    workspace: String,
     name: String,
     description: Option<String>,
 }
@@ -84,7 +86,7 @@ pub struct NewCategory {
 impl NewCategory {
     pub fn new(workspace: &Workspace, name: &str) -> Self {
         NewCategory {
-            workspace_id: workspace.id.clone(),
+            workspace: workspace.id.clone(),
             name: name.to_string(),
             description: None,
         }
@@ -100,7 +102,7 @@ impl NewCategory {
         diesel::insert_into(categories::table)
             .values(NewCategoryRow {
                 id: Uuid::new_v4().to_string(),
-                workspace_id: self.workspace_id,
+                workspace: self.workspace,
                 name: self.name.clone(),
                 description: self.description,
                 created_at: now,
@@ -170,7 +172,7 @@ mod tests {
 
         assert_eq!(cat.name, "Groceries");
         assert_eq!(cat.description, Some("Food and household items".to_string()));
-        assert_eq!(cat.workspace_id, ws.id);
+        assert_eq!(cat.workspace, ws.id);
     }
 
     #[test]

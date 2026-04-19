@@ -78,7 +78,7 @@ pub async fn delete(
     let cat = Category::from_ref(&path.category, &mut conn)?
         .ok_or(AppError::NotFound("category".into()))?;
 
-    if cat.workspace_id != member.workspace.id {
+    if cat.workspace != member.workspace.id {
         return Err(AppError::NotFound("category".into()));
     }
 

@@ -26,7 +26,7 @@ pub async fn list(
     let acct = Account::from_ref(&path.account, &mut conn)?
         .ok_or(AppError::NotFound("account".into()))?;
 
-    if acct.workspace_id != member.workspace.id {
+    if acct.workspace != member.workspace.id {
         return Err(AppError::NotFound("account".into()));
     }
 
@@ -40,7 +40,7 @@ pub async fn list(
             .map(|li| {
                 json!({
                     "id": li.id,
-                    "category_id": li.category_id,
+                    "category": li.category,
                     "amount": li.amount,
                     "note": li.note,
                 })
@@ -49,8 +49,8 @@ pub async fn list(
 
         items.push(json!({
             "id": txn.id,
-            "account_id": txn.account_id,
-            "transfer_account_id": txn.transfer_account_id,
+            "account": txn.account,
+            "transfer_account": txn.transfer_account,
             "date": txn.date,
             "description": txn.description,
             "amount": txn.amount,
@@ -91,7 +91,7 @@ pub async fn create(
     let acct = Account::from_ref(&body.account, &mut conn)?
         .ok_or(AppError::NotFound("account".into()))?;
 
-    if acct.workspace_id != member.workspace.id {
+    if acct.workspace != member.workspace.id {
         return Err(AppError::NotFound("account".into()));
     }
 
@@ -100,7 +100,7 @@ pub async fn create(
         .into_iter()
         .map(|li| {
             let mut input = LineItemInput {
-                category_id: li.category_id,
+                category: li.category_id,
                 amount: li.amount,
                 note: None,
             };
@@ -128,7 +128,7 @@ pub async fn create(
     if let Some(ref transfer_ref) = body.transfer_account {
         let transfer_acct = Account::from_ref(transfer_ref, &mut conn)?
             .ok_or(AppError::NotFound("transfer account".into()))?;
-        if transfer_acct.workspace_id != member.workspace.id {
+        if transfer_acct.workspace != member.workspace.id {
             return Err(AppError::NotFound("transfer account".into()));
         }
         builder = builder.transfer_to(&transfer_acct);
@@ -142,7 +142,7 @@ pub async fn create(
         .map(|li| {
             json!({
                 "id": li.id,
-                "category_id": li.category_id,
+                "category": li.category,
                 "amount": li.amount,
                 "note": li.note,
             })
@@ -153,8 +153,8 @@ pub async fn create(
         axum::http::StatusCode::CREATED,
         Json(json!({
             "id": txn.id,
-            "account_id": txn.account_id,
-            "transfer_account_id": txn.transfer_account_id,
+            "account": txn.account,
+            "transfer_account": txn.transfer_account,
             "date": txn.date,
             "description": txn.description,
             "amount": txn.amount,
@@ -182,7 +182,7 @@ pub async fn delete(
     let txn = Transaction::from_ref(&path.transaction, &mut conn)?
         .ok_or(AppError::NotFound("transaction".into()))?;
 
-    if txn.workspace_id != member.workspace.id {
+    if txn.workspace != member.workspace.id {
         return Err(AppError::NotFound("transaction".into()));
     }
 

@@ -39,8 +39,10 @@ impl PeriodType {
 #[diesel(table_name = baselines)]
 pub struct Baseline {
     pub id: String,
-    pub workspace_id: String,
-    pub category_id: String,
+    #[diesel(column_name = workspace_id)]
+    pub workspace: String,
+    #[diesel(column_name = category_id)]
+    pub category: String,
     pub period_type: String,
     pub period_start: String,
     pub amount: i32,
@@ -81,8 +83,10 @@ impl Baseline {
 #[diesel(table_name = baselines)]
 struct NewBaselineRow {
     id: String,
-    workspace_id: String,
-    category_id: String,
+    #[diesel(column_name = workspace_id)]
+    workspace: String,
+    #[diesel(column_name = category_id)]
+    category: String,
     period_type: String,
     period_start: String,
     amount: i32,
@@ -91,8 +95,8 @@ struct NewBaselineRow {
 }
 
 pub struct NewBaseline {
-    workspace_id: String,
-    category_id: String,
+    workspace: String,
+    category: String,
     period_type: PeriodType,
     period_start: String,
     amount: i32,
@@ -107,8 +111,8 @@ impl NewBaseline {
         amount: i32,
     ) -> Self {
         NewBaseline {
-            workspace_id: workspace.id.clone(),
-            category_id: category.id.clone(),
+            workspace: workspace.id.clone(),
+            category: category.id.clone(),
             period_type,
             period_start: period_start.to_string(),
             amount,
@@ -120,8 +124,8 @@ impl NewBaseline {
         diesel::insert_into(baselines::table)
             .values(NewBaselineRow {
                 id: Uuid::new_v4().to_string(),
-                workspace_id: self.workspace_id,
-                category_id: self.category_id,
+                workspace: self.workspace,
+                category: self.category,
                 period_type: self.period_type.as_str().to_string(),
                 period_start: self.period_start.clone(),
                 amount: self.amount,
@@ -146,7 +150,7 @@ impl NewBaseline {
 
 #[derive(Debug)]
 pub struct CategoryVariance {
-    pub category_id: String,
+    pub category: String,
     pub actual: i64,
     pub baseline: Option<i32>,
     pub variance: Option<i64>,
@@ -195,7 +199,7 @@ pub fn period_summary(
     for b in &baselines {
         let actual = actuals
             .iter()
-            .find(|(cat_id, _)| cat_id == &b.category_id)
+            .find(|(cat_id, _)| cat_id == &b.category)
             .map(|(_, amt)| *amt)
             .unwrap_or(0);
 
@@ -209,20 +213,20 @@ pub fn period_summary(
         };
 
         results.push(CategoryVariance {
-            category_id: b.category_id.clone(),
+            category: b.category.clone(),
             actual,
             baseline: Some(b.amount),
             variance: Some(variance),
             variance_pct,
         });
-        seen_categories.insert(b.category_id.clone());
+        seen_categories.insert(b.category.clone());
     }
 
     // Categories with actuals but no baseline
     for (cat_id, actual) in &actuals {
         if !seen_categories.contains(cat_id) {
             results.push(CategoryVariance {
-                category_id: cat_id.clone(),
+                category: cat_id.clone(),
                 actual: *actual,
                 baseline: None,
                 variance: None,
@@ -335,7 +339,7 @@ mod tests {
         ).cleared(true).insert(&mut f.conn).unwrap();
 
         let summary = period_summary(&f.ws, "2026-04-01", "2026-04-30", &mut f.conn).unwrap();
-        let groceries_var = summary.iter().find(|v| v.category_id == f.groceries.id).unwrap();
+        let groceries_var = summary.iter().find(|v| v.category == f.groceries.id).unwrap();
 
         assert_eq!(groceries_var.actual, -45000);
         assert_eq!(groceries_var.baseline, Some(-50000));
@@ -352,7 +356,7 @@ mod tests {
         ).cleared(true).insert(&mut f.conn).unwrap();
 
         let summary = period_summary(&f.ws, "2026-04-01", "2026-04-30", &mut f.conn).unwrap();
-        let dining_var = summary.iter().find(|v| v.category_id == f.dining.id).unwrap();
+        let dining_var = summary.iter().find(|v| v.category == f.dining.id).unwrap();
 
         assert_eq!(dining_var.actual, -3000);
         assert!(dining_var.baseline.is_none());
@@ -366,7 +370,7 @@ mod tests {
             .insert(&mut f.conn).unwrap();
 
         let summary = period_summary(&f.ws, "2026-04-01", "2026-04-30", &mut f.conn).unwrap();
-        let groceries_var = summary.iter().find(|v| v.category_id == f.groceries.id).unwrap();
+        let groceries_var = summary.iter().find(|v| v.category == f.groceries.id).unwrap();
 
         assert_eq!(groceries_var.actual, 0);
         assert_eq!(groceries_var.baseline, Some(-50000));
@@ -386,7 +390,7 @@ mod tests {
         ).insert(&mut f.conn).unwrap();
 
         let summary = period_summary(&f.ws, "2026-04-01", "2026-04-30", &mut f.conn).unwrap();
-        let groceries_var = summary.iter().find(|v| v.category_id == f.groceries.id).unwrap();
+        let groceries_var = summary.iter().find(|v| v.category == f.groceries.id).unwrap();
 
         assert_eq!(groceries_var.actual, 0); // pending excluded
     }
@@ -406,8 +410,8 @@ mod tests {
         let summary = period_summary(&f.ws, "2026-04-01", "2026-04-30", &mut f.conn).unwrap();
         assert_eq!(summary.len(), 2);
 
-        let has_groceries = summary.iter().any(|v| v.category_id == f.groceries.id);
-        let has_dining = summary.iter().any(|v| v.category_id == f.dining.id);
+        let has_groceries = summary.iter().any(|v| v.category == f.groceries.id);
+        let has_dining = summary.iter().any(|v| v.category == f.dining.id);
         assert!(has_groceries);
         assert!(has_dining);
     }
@@ -424,7 +428,7 @@ mod tests {
         ).cleared(true).insert(&mut f.conn).unwrap();
 
         let summary = period_summary(&f.ws, "2026-04-01", "2026-04-30", &mut f.conn).unwrap();
-        let groceries_var = summary.iter().find(|v| v.category_id == f.groceries.id).unwrap();
+        let groceries_var = summary.iter().find(|v| v.category == f.groceries.id).unwrap();
 
         // actual -60000, baseline -50000, variance = -10000
         // pct = -10000 / -50000 * 100 = 20%

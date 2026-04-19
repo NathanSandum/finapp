@@ -88,7 +88,7 @@ pub async fn delete(
     let acct = Account::from_ref(&path.account, &mut conn)?
         .ok_or(AppError::NotFound("account".into()))?;
 
-    if acct.workspace_id != member.workspace.id {
+    if acct.workspace != member.workspace.id {
         return Err(AppError::NotFound("account".into()));
     }
 
@@ -107,14 +107,14 @@ pub async fn balance(
     let acct = Account::from_ref(&path.account, &mut conn)?
         .ok_or(AppError::NotFound("account".into()))?;
 
-    if acct.workspace_id != member.workspace.id {
+    if acct.workspace != member.workspace.id {
         return Err(AppError::NotFound("account".into()));
     }
 
     let cleared = Transaction::cleared_balance_for_account(&acct, &mut conn)?;
 
     Ok(Json(json!({
-        "account_id": acct.id,
+        "account": acct.id,
         "cleared_balance": cleared,
     })))
 }
