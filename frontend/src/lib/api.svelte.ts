@@ -152,3 +152,19 @@ export async function createTransaction(
 	if (!res.ok) throw await res.json();
 	return res.json();
 }
+
+export type ImportTransaction = {
+	account: string;
+	account_type?: string;
+	date: string;
+	description?: string;
+	amount: number;
+	category: string;
+	cleared?: boolean;
+};
+
+export async function importTransactions(workspace: string, transactions: ImportTransaction[]) {
+	const res = await request('POST', `/workspaces/${workspace}/import`, { transactions });
+	if (!res.ok) throw await res.json();
+	return res.json();
+}
