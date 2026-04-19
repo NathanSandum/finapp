@@ -7,20 +7,25 @@ use diesel::prelude::*;
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use uuid::Uuid;
 
+use diesel_derive_newtype::DieselNewType;
+
 use crate::error::AppError;
 use crate::schema::users;
 
-/// Lightweight identity reference — just an id, no DB load required.
-/// Deserializes from a plain string (e.g. in path parameters).
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
 #[serde(transparent)]
 pub struct UserRef(String);
 
+impl std::fmt::Display for UserRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
 
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = users)]
 pub struct User {
-    pub id: String,
+    pub id: UserRef,
     pub email: String,
     pub display_name: String,
     pub password_hash: String,
@@ -30,7 +35,7 @@ pub struct User {
 
 impl User {
     pub fn as_ref(&self) -> UserRef {
-        UserRef(self.id.clone())
+        self.id.clone()
     }
 
     pub fn from_ref(user_ref: &UserRef, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {
@@ -125,7 +130,7 @@ mod tests {
 
         assert_eq!(user.email, "alice@example.com");
         assert_eq!(user.display_name, "Test User");
-        assert!(!user.id.is_empty());
+        assert!(!user.id.to_string().is_empty());
     }
 
     #[test]

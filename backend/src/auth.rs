@@ -1,14 +1,14 @@
 use axum::{
-    extract::{FromRequestParts, Path},
+    extract::FromRequestParts,
     http::{header::AUTHORIZATION, request::Parts},
 };
 use diesel::prelude::*;
 
 use crate::domain::session::Session;
 use crate::domain::user::User;
-use crate::domain::workspace::{Role, Workspace};
+use crate::domain::workspace::{Role, Workspace, WorkspaceRef};
 use crate::error::AppError;
-use crate::schema::workspaces;
+use crate::schema::workspace_members;
 use crate::DbPool;
 
 /// Extracts the authenticated user from the Bearer token.
@@ -42,78 +42,9 @@ impl<S: Send + Sync> FromRequestParts<S> for AuthUser {
 
 /// Extracts the authenticated user + workspace, enforcing membership and minimum role.
 pub struct WorkspaceMember {
-    pub user: User,
-    pub workspace: Workspace,
+    pub user: crate::domain::user::UserRef,
+    pub workspace: WorkspaceRef,
     pub role: Role,
-}
-
-impl<S: Send + Sync> FromRequestParts<S> for WorkspaceMember {
-    type Rejection = AppError;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let AuthUser(user) = AuthUser::from_request_parts(parts, state).await?;
-
-        let workspace_id = parts
-            .extensions
-            .get::<Path<WorkspacePathParam>>()
-            .map(|p| p.workspace.clone());
-
-        // Fall back to extracting from URI path segments
-        let workspace_id = match workspace_id {
-            Some(id) => id,
-            None => extract_workspace_id_from_uri(parts)?,
-        };
-
-        let pool = parts
-            .extensions
-            .get::<DbPool>()
-            .ok_or_else(|| AppError::Internal("missing db pool".into()))?;
-
-        let mut conn = pool.get().map_err(|err| {
-            AppError::Internal(format!("db pool error: {err}"))
-        })?;
-
-        let workspace = workspaces::table
-            .find(&workspace_id)
-            .select(Workspace::as_select())
-            .first(&mut conn)
-            .optional()
-            .map_err(|err| AppError::Internal(format!("workspace lookup failed: {err}")))?
-            .ok_or(AppError::Forbidden)?;
-
-        let role = workspace
-            .user_role(&user, &mut conn)?
-            .ok_or(AppError::Forbidden)?;
-
-        Ok(WorkspaceMember {
-            user,
-            workspace,
-            role,
-        })
-    }
-}
-
-#[derive(serde::Deserialize)]
-struct WorkspacePathParam {
-    workspace: String,
-}
-
-fn extract_workspace_id_from_uri(parts: &Parts) -> Result<String, AppError> {
-    let path = parts.uri.path();
-    let segments: Vec<&str> = path.split('/').collect();
-
-    // Look for /workspaces/{id} pattern
-    for (i, seg) in segments.iter().enumerate() {
-        if *seg == "workspaces" {
-            if let Some(id) = segments.get(i + 1) {
-                if !id.is_empty() {
-                    return Ok(id.to_string());
-                }
-            }
-        }
-    }
-
-    Err(AppError::Internal("workspace_id not found in path".into()))
 }
 
 impl WorkspaceMember {
@@ -126,9 +57,60 @@ impl WorkspaceMember {
     }
 }
 
+fn extract_workspace_id_from_uri(parts: &Parts) -> Result<String, AppError> {
+    let path = parts.uri.path();
+    let segments: Vec<&str> = path.split('/').collect();
+
+    for (i, segment) in segments.iter().enumerate() {
+        if *segment == "workspaces" {
+            if let Some(id) = segments.get(i + 1) {
+                if !id.is_empty() {
+                    return Ok(id.to_string());
+                }
+            }
+        }
+    }
+
+    Err(AppError::Internal("workspace_id not found in path".into()))
+}
+
+impl<S: Send + Sync> FromRequestParts<S> for WorkspaceMember {
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let AuthUser(user) = AuthUser::from_request_parts(parts, state).await?;
+        let workspace_id = extract_workspace_id_from_uri(parts)?;
+
+        let pool = parts
+            .extensions
+            .get::<DbPool>()
+            .ok_or_else(|| AppError::Internal("missing db pool".into()))?;
+
+        let mut conn = pool.get().map_err(|err| {
+            AppError::Internal(format!("db pool error: {err}"))
+        })?;
+
+        let workspace_ref: WorkspaceRef = serde_json::from_value(serde_json::json!(workspace_id))
+            .map_err(|_| AppError::Internal("invalid workspace id".into()))?;
+
+        let workspace = Workspace::from_ref(&workspace_ref, &mut conn)?
+            .ok_or(AppError::Forbidden)?;
+
+        let member = workspace.view_user(user.as_ref(), &mut conn)?
+            .ok_or(AppError::Forbidden)?;
+
+        Ok(WorkspaceMember {
+            user: user.as_ref(),
+            workspace: workspace.as_ref(),
+            role: member.role,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::user::UserRef;
 
     #[test]
     fn require_role_owner_passes_all() {
@@ -166,23 +148,11 @@ mod tests {
         assert!(member.require_role(&Role::Owner).is_err());
     }
 
-    fn stub_user() -> User {
-        User {
-            id: "user-1".into(),
-            email: "test@example.com".into(),
-            display_name: "Test".into(),
-            password_hash: "hash".into(),
-            created_at: chrono::Utc::now().naive_utc(),
-            updated_at: chrono::Utc::now().naive_utc(),
-        }
+    fn stub_user() -> UserRef {
+        serde_json::from_value(serde_json::json!("user-1")).unwrap()
     }
 
-    fn stub_workspace() -> Workspace {
-        Workspace {
-            id: "ws-1".into(),
-            name: "Test WS".into(),
-            created_at: chrono::Utc::now().naive_utc(),
-            updated_at: chrono::Utc::now().naive_utc(),
-        }
+    fn stub_workspace() -> WorkspaceRef {
+        serde_json::from_value(serde_json::json!("ws-1")).unwrap()
     }
 }

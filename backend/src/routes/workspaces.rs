@@ -18,19 +18,15 @@ pub async fn create(
     Extension(pool): Extension<DbPool>,
     AuthUser(user): AuthUser,
     Json(body): Json<CreateWorkspaceRequest>,
-) -> Result<(axum::http::StatusCode, Json<Value>), AppError> {
+) -> Result<(axum::http::StatusCode, Json<Workspace>), AppError> {
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let ws = NewWorkspace::new(&body.name, &user)
+    let workspace = NewWorkspace::new(&body.name, user.as_ref())
         .insert(&mut conn)?;
 
     Ok((
         axum::http::StatusCode::CREATED,
-        Json(json!({
-            "id": ws.id,
-            "name": ws.name,
-            "created_at": ws.created_at.to_string(),
-        })),
+        Json(workspace),
     ))
 }
 
@@ -40,54 +36,31 @@ pub async fn list(
 ) -> Result<Json<Value>, AppError> {
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let workspaces = Workspace::for_user(&user, &mut conn)?;
-
-    let items: Vec<Value> = workspaces
-        .iter()
-        .map(|ws| {
-            json!({
-                "id": ws.id,
-                "name": ws.name,
-                "created_at": ws.created_at.to_string(),
-            })
-        })
-        .collect();
-
-    Ok(Json(json!({ "workspaces": items })))
+    let workspaces = user.as_ref().workspaces(&mut conn)?;
+    Ok(Json(json!({"workspaces": workspaces})))
 }
 
 pub async fn get(
-    Extension(pool): Extension<DbPool>,
-    AuthUser(user): AuthUser,
     Path(workspace): Path<WorkspaceRef>,
+    AuthUser(user): AuthUser,
+    Extension(pool): Extension<DbPool>,
 ) -> Result<Json<Value>, AppError> {
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let ws = Workspace::from_ref(&workspace, &mut conn)?
+    let workspace = Workspace::from_ref(&workspace, &mut conn)?
         .ok_or(AppError::Forbidden)?;
 
-    // Non-member gets 403 (indistinguishable from not-found per spec)
-    let role = ws.user_role(&user, &mut conn)?
+    let user = workspace.view_user(user.as_ref(), &mut conn)?
         .ok_or(AppError::Forbidden)?;
 
-    let members = ws.members(&mut conn)?;
-    let member_list: Vec<Value> = members
-        .iter()
-        .map(|m| {
-            json!({
-                "user": m.user,
-                "role": m.role,
-                "joined_at": m.joined_at.to_string(),
-            })
-        })
-        .collect();
+    let members = workspace.members(&mut conn)?;
 
     Ok(Json(json!({
-        "id": ws.id,
-        "name": ws.name,
-        "created_at": ws.created_at.to_string(),
-        "your_role": role.as_str(),
-        "members": member_list,
+        "workspace": workspace.id,
+        "name": workspace.name,
+        "created_at": workspace.created_at.to_string(),
+        "your_role": user.role.as_str(),
+        "members": members,
     })))
 }
 
@@ -98,30 +71,33 @@ pub struct RemoveMemberPath {
 }
 
 pub async fn remove_member(
-    Extension(pool): Extension<DbPool>,
-    AuthUser(actor): AuthUser,
     Path(path): Path<RemoveMemberPath>,
+    AuthUser(actor): AuthUser,
+    Extension(pool): Extension<DbPool>,
 ) -> Result<Json<Value>, AppError> {
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let ws = Workspace::from_ref(&path.workspace, &mut conn)?
+    let workspace = Workspace::from_ref(&path.workspace, &mut conn)?
         .ok_or(AppError::Forbidden)?;
 
-    let actor_role = ws.user_role(&actor, &mut conn)?
-        .ok_or(AppError::Forbidden)?;
+    let actor_role = workspace.view_user(actor.as_ref(), &mut conn)?
+        .ok_or(AppError::Forbidden)?
+        .role;
 
     let target = User::from_ref(&path.user, &mut conn)?
         .ok_or(AppError::NotFound("user".into()))?;
 
-    let target_role = ws.user_role(&target, &mut conn)?
-        .ok_or(AppError::NotFound("member".into()))?;
+    let target_role = workspace.view_user(target.as_ref(), &mut conn)?
+        .ok_or(AppError::NotFound("member".into()))?
+        .role;
 
     let resource = permissions::membership_resource(&actor.as_ref(), &target.as_ref(), &target_role);
+
     if !actor_role.has_permission(permissions::Action::Delete, resource) {
         return Err(AppError::Forbidden);
     }
 
-    ws.remove_member(&target, &actor, &mut conn)?;
+    workspace.remove_member(target.as_ref(), actor.as_ref(), &mut conn)?;
 
     Ok(Json(json!({ "status": "ok" })))
 }

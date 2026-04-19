@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use crate::auth::WorkspaceMember;
 use crate::domain::account::{Account, AccountRef, AccountType, NewAccount};
 use crate::domain::transaction::Transaction;
-use crate::domain::workspace::Role;
+use crate::domain::workspace::{Role,WorkspaceRef};
 use crate::error::AppError;
 use crate::DbPool;
 
@@ -15,7 +15,7 @@ pub async fn list(
 ) -> Result<Json<Value>, AppError> {
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let accounts = Account::for_workspace(&member.workspace, &mut conn)?;
+    let accounts = member.workspace.accounts(&mut conn)?;
 
     let items: Vec<Value> = accounts
         .iter()
@@ -73,7 +73,7 @@ pub async fn create(
 #[derive(Deserialize)]
 pub struct AccountPath {
     #[allow(dead_code)]
-    workspace: String,
+    workspace: WorkspaceRef,
     account: AccountRef,
 }
 
@@ -88,7 +88,7 @@ pub async fn delete(
     let acct = Account::from_ref(&path.account, &mut conn)?
         .ok_or(AppError::NotFound("account".into()))?;
 
-    if acct.workspace != member.workspace.id {
+    if acct.workspace != member.workspace {
         return Err(AppError::NotFound("account".into()));
     }
 
@@ -104,17 +104,17 @@ pub async fn balance(
 ) -> Result<Json<Value>, AppError> {
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let acct = Account::from_ref(&path.account, &mut conn)?
+    let account = Account::from_ref(&path.account, &mut conn)?
         .ok_or(AppError::NotFound("account".into()))?;
 
-    if acct.workspace != member.workspace.id {
+    if account.workspace != member.workspace {
         return Err(AppError::NotFound("account".into()));
     }
 
-    let cleared = Transaction::cleared_balance_for_account(&acct, &mut conn)?;
+    let cleared = Transaction::cleared_balance_for_account(&path.account, &mut conn)?;
 
     Ok(Json(json!({
-        "account": acct.id,
+        "account": account.id,
         "cleared_balance": cleared,
     })))
 }

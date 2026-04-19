@@ -91,7 +91,7 @@ impl NewSession {
         diesel::insert_into(sessions::table)
             .values(NewSessionRow {
                 id: Uuid::new_v4().to_string(),
-                user: user.id.clone(),
+                user: user.as_ref().to_string(),
                 token_hash,
                 expires_at,
                 created_at: now,
@@ -169,7 +169,7 @@ mod tests {
         diesel::insert_into(sessions::table)
             .values(NewSessionRow {
                 id: Uuid::new_v4().to_string(),
-                user: user.id.clone(),
+                user: user.as_ref().to_string(),
                 token_hash,
                 expires_at: expired,
                 created_at: now,
@@ -206,7 +206,7 @@ mod tests {
 
         // Check the stored hash doesn't match the raw token
         let stored: Vec<String> = sessions::table
-            .filter(sessions::user_id.eq(&user.id))
+            .filter(sessions::user_id.eq(user.as_ref().to_string()))
             .select(sessions::token_hash)
             .load(&mut conn)
             .unwrap();

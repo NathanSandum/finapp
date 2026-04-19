@@ -5,14 +5,14 @@ use serde_json::{json, Value};
 use crate::auth::WorkspaceMember;
 use crate::domain::account::{Account, AccountRef};
 use crate::domain::transaction::{LineItemInput, NewTransaction, Transaction, TransactionRef};
-use crate::domain::workspace::Role;
+use crate::domain::workspace::{Role,WorkspaceRef};
 use crate::error::AppError;
 use crate::DbPool;
 
 #[derive(Deserialize)]
 pub struct AccountTransactionsPath {
     #[allow(dead_code)]
-    workspace: String,
+    workspace: WorkspaceRef,
     account: AccountRef,
 }
 
@@ -23,18 +23,18 @@ pub async fn list(
 ) -> Result<Json<Value>, AppError> {
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let acct = Account::from_ref(&path.account, &mut conn)?
+    let account = Account::from_ref(&path.account, &mut conn)?
         .ok_or(AppError::NotFound("account".into()))?;
 
-    if acct.workspace != member.workspace.id {
+    if account.workspace != member.workspace {
         return Err(AppError::NotFound("account".into()));
     }
 
-    let transactions = Transaction::for_account(&acct, &mut conn)?;
+    let transactions = path.account.transactions(&mut conn)?;
 
     let mut items = Vec::with_capacity(transactions.len());
-    for txn in &transactions {
-        let line_items = txn.line_items(&mut conn)?;
+    for transaction in &transactions {
+        let line_items = transaction.line_items(&mut conn)?;
         let li_json: Vec<Value> = line_items
             .iter()
             .map(|li| {
@@ -48,13 +48,13 @@ pub async fn list(
             .collect();
 
         items.push(json!({
-            "id": txn.id,
-            "account": txn.account,
-            "transfer_account": txn.transfer_account,
-            "date": txn.date,
-            "description": txn.description,
-            "amount": txn.amount,
-            "cleared": txn.cleared,
+            "id": transaction.id,
+            "account": transaction.account,
+            "transfer_account": transaction.transfer_account,
+            "date": transaction.date,
+            "description": transaction.description,
+            "amount": transaction.amount,
+            "cleared": transaction.cleared,
             "line_items": li_json,
         }));
     }
@@ -64,7 +64,7 @@ pub async fn list(
 
 #[derive(Deserialize)]
 pub struct LineItemRequest {
-    category_id: String,
+    category_id: crate::domain::category::CategoryRef,
     amount: i32,
     note: Option<String>,
 }
@@ -81,17 +81,17 @@ pub struct CreateTransactionRequest {
 }
 
 pub async fn create(
-    Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
+    Extension(pool): Extension<DbPool>,
     Json(body): Json<CreateTransactionRequest>,
 ) -> Result<(axum::http::StatusCode, Json<Value>), AppError> {
     member.require_role(&Role::Editor)?;
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let acct = Account::from_ref(&body.account, &mut conn)?
+    let account = Account::from_ref(&body.account, &mut conn)?
         .ok_or(AppError::NotFound("account".into()))?;
 
-    if acct.workspace != member.workspace.id {
+    if account.workspace != member.workspace {
         return Err(AppError::NotFound("account".into()));
     }
 
@@ -99,13 +99,9 @@ pub async fn create(
         .line_items
         .into_iter()
         .map(|li| {
-            let mut input = LineItemInput {
-                category: li.category_id,
-                amount: li.amount,
-                note: None,
-            };
+            let mut input = LineItemInput::new(&li.category_id, li.amount);
             if let Some(note) = li.note {
-                input.note = Some(note);
+                input = input.note(&note);
             }
             input
         })
@@ -113,7 +109,7 @@ pub async fn create(
 
     let mut builder = NewTransaction::new(
         &member.workspace,
-        &acct,
+        &body.account,
         &body.date,
         body.amount,
         line_items,
@@ -126,17 +122,17 @@ pub async fn create(
         builder = builder.cleared(cleared);
     }
     if let Some(ref transfer_ref) = body.transfer_account {
-        let transfer_acct = Account::from_ref(transfer_ref, &mut conn)?
+        let transfer_account = Account::from_ref(transfer_ref, &mut conn)?
             .ok_or(AppError::NotFound("transfer account".into()))?;
-        if transfer_acct.workspace != member.workspace.id {
+        if transfer_account.workspace != member.workspace {
             return Err(AppError::NotFound("transfer account".into()));
         }
-        builder = builder.transfer_to(&transfer_acct);
+        builder = builder.transfer_to(&transfer_ref);
     }
 
-    let txn = builder.insert(&mut conn)?;
+    let transaction = builder.insert(&mut conn)?;
 
-    let items = txn.line_items(&mut conn)?;
+    let items = transaction.line_items(&mut conn)?;
     let li_json: Vec<Value> = items
         .iter()
         .map(|li| {
@@ -152,13 +148,13 @@ pub async fn create(
     Ok((
         axum::http::StatusCode::CREATED,
         Json(json!({
-            "id": txn.id,
-            "account": txn.account,
-            "transfer_account": txn.transfer_account,
-            "date": txn.date,
-            "description": txn.description,
-            "amount": txn.amount,
-            "cleared": txn.cleared,
+            "id": transaction.id,
+            "account": transaction.account,
+            "transfer_account": transaction.transfer_account,
+            "date": transaction.date,
+            "description": transaction.description,
+            "amount": transaction.amount,
+            "cleared": transaction.cleared,
             "line_items": li_json,
         })),
     ))
@@ -167,7 +163,7 @@ pub async fn create(
 #[derive(Deserialize)]
 pub struct DeleteTransactionPath {
     #[allow(dead_code)]
-    workspace: String,
+    workspace: WorkspaceRef,
     transaction: TransactionRef,
 }
 
@@ -179,14 +175,14 @@ pub async fn delete(
     member.require_role(&Role::Editor)?;
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let txn = Transaction::from_ref(&path.transaction, &mut conn)?
+    let transaction = Transaction::from_ref(&path.transaction, &mut conn)?
         .ok_or(AppError::NotFound("transaction".into()))?;
 
-    if txn.workspace != member.workspace.id {
+    if transaction.workspace != member.workspace {
         return Err(AppError::NotFound("transaction".into()));
     }
 
-    txn.soft_delete(&mut conn)?;
+    transaction.soft_delete(&mut conn)?;
 
     Ok(Json(json!({ "status": "ok" })))
 }

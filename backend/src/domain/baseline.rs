@@ -3,8 +3,9 @@ use diesel::prelude::*;
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use uuid::Uuid;
 
-use crate::domain::category::Category;
-use crate::domain::workspace::Workspace;
+use crate::domain::account::{Account, AccountRef};
+use crate::domain::category::{Category, CategoryRef};
+use crate::domain::workspace::{Workspace, WorkspaceRef};
 use crate::error::AppError;
 use crate::schema::{baselines, line_items, transactions};
 
@@ -40,9 +41,9 @@ impl PeriodType {
 pub struct Baseline {
     pub id: String,
     #[diesel(column_name = workspace_id)]
-    pub workspace: String,
+    pub workspace: WorkspaceRef,
     #[diesel(column_name = category_id)]
-    pub category: String,
+    pub category: CategoryRef,
     pub period_type: String,
     pub period_start: String,
     pub amount: i32,
@@ -51,19 +52,6 @@ pub struct Baseline {
 }
 
 impl Baseline {
-    pub fn for_workspace_period(
-        workspace: &Workspace,
-        period_start: &str,
-        conn: &mut SqliteConnection,
-    ) -> Result<Vec<Baseline>, AppError> {
-        baselines::table
-            .filter(baselines::workspace_id.eq(&workspace.id))
-            .filter(baselines::period_start.eq(period_start))
-            .select(Baseline::as_select())
-            .load(conn)
-            .map_err(|err| AppError::Internal(format!("baseline list failed: {err}")))
-    }
-
     pub fn update_amount(&self, amount: i32, conn: &mut SqliteConnection) -> Result<(), AppError> {
         let now = chrono::Utc::now().naive_utc();
         diesel::update(baselines::table.find(&self.id))
@@ -77,6 +65,71 @@ impl Baseline {
     }
 }
 
+impl WorkspaceRef {
+    pub fn baselines(&self, period_start: &str, conn: &mut SqliteConnection) -> Result<Vec<Baseline>, AppError> {
+        baselines::table
+            .filter(baselines::workspace_id.eq(self))
+            .filter(baselines::period_start.eq(period_start))
+            .select(Baseline::as_select())
+            .load(conn)
+            .map_err(|err| AppError::Internal(format!("baseline list failed: {err}")))
+    }
+
+    pub fn period_summary(
+        &self,
+        period_start: &str,
+        period_end: &str,
+        conn: &mut SqliteConnection,
+    ) -> Result<Vec<CategoryVariance>, AppError> {
+        let baselines = self.baselines(period_start, conn)?;
+        let actuals = actuals_by_category(self, period_start, period_end, conn)?;
+
+        let mut results: Vec<CategoryVariance> = Vec::new();
+        let mut seen_categories: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        for baseline in &baselines {
+            let actual = actuals
+                .iter()
+                .find(|(category, _)| *category == baseline.category)
+                .map(|(_, amount)| *amount)
+                .unwrap_or(0);
+
+            let variance = actual - baseline.amount as i64;
+            let variance_pct = if baseline.amount != 0 {
+                Some((variance as f64 / baseline.amount as f64) * 100.0)
+            } else if actual != 0 {
+                None
+            } else {
+                Some(0.0)
+            };
+
+            results.push(CategoryVariance {
+                category: baseline.category.to_string(),
+                actual,
+                baseline: Some(baseline.amount),
+                variance: Some(variance),
+                variance_pct,
+            });
+            seen_categories.insert(baseline.category.to_string());
+        }
+
+        for (category, actual) in &actuals {
+            let category_str = category.to_string();
+            if !seen_categories.contains(&category_str) {
+                results.push(CategoryVariance {
+                    category: category_str,
+                    actual: *actual,
+                    baseline: None,
+                    variance: None,
+                    variance_pct: None,
+                });
+            }
+        }
+
+        Ok(results)
+    }
+}
+
 // ── NewBaseline ──────────────────────────────────────────────────────────────
 
 #[derive(Insertable)]
@@ -84,9 +137,9 @@ impl Baseline {
 struct NewBaselineRow {
     id: String,
     #[diesel(column_name = workspace_id)]
-    workspace: String,
+    workspace: WorkspaceRef,
     #[diesel(column_name = category_id)]
-    category: String,
+    category: CategoryRef,
     period_type: String,
     period_start: String,
     amount: i32,
@@ -95,8 +148,8 @@ struct NewBaselineRow {
 }
 
 pub struct NewBaseline {
-    workspace: String,
-    category: String,
+    workspace: WorkspaceRef,
+    category: CategoryRef,
     period_type: PeriodType,
     period_start: String,
     amount: i32,
@@ -104,15 +157,15 @@ pub struct NewBaseline {
 
 impl NewBaseline {
     pub fn new(
-        workspace: &Workspace,
-        category: &Category,
+        workspace: &WorkspaceRef,
+        category: &CategoryRef,
         period_type: PeriodType,
         period_start: &str,
         amount: i32,
     ) -> Self {
         NewBaseline {
-            workspace: workspace.id.clone(),
-            category: category.id.clone(),
+            workspace: workspace.clone(),
+            category: category.clone(),
             period_type,
             period_start: period_start.to_string(),
             amount,
@@ -157,17 +210,15 @@ pub struct CategoryVariance {
     pub variance_pct: Option<f64>,
 }
 
-/// Compute actuals per category for a workspace in a date range.
 fn actuals_by_category(
-    workspace: &Workspace,
+    workspace: &WorkspaceRef,
     start_date: &str,
     end_date: &str,
     conn: &mut SqliteConnection,
-) -> Result<Vec<(String, i64)>, AppError> {
-    // Join line_items → transactions, filter by workspace + date range + cleared + not deleted
+) -> Result<Vec<(CategoryRef, i64)>, AppError> {
     line_items::table
         .inner_join(transactions::table)
-        .filter(transactions::workspace_id.eq(&workspace.id))
+        .filter(transactions::workspace_id.eq(workspace))
         .filter(transactions::date.ge(start_date))
         .filter(transactions::date.le(end_date))
         .filter(transactions::cleared.eq(true))
@@ -177,65 +228,8 @@ fn actuals_by_category(
             line_items::category_id,
             diesel::dsl::sum(line_items::amount).assume_not_null(),
         ))
-        .load::<(String, i64)>(conn)
+        .load::<(CategoryRef, i64)>(conn)
         .map_err(|err| AppError::Internal(format!("actuals query failed: {err}")))
-}
-
-/// Compute period summary: for each category with activity or a baseline,
-/// return actual, baseline, variance, and percentage.
-pub fn period_summary(
-    workspace: &Workspace,
-    period_start: &str,
-    period_end: &str,
-    conn: &mut SqliteConnection,
-) -> Result<Vec<CategoryVariance>, AppError> {
-    let baselines = Baseline::for_workspace_period(workspace, period_start, conn)?;
-    let actuals = actuals_by_category(workspace, period_start, period_end, conn)?;
-
-    let mut results: Vec<CategoryVariance> = Vec::new();
-    let mut seen_categories: std::collections::HashSet<String> = std::collections::HashSet::new();
-
-    // Categories with baselines
-    for b in &baselines {
-        let actual = actuals
-            .iter()
-            .find(|(category, _)| category == &b.category)
-            .map(|(_, amt)| *amt)
-            .unwrap_or(0);
-
-        let variance = actual - b.amount as i64;
-        let variance_pct = if b.amount != 0 {
-            Some((variance as f64 / b.amount as f64) * 100.0)
-        } else if actual != 0 {
-            None // baseline is zero but actuals exist — percentage is undefined
-        } else {
-            Some(0.0) // both zero
-        };
-
-        results.push(CategoryVariance {
-            category: b.category.clone(),
-            actual,
-            baseline: Some(b.amount),
-            variance: Some(variance),
-            variance_pct,
-        });
-        seen_categories.insert(b.category.clone());
-    }
-
-    // Categories with actuals but no baseline
-    for (category, actual) in &actuals {
-        if !seen_categories.contains(category) {
-            results.push(CategoryVariance {
-                category: category.clone(),
-                actual: *actual,
-                baseline: None,
-                variance: None,
-                variance_pct: None,
-            });
-        }
-    }
-
-    Ok(results)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -252,45 +246,52 @@ mod tests {
 
     struct TestFixture {
         conn: SqliteConnection,
-        ws: Workspace,
+        workspace: Workspace,
         groceries: Category,
         dining: Category,
-        chequing: crate::domain::account::Account,
+        chequing: Account,
     }
 
     fn setup() -> TestFixture {
         let mut conn = setup_test_db();
         let user = NewUser::new("alice@example.com", "Alice", "password")
             .unwrap().insert(&mut conn).unwrap();
-        let ws = NewWorkspace::new("My Finances", &user)
+        let workspace = NewWorkspace::new("My Finances", user.as_ref())
             .insert(&mut conn).unwrap();
-        let groceries = NewCategory::new(&ws, "Groceries").insert(&mut conn).unwrap();
-        let dining = NewCategory::new(&ws, "Dining").insert(&mut conn).unwrap();
-        let chequing = NewAccount::new(&ws, "Chequing", AccountType::Chequing)
+        let groceries = NewCategory::new(&workspace.as_ref(), "Groceries").insert(&mut conn).unwrap();
+        let dining = NewCategory::new(&workspace.as_ref(), "Dining").insert(&mut conn).unwrap();
+        let chequing = NewAccount::new(&workspace.as_ref(), "Chequing", AccountType::Chequing)
             .insert(&mut conn).unwrap();
-        TestFixture { conn, ws, groceries, dining, chequing }
+        TestFixture { conn, workspace, groceries, dining, chequing }
     }
 
     #[test]
     fn create_baseline_succeeds() {
-        let mut f = setup();
-        let bl = NewBaseline::new(&f.ws, &f.groceries, PeriodType::Monthly, "2026-04-01", 50000)
-            .insert(&mut f.conn)
+        let mut fixture = setup();
+        let baseline = NewBaseline::new(
+            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
+            PeriodType::Monthly, "2026-04-01", 50000,
+        )
+            .insert(&mut fixture.conn)
             .expect("baseline creation should succeed");
 
-        assert_eq!(bl.amount, 50000);
-        assert_eq!(bl.period_type, "monthly");
-        assert_eq!(bl.period_start, "2026-04-01");
+        assert_eq!(baseline.amount, 50000);
+        assert_eq!(baseline.period_type, "monthly");
+        assert_eq!(baseline.period_start, "2026-04-01");
     }
 
     #[test]
     fn duplicate_baseline_rejected() {
-        let mut f = setup();
-        NewBaseline::new(&f.ws, &f.groceries, PeriodType::Monthly, "2026-04-01", 50000)
-            .insert(&mut f.conn).unwrap();
+        let mut fixture = setup();
+        NewBaseline::new(
+            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
+            PeriodType::Monthly, "2026-04-01", 50000,
+        ).insert(&mut fixture.conn).unwrap();
 
-        let err = NewBaseline::new(&f.ws, &f.groceries, PeriodType::Monthly, "2026-04-01", 60000)
-            .insert(&mut f.conn)
+        let err = NewBaseline::new(
+            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
+            PeriodType::Monthly, "2026-04-01", 60000,
+        ).insert(&mut fixture.conn)
             .expect_err("duplicate should fail");
 
         assert!(matches!(err, AppError::Conflict(_)));
@@ -298,142 +299,153 @@ mod tests {
 
     #[test]
     fn same_category_different_periods_allowed() {
-        let mut f = setup();
-        NewBaseline::new(&f.ws, &f.groceries, PeriodType::Monthly, "2026-04-01", 50000)
-            .insert(&mut f.conn).unwrap();
-        NewBaseline::new(&f.ws, &f.groceries, PeriodType::Monthly, "2026-05-01", 55000)
-            .insert(&mut f.conn).unwrap();
+        let mut fixture = setup();
+        NewBaseline::new(
+            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
+            PeriodType::Monthly, "2026-04-01", 50000,
+        ).insert(&mut fixture.conn).unwrap();
+        NewBaseline::new(
+            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
+            PeriodType::Monthly, "2026-05-01", 55000,
+        ).insert(&mut fixture.conn).unwrap();
     }
 
     #[test]
     fn update_amount() {
-        let mut f = setup();
-        let bl = NewBaseline::new(&f.ws, &f.groceries, PeriodType::Monthly, "2026-04-01", 50000)
-            .insert(&mut f.conn).unwrap();
+        let mut fixture = setup();
+        let baseline = NewBaseline::new(
+            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
+            PeriodType::Monthly, "2026-04-01", 50000,
+        ).insert(&mut fixture.conn).unwrap();
 
-        bl.update_amount(60000, &mut f.conn).unwrap();
+        baseline.update_amount(60000, &mut fixture.conn).unwrap();
 
-        let loaded = Baseline::for_workspace_period(&f.ws, "2026-04-01", &mut f.conn).unwrap();
+        let loaded = fixture.workspace.as_ref().baselines("2026-04-01", &mut fixture.conn).unwrap();
         assert_eq!(loaded[0].amount, 60000);
     }
 
     #[test]
     fn zero_baseline_allowed() {
-        let mut f = setup();
-        let bl = NewBaseline::new(&f.ws, &f.groceries, PeriodType::Monthly, "2026-04-01", 0)
-            .insert(&mut f.conn).unwrap();
-        assert_eq!(bl.amount, 0);
+        let mut fixture = setup();
+        let baseline = NewBaseline::new(
+            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
+            PeriodType::Monthly, "2026-04-01", 0,
+        ).insert(&mut fixture.conn).unwrap();
+        assert_eq!(baseline.amount, 0);
     }
 
     #[test]
     fn variance_with_actuals_and_baseline() {
-        let mut f = setup();
-        // Baseline: groceries $500
-        NewBaseline::new(&f.ws, &f.groceries, PeriodType::Monthly, "2026-04-01", -50000)
-            .insert(&mut f.conn).unwrap();
+        let mut fixture = setup();
+        NewBaseline::new(
+            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
+            PeriodType::Monthly, "2026-04-01", -50000,
+        ).insert(&mut fixture.conn).unwrap();
 
-        // Actual: groceries $450 spent
         NewTransaction::new(
-            &f.ws, &f.chequing, "2026-04-10", -45000,
-            vec![LineItemInput::new(&f.groceries, -45000)],
-        ).cleared(true).insert(&mut f.conn).unwrap();
+            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-10", -45000,
+            vec![LineItemInput::new(&fixture.groceries.as_ref(), -45000)],
+        ).cleared(true).insert(&mut fixture.conn).unwrap();
 
-        let summary = period_summary(&f.ws, "2026-04-01", "2026-04-30", &mut f.conn).unwrap();
-        let groceries_var = summary.iter().find(|v| v.category == f.groceries.id).unwrap();
+        let summary = fixture.workspace.as_ref().period_summary("2026-04-01", "2026-04-30", &mut fixture.conn).unwrap();
+        let groceries_variance = summary.iter().find(|v| v.category == fixture.groceries.id.to_string()).unwrap();
 
-        assert_eq!(groceries_var.actual, -45000);
-        assert_eq!(groceries_var.baseline, Some(-50000));
-        assert_eq!(groceries_var.variance, Some(5000)); // spent less than baseline
+        assert_eq!(groceries_variance.actual, -45000);
+        assert_eq!(groceries_variance.baseline, Some(-50000));
+        assert_eq!(groceries_variance.variance, Some(5000));
     }
 
     #[test]
     fn no_baseline_returns_none_variance() {
-        let mut f = setup();
-        // Actual spending with no baseline set
+        let mut fixture = setup();
         NewTransaction::new(
-            &f.ws, &f.chequing, "2026-04-10", -3000,
-            vec![LineItemInput::new(&f.dining, -3000)],
-        ).cleared(true).insert(&mut f.conn).unwrap();
+            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-10", -3000,
+            vec![LineItemInput::new(&fixture.dining.as_ref(), -3000)],
+        ).cleared(true).insert(&mut fixture.conn).unwrap();
 
-        let summary = period_summary(&f.ws, "2026-04-01", "2026-04-30", &mut f.conn).unwrap();
-        let dining_var = summary.iter().find(|v| v.category == f.dining.id).unwrap();
+        let summary = fixture.workspace.as_ref().period_summary("2026-04-01", "2026-04-30", &mut fixture.conn).unwrap();
+        let dining_variance = summary.iter().find(|v| v.category == fixture.dining.id.to_string()).unwrap();
 
-        assert_eq!(dining_var.actual, -3000);
-        assert!(dining_var.baseline.is_none());
-        assert!(dining_var.variance.is_none());
+        assert_eq!(dining_variance.actual, -3000);
+        assert!(dining_variance.baseline.is_none());
+        assert!(dining_variance.variance.is_none());
     }
 
     #[test]
     fn baseline_with_no_actuals_shows_full_variance() {
-        let mut f = setup();
-        NewBaseline::new(&f.ws, &f.groceries, PeriodType::Monthly, "2026-04-01", -50000)
-            .insert(&mut f.conn).unwrap();
+        let mut fixture = setup();
+        NewBaseline::new(
+            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
+            PeriodType::Monthly, "2026-04-01", -50000,
+        ).insert(&mut fixture.conn).unwrap();
 
-        let summary = period_summary(&f.ws, "2026-04-01", "2026-04-30", &mut f.conn).unwrap();
-        let groceries_var = summary.iter().find(|v| v.category == f.groceries.id).unwrap();
+        let summary = fixture.workspace.as_ref().period_summary("2026-04-01", "2026-04-30", &mut fixture.conn).unwrap();
+        let groceries_variance = summary.iter().find(|v| v.category == fixture.groceries.id.to_string()).unwrap();
 
-        assert_eq!(groceries_var.actual, 0);
-        assert_eq!(groceries_var.baseline, Some(-50000));
-        assert_eq!(groceries_var.variance, Some(50000)); // 0 - (-50000) = 50000
+        assert_eq!(groceries_variance.actual, 0);
+        assert_eq!(groceries_variance.baseline, Some(-50000));
+        assert_eq!(groceries_variance.variance, Some(50000));
     }
 
     #[test]
     fn pending_transactions_excluded_from_variance() {
-        let mut f = setup();
-        NewBaseline::new(&f.ws, &f.groceries, PeriodType::Monthly, "2026-04-01", -50000)
-            .insert(&mut f.conn).unwrap();
+        let mut fixture = setup();
+        NewBaseline::new(
+            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
+            PeriodType::Monthly, "2026-04-01", -50000,
+        ).insert(&mut fixture.conn).unwrap();
 
-        // Pending transaction — should not count
         NewTransaction::new(
-            &f.ws, &f.chequing, "2026-04-10", -45000,
-            vec![LineItemInput::new(&f.groceries, -45000)],
-        ).insert(&mut f.conn).unwrap();
+            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-10", -45000,
+            vec![LineItemInput::new(&fixture.groceries.as_ref(), -45000)],
+        ).insert(&mut fixture.conn).unwrap();
 
-        let summary = period_summary(&f.ws, "2026-04-01", "2026-04-30", &mut f.conn).unwrap();
-        let groceries_var = summary.iter().find(|v| v.category == f.groceries.id).unwrap();
+        let summary = fixture.workspace.as_ref().period_summary("2026-04-01", "2026-04-30", &mut fixture.conn).unwrap();
+        let groceries_variance = summary.iter().find(|v| v.category == fixture.groceries.id.to_string()).unwrap();
 
-        assert_eq!(groceries_var.actual, 0); // pending excluded
+        assert_eq!(groceries_variance.actual, 0);
     }
 
     #[test]
     fn period_summary_includes_all_active_categories() {
-        let mut f = setup();
-        // Baseline on groceries, actuals on dining, both should appear
-        NewBaseline::new(&f.ws, &f.groceries, PeriodType::Monthly, "2026-04-01", -50000)
-            .insert(&mut f.conn).unwrap();
+        let mut fixture = setup();
+        NewBaseline::new(
+            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
+            PeriodType::Monthly, "2026-04-01", -50000,
+        ).insert(&mut fixture.conn).unwrap();
 
         NewTransaction::new(
-            &f.ws, &f.chequing, "2026-04-10", -3000,
-            vec![LineItemInput::new(&f.dining, -3000)],
-        ).cleared(true).insert(&mut f.conn).unwrap();
+            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-10", -3000,
+            vec![LineItemInput::new(&fixture.dining.as_ref(), -3000)],
+        ).cleared(true).insert(&mut fixture.conn).unwrap();
 
-        let summary = period_summary(&f.ws, "2026-04-01", "2026-04-30", &mut f.conn).unwrap();
+        let summary = fixture.workspace.as_ref().period_summary("2026-04-01", "2026-04-30", &mut fixture.conn).unwrap();
         assert_eq!(summary.len(), 2);
 
-        let has_groceries = summary.iter().any(|v| v.category == f.groceries.id);
-        let has_dining = summary.iter().any(|v| v.category == f.dining.id);
+        let has_groceries = summary.iter().any(|v| v.category == fixture.groceries.id.to_string());
+        let has_dining = summary.iter().any(|v| v.category == fixture.dining.id.to_string());
         assert!(has_groceries);
         assert!(has_dining);
     }
 
     #[test]
     fn variance_percentage() {
-        let mut f = setup();
-        NewBaseline::new(&f.ws, &f.groceries, PeriodType::Monthly, "2026-04-01", -50000)
-            .insert(&mut f.conn).unwrap();
+        let mut fixture = setup();
+        NewBaseline::new(
+            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
+            PeriodType::Monthly, "2026-04-01", -50000,
+        ).insert(&mut fixture.conn).unwrap();
 
         NewTransaction::new(
-            &f.ws, &f.chequing, "2026-04-10", -60000,
-            vec![LineItemInput::new(&f.groceries, -60000)],
-        ).cleared(true).insert(&mut f.conn).unwrap();
+            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-10", -60000,
+            vec![LineItemInput::new(&fixture.groceries.as_ref(), -60000)],
+        ).cleared(true).insert(&mut fixture.conn).unwrap();
 
-        let summary = period_summary(&f.ws, "2026-04-01", "2026-04-30", &mut f.conn).unwrap();
-        let groceries_var = summary.iter().find(|v| v.category == f.groceries.id).unwrap();
+        let summary = fixture.workspace.as_ref().period_summary("2026-04-01", "2026-04-30", &mut fixture.conn).unwrap();
+        let groceries_variance = summary.iter().find(|v| v.category == fixture.groceries.id.to_string()).unwrap();
 
-        // actual -60000, baseline -50000, variance = -10000
-        // pct = -10000 / -50000 * 100 = 20%
-        assert_eq!(groceries_var.variance, Some(-10000));
-        let pct = groceries_var.variance_pct.unwrap();
+        assert_eq!(groceries_variance.variance, Some(-10000));
+        let pct = groceries_variance.variance_pct.unwrap();
         assert!((pct - 20.0).abs() < 0.01);
     }
 }
