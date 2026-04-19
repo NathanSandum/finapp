@@ -8,7 +8,7 @@ pub mod test_helpers;
 
 use axum::{
     extract::Extension,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use diesel::r2d2::{self, ConnectionManager};
@@ -52,6 +52,19 @@ pub fn build_router(pool: DbPool) -> Router {
         .route(
             "/workspaces/{workspace}/accounts/{account}/balance",
             get(routes::accounts::balance),
+        )
+        // Baselines
+        .route(
+            "/workspaces/{workspace}/baselines",
+            get(routes::baselines::list).post(routes::baselines::create),
+        )
+        .route(
+            "/workspaces/{workspace}/baselines/summary",
+            get(routes::baselines::summary),
+        )
+        .route(
+            "/workspaces/{workspace}/baselines/{baseline}",
+            put(routes::baselines::update),
         )
         // Import
         .route(

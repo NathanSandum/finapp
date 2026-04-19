@@ -9,6 +9,7 @@ use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
+use backend::domain::category::CategoryRef;
 use backend::test_helpers::MIGRATIONS;
 use backend::DbPool;
 
@@ -70,6 +71,10 @@ async fn get(app: &Router, uri: &str, token: &str) -> (StatusCode, Value) {
 
 async fn post(app: &Router, uri: &str, token: Option<&str>, body: Value) -> (StatusCode, Value) {
     send(app, Method::POST, uri, token, Some(body)).await
+}
+
+async fn put(app: &Router, uri: &str, token: &str, body: Value) -> (StatusCode, Value) {
+    send(app, Method::PUT, uri, Some(token), Some(body)).await
 }
 
 async fn delete(app: &Router, uri: &str, token: &str) -> (StatusCode, Value) {
@@ -228,7 +233,7 @@ async fn category_crud() {
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
-    let cat_id = body["id"].as_str().unwrap().to_string();
+    let category: CategoryRef = serde_json::from_value(body["id"].clone()).unwrap();
     assert_eq!(body["name"], "Groceries");
 
     // List
@@ -239,7 +244,7 @@ async fn category_crud() {
     // Delete
     let (status, _) = delete(
         &app,
-        &format!("/workspaces/{ws_id}/categories/{cat_id}"),
+        &format!("/workspaces/{ws_id}/categories/{category}"),
         &token,
     )
     .await;
@@ -323,7 +328,7 @@ async fn transaction_lifecycle() {
         json!({ "name": "Groceries" }),
     )
     .await;
-    let cat_id = cat_body["id"].as_str().unwrap();
+    let category: CategoryRef = serde_json::from_value(cat_body["id"].clone()).unwrap();
 
     // Create transaction
     let (status, txn_body) = post(
@@ -337,7 +342,7 @@ async fn transaction_lifecycle() {
             "amount": -5000,
             "cleared": true,
             "line_items": [
-                { "category_id": cat_id, "amount": -5000 }
+                { "category_id": category, "amount": -5000 }
             ]
         }),
     )
@@ -406,7 +411,7 @@ async fn transaction_validation_errors() {
         json!({ "name": "Groceries" }),
     )
     .await;
-    let cat_id = cat_body["id"].as_str().unwrap();
+    let category: CategoryRef = serde_json::from_value(cat_body["id"].clone()).unwrap();
 
     // Mismatched line items sum
     let (status, body) = post(
@@ -418,7 +423,7 @@ async fn transaction_validation_errors() {
             "date": "2026-04-15",
             "amount": -5000,
             "line_items": [
-                { "category_id": cat_id, "amount": -3000 }
+                { "category_id": category, "amount": -3000 }
             ]
         }),
     )
@@ -530,7 +535,7 @@ async fn balance_only_includes_cleared() {
         json!({ "name": "Income" }),
     )
     .await;
-    let cat_id = cat_body["id"].as_str().unwrap();
+    let category: CategoryRef = serde_json::from_value(cat_body["id"].clone()).unwrap();
 
     // Cleared transaction
     post(
@@ -542,7 +547,7 @@ async fn balance_only_includes_cleared() {
             "date": "2026-04-10",
             "amount": 100000,
             "cleared": true,
-            "line_items": [{ "category_id": cat_id, "amount": 100000 }]
+            "line_items": [{ "category_id": category, "amount": 100000 }]
         }),
     )
     .await;
@@ -556,7 +561,7 @@ async fn balance_only_includes_cleared() {
             "account": acct_id,
             "date": "2026-04-12",
             "amount": -5000,
-            "line_items": [{ "category_id": cat_id, "amount": -5000 }]
+            "line_items": [{ "category_id": category, "amount": -5000 }]
         }),
     )
     .await;
@@ -602,7 +607,7 @@ async fn transfer_transaction_records_transfer_account() {
         json!({ "name": "Transfer" }),
     )
     .await;
-    let cat_id = cat_body["id"].as_str().unwrap();
+    let category: CategoryRef = serde_json::from_value(cat_body["id"].clone()).unwrap();
 
     let (status, txn_body) = post(
         &app,
@@ -613,7 +618,7 @@ async fn transfer_transaction_records_transfer_account() {
             "transfer_account": sav_id,
             "date": "2026-04-15",
             "amount": -10000,
-            "line_items": [{ "category_id": cat_id, "amount": -10000 }]
+            "line_items": [{ "category_id": category, "amount": -10000 }]
         }),
     )
     .await;
@@ -621,6 +626,221 @@ async fn transfer_transaction_records_transfer_account() {
     assert_eq!(txn_body["transfer_account"], sav_id);
 }
 
+// ── Baseline tests ─────────────────────────────────────────────────────────
+
+async fn create_category(app: &Router, ws_id: &str, token: &str, name: &str) -> CategoryRef {
+    let (_, body) = post(
+        app,
+        &format!("/workspaces/{ws_id}/categories"),
+        Some(token),
+        json!({ "name": name }),
+    )
+    .await;
+    serde_json::from_value(body["id"].clone()).unwrap()
+}
+
+#[tokio::test]
+async fn create_and_list_baselines() {
+    let app = app();
+    let (token, _, ws_id) = setup_workspace(&app).await;
+    let category = create_category(&app, &ws_id, &token, "Groceries").await;
+
+    // Create baseline
+    let (status, body) = post(
+        &app,
+        &format!("/workspaces/{ws_id}/baselines"),
+        Some(&token),
+        json!({
+            "category": category,
+            "period_type": "monthly",
+            "period_start": "2026-04-01",
+            "amount": -50000,
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(body["amount"], -50000);
+    assert_eq!(body["period_type"], "monthly");
+    assert_eq!(body["category"], category.to_string());
+
+    // List baselines for this period
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{ws_id}/baselines?period_start=2026-04-01"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let baselines = body["baselines"].as_array().unwrap();
+    assert_eq!(baselines.len(), 1);
+    assert_eq!(baselines[0]["amount"], -50000);
+}
+
+#[tokio::test]
+async fn update_baseline_amount() {
+    let app = app();
+    let (token, _, ws_id) = setup_workspace(&app).await;
+    let category = create_category(&app, &ws_id, &token, "Groceries").await;
+
+    let (_, body) = post(
+        &app,
+        &format!("/workspaces/{ws_id}/baselines"),
+        Some(&token),
+        json!({
+            "category": category,
+            "period_type": "monthly",
+            "period_start": "2026-04-01",
+            "amount": -50000,
+        }),
+    )
+    .await;
+    let baseline_id = body["id"].as_str().unwrap();
+
+    // Update
+    let (status, body) = put(
+        &app,
+        &format!("/workspaces/{ws_id}/baselines/{baseline_id}"),
+        &token,
+        json!({ "amount": -60000 }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["amount"], -60000);
+
+    // Verify via list
+    let (_, body) = get(
+        &app,
+        &format!("/workspaces/{ws_id}/baselines?period_start=2026-04-01"),
+        &token,
+    )
+    .await;
+    assert_eq!(body["baselines"][0]["amount"], -60000);
+}
+
+#[tokio::test]
+async fn duplicate_baseline_rejected() {
+    let app = app();
+    let (token, _, ws_id) = setup_workspace(&app).await;
+    let category = create_category(&app, &ws_id, &token, "Groceries").await;
+
+    post(
+        &app,
+        &format!("/workspaces/{ws_id}/baselines"),
+        Some(&token),
+        json!({
+            "category": category,
+            "period_type": "monthly",
+            "period_start": "2026-04-01",
+            "amount": -50000,
+        }),
+    )
+    .await;
+
+    let (status, _) = post(
+        &app,
+        &format!("/workspaces/{ws_id}/baselines"),
+        Some(&token),
+        json!({
+            "category": category,
+            "period_type": "monthly",
+            "period_start": "2026-04-01",
+            "amount": -60000,
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn baseline_summary_with_actuals() {
+    let app = app();
+    let (token, _, ws_id) = setup_workspace(&app).await;
+    let category = create_category(&app, &ws_id, &token, "Groceries").await;
+
+    // Create account for transactions
+    let (_, acct_body) = post(
+        &app,
+        &format!("/workspaces/{ws_id}/accounts"),
+        Some(&token),
+        json!({ "name": "Chequing", "account_type": "chequing" }),
+    )
+    .await;
+    let acct_id = acct_body["id"].as_str().unwrap();
+
+    // Set baseline
+    post(
+        &app,
+        &format!("/workspaces/{ws_id}/baselines"),
+        Some(&token),
+        json!({
+            "category": category,
+            "period_type": "monthly",
+            "period_start": "2026-04-01",
+            "amount": -50000,
+        }),
+    )
+    .await;
+
+    // Create cleared transaction
+    post(
+        &app,
+        &format!("/workspaces/{ws_id}/transactions"),
+        Some(&token),
+        json!({
+            "account": acct_id,
+            "date": "2026-04-10",
+            "amount": -45000,
+            "cleared": true,
+            "line_items": [{ "category_id": category, "amount": -45000 }]
+        }),
+    )
+    .await;
+
+    // Get summary
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{ws_id}/baselines/summary?period_start=2026-04-01&period_end=2026-04-30"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let items = body["summary"].as_array().unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["actual"], -45000);
+    assert_eq!(items[0]["baseline"], -50000);
+    assert_eq!(items[0]["variance"], 5000); // spent less than baseline
+}
+
+#[tokio::test]
+async fn non_member_cannot_access_baselines() {
+    let app = app();
+    let (token, _, ws_id) = setup_workspace(&app).await;
+    let category = create_category(&app, &ws_id, &token, "Groceries").await;
+
+    // Create a baseline as owner
+    post(
+        &app,
+        &format!("/workspaces/{ws_id}/baselines"),
+        Some(&token),
+        json!({
+            "category": category,
+            "period_type": "monthly",
+            "period_start": "2026-04-01",
+            "amount": -50000,
+        }),
+    )
+    .await;
+
+    // Outsider can't list
+    let (outsider_token, _) = register(&app, "outsider@example.com").await;
+    let (status, _) = get(
+        &app,
+        &format!("/workspaces/{ws_id}/baselines?period_start=2026-04-01"),
+        &outsider_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
 // ── Import tests ───────────────────────────────────────────────────────────
 
 #[tokio::test]
