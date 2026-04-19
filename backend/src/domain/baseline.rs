@@ -199,7 +199,7 @@ pub fn period_summary(
     for b in &baselines {
         let actual = actuals
             .iter()
-            .find(|(cat_id, _)| cat_id == &b.category)
+            .find(|(category, _)| category == &b.category)
             .map(|(_, amt)| *amt)
             .unwrap_or(0);
 
@@ -223,10 +223,10 @@ pub fn period_summary(
     }
 
     // Categories with actuals but no baseline
-    for (cat_id, actual) in &actuals {
-        if !seen_categories.contains(cat_id) {
+    for (category, actual) in &actuals {
+        if !seen_categories.contains(category) {
             results.push(CategoryVariance {
-                category: cat_id.clone(),
+                category: category.clone(),
                 actual: *actual,
                 baseline: None,
                 variance: None,
