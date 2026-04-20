@@ -2,80 +2,118 @@
 
 ## Scope
 
-Covers accounts, categories, transactions, and line items. This is the core financial data model. An account is a named balance with a type. A transaction is a dated financial event against one or more accounts. Line items are the category breakdown within a transaction. All data is scoped to a workspace.
+Covers accounts, transactions, and postings using double-entry bookkeeping. Accounts are hierarchical and serve as both "accounts" and "categories" — there is no separate category concept. A transaction is a dated financial event with two or more postings that must sum to zero. All data is scoped to a workspace.
+
+This design follows hledger conventions: expenses, income, assets, liabilities, and equity are all accounts in a unified tree.
 
 ## Requirements
 
 ### R1: Accounts
-**Description:** An account represents a financial account with a type label. The internal mechanics of the account (e.g. investment holdings) are out of scope — the app tracks inflows and outflows only.
+
+**Description:** An account is a node in a hierarchical tree. Every account has a type derived from its root ancestor. Accounts replace the former separate "category" concept — an expense category like "Cafés" is simply the account `Expenses:Food:Cafés`.
+
 **Acceptance Criteria:**
-- [ ] An account has a unique identifier, name, type, currency, and timestamps
-- [ ] Account types include at minimum: `chequing`, `savings`, `tfsa`, `rrsp`, `brokerage`, `credit`, `other`
+- [ ] An account has a unique identifier, name, optional parent account, currency, and timestamps
 - [ ] An account belongs to exactly one workspace
-- [ ] Two accounts in the same workspace can share the same type but not the same name
-- [ ] An account has a computed current balance derived from its transactions
+- [ ] An account's full name is the colon-delimited path from root to leaf (e.g. `Assets:Bank:Chequing`)
+- [ ] Two accounts with the same parent cannot share the same name segment
+- [ ] An account's type is determined by its root ancestor and is one of: `asset`, `liability`, `equity`, `revenue`, `expense`
+- [ ] Five root accounts are created automatically when a workspace is created: `Assets`, `Liabilities`, `Equity`, `Revenue`, `Expenses`
+- [ ] A default set of sub-accounts is created under the root accounts when a workspace is created (e.g. `Assets:Chequing`, `Assets:Savings`, `Expenses:Food`, `Expenses:Rent`, `Revenue:Employment`)
+- [ ] Accounts can be nested to arbitrary depth
+- [ ] An account's balance is the sum of its own postings plus all descendant account postings
+
 **Dependencies:** cavekit-workspace.md R2
 
-### R2: Categories
-**Description:** A category is a named label used to classify line items. Categories are scoped to a workspace and can be customised by workspace members.
-**Acceptance Criteria:**
-- [ ] A category has a unique identifier, name, optional description, and timestamps
-- [ ] A category belongs to exactly one workspace
-- [ ] Two categories in the same workspace cannot share the same name
-- [ ] Deleting a category that has associated line items is prevented unless those line items are reassigned or the category is soft-deleted
-- [ ] A default set of categories is created when a workspace is created (e.g. employment income, rent, groceries, dining, transit, utilities, entertainment, other)
-**Dependencies:** cavekit-workspace.md R2
+### R2: Transactions
 
-### R3: Transactions
-**Description:** A transaction is a dated financial event. It references one primary account (the account the money moves from or to) and has one or more line items. A transaction may optionally reference a second account to represent a transfer.
+**Description:** A transaction is a dated financial event. It contains two or more postings. The sum of all posting amounts in a transaction must equal zero (double-entry invariant).
+
 **Acceptance Criteria:**
-- [ ] A transaction has a unique identifier, date, description, primary account, total amount, and timestamps
+- [ ] A transaction has a unique identifier, date, description, and timestamps
 - [ ] A transaction belongs to exactly one workspace
-- [ ] A transaction has at least one line item
-- [ ] The sum of line item amounts equals the transaction total amount
-- [ ] A transfer transaction references two accounts within the same workspace
+- [ ] A transaction has at least two postings
+- [ ] The sum of all posting amounts in a transaction equals zero
 - [ ] A transaction can be marked as cleared or pending
+
 **Dependencies:** R1
 
-### R4: Line Items
-**Description:** A line item is a categorised amount within a transaction. It represents a portion of the transaction total assigned to a specific category.
+### R3: Postings
+
+**Description:** A posting is a single debit or credit entry within a transaction. Each posting references one account and has an amount. Positive amounts are debits, negative amounts are credits.
+
 **Acceptance Criteria:**
-- [ ] A line item has a unique identifier, amount, category, optional note, and timestamps
-- [ ] A line item belongs to exactly one transaction
-- [ ] A line item amount must be non-zero
-- [ ] A line item references exactly one category
-- [ ] Updating a line item amount such that line items no longer sum to the transaction total is prevented
+- [ ] A posting has a unique identifier, amount, account reference, optional note, and timestamps
+- [ ] A posting belongs to exactly one transaction
+- [ ] A posting amount must be non-zero
+- [ ] A posting references exactly one account
+- [ ] Creating, updating, or deleting a posting that would violate the zero-sum invariant is prevented
+
+**Dependencies:** R1, R2
+
+### R4: Balance Computation
+
+**Description:** An account's balance at any point in time is computed from its postings and those of all descendant accounts. The balance reflects all cleared postings up to and including a given date.
+
+**Acceptance Criteria:**
+- [ ] The current balance of an account equals the sum of all cleared posting amounts for that account and its descendants
+- [ ] A balance as-of a given date reflects only postings on or before that date
+- [ ] Pending postings (from pending transactions) are excluded from the cleared balance but visible separately
+- [ ] Balance computation is consistent — the same inputs always produce the same result
+- [ ] The fundamental equation holds: Assets = Liabilities + Equity + (Revenue - Expenses)
+
 **Dependencies:** R2, R3
 
-### R5: Balance Computation
-**Description:** An account's balance at any point in time is computed from its transactions. The balance reflects all cleared transactions up to and including a given date.
-**Acceptance Criteria:**
-- [ ] The current balance of an account equals the sum of all cleared transaction amounts for that account
-- [ ] A balance as-of a given date reflects only transactions on or before that date
-- [ ] Pending transactions are excluded from the cleared balance but visible separately
-- [ ] Balance computation is consistent — the same inputs always produce the same result
-**Dependencies:** R3
+### R5: Balance Sheet
 
-### R6: Transaction Queries
-**Description:** Transactions can be queried by date range, account, category, and cleared status. Results are paginated.
+**Description:** A balance sheet reports the financial position at a point in time. It includes only accounts under `Assets`, `Liabilities`, and `Equity`. Net income (Revenue - Expenses) is shown as a component of Equity.
+
 **Acceptance Criteria:**
-- [ ] Transactions can be filtered by one or more accounts
+- [ ] Balance sheet includes all `Assets`, `Liabilities`, and `Equity` accounts with balances
+- [ ] Net income (sum of `Revenue` postings minus sum of `Expenses` postings) is included as `Equity:Retained Earnings` or a similar line
+- [ ] Balance sheet balances: total assets = total liabilities + total equity (including net income)
+- [ ] Balance sheet can be computed as-of any date
+
+**Dependencies:** R4
+
+### R6: Income Statement
+
+**Description:** An income statement reports revenue and expenses over a period. It includes only accounts under `Revenue` and `Expenses`.
+
+**Acceptance Criteria:**
+- [ ] Income statement includes all `Revenue` and `Expenses` accounts with activity in the period
+- [ ] Income statement is computed for a date range (start date to end date, inclusive)
+- [ ] Net income equals total revenue minus total expenses for the period
+- [ ] Accounts with zero activity in the period are omitted
+
+**Dependencies:** R4
+
+### R7: Transaction Queries
+
+**Description:** Transactions can be queried by date range, account (including descendants), and cleared status. Results are paginated.
+
+**Acceptance Criteria:**
+- [ ] Transactions can be filtered by one or more accounts (matching any posting's account or its ancestors)
 - [ ] Transactions can be filtered by date range (start date, end date, inclusive)
-- [ ] Transactions can be filtered by one or more categories (via their line items)
 - [ ] Transactions can be filtered by cleared status
 - [ ] Query results are paginated with a configurable page size (default 50, max 200)
 - [ ] Results are ordered by date descending by default
-**Dependencies:** R3, R4
 
-### R7: Soft Deletes
-**Description:** No financial data is permanently deleted. Accounts, transactions, line items, and categories are soft-deleted — they retain their data but are excluded from normal queries.
+**Dependencies:** R2, R3
+
+### R8: Soft Deletes
+
+**Description:** No financial data is permanently deleted. Accounts, transactions, and postings are soft-deleted — they retain their data but are excluded from normal queries.
+
 **Acceptance Criteria:**
 - [ ] Soft-deleting an account hides it from account listings and balance computations
+- [ ] Soft-deleting an account with descendant accounts is prevented unless all descendants are already soft-deleted
 - [ ] Soft-deleting a transaction hides it from transaction queries and balance computations
 - [ ] Soft-deleted records are recoverable
 - [ ] Soft-deleted records retain all their associated data
 - [ ] Queries for active records never return soft-deleted records unless explicitly requested
-**Dependencies:** R1, R3
+
+**Dependencies:** R1, R2
 
 ## Out of Scope
 - Investment holdings, tickers, or brokerage-specific transaction fields
@@ -83,8 +121,9 @@ Covers accounts, categories, transactions, and line items. This is the core fina
 - Bank/brokerage import (future)
 - Multi-currency conversion (future — currency is stored, conversion is not)
 - Receipt or attachment storage
+- Period closing entries (net income rolls up implicitly without explicit close)
 
 ## Cross-References
 - Depends on: cavekit-workspace.md R2, R5 — all data is workspace-scoped and isolated
-- Depended on by: cavekit-baselines.md — baselines reference categories from this domain
+- Depended on by: cavekit-baselines.md — baselines reference accounts (formerly categories) from this domain
 - Depended on by: cavekit-api.md — all ledger endpoints derive from these requirements

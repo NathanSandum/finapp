@@ -44,43 +44,42 @@ Covers the REST API surface: endpoint contracts, authentication, error handling,
 **Dependencies:** R1, R2, cavekit-workspace.md
 
 ### R5: Account Endpoints
-**Description:** Endpoints to manage accounts within a workspace.
+**Description:** Endpoints to manage hierarchical accounts within a workspace.
 **Acceptance Criteria:**
-- [ ] `POST /workspaces/:id/accounts` creates an account (editor+)
-- [ ] `GET /workspaces/:id/accounts` returns all active accounts with current balances
-- [ ] `GET /workspaces/:id/accounts/:accountId` returns account detail and current balance
-- [ ] `PATCH /workspaces/:id/accounts/:accountId` updates account name or type (editor+)
-- [ ] `DELETE /workspaces/:id/accounts/:accountId` soft-deletes an account (editor+)
-**Dependencies:** R1, R2, cavekit-ledger.md R1, R5
+- [ ] `POST /workspaces/:id/accounts` creates an account with optional parent (editor+)
+- [ ] `GET /workspaces/:id/accounts` returns all active accounts as a tree with balances
+- [ ] `GET /workspaces/:id/accounts/:accountId` returns account detail with balance (including descendants)
+- [ ] `PATCH /workspaces/:id/accounts/:accountId` updates account name (editor+)
+- [ ] `DELETE /workspaces/:id/accounts/:accountId` soft-deletes an account (editor+); fails if account has active descendants
+**Dependencies:** R1, R2, cavekit-ledger.md R1, R4
 
 ### R6: Transaction Endpoints
-**Description:** Endpoints to create, read, update, and delete transactions and their line items.
+**Description:** Endpoints to create, read, update, and delete transactions and their postings.
 **Acceptance Criteria:**
-- [ ] `POST /workspaces/:id/transactions` creates a transaction with line items (editor+)
-- [ ] `GET /workspaces/:id/transactions` returns transactions with filter support (date range, account, category, cleared status), capped at 1000 rows, ordered by date descending
-- [ ] `GET /workspaces/:id/transactions/:txId` returns a transaction with all line items
+- [ ] `POST /workspaces/:id/transactions` creates a transaction with postings (editor+); postings must sum to zero
+- [ ] `GET /workspaces/:id/transactions` returns transactions with filter support (date range, account including descendants, cleared status), capped at 1000 rows, ordered by date descending
+- [ ] `GET /workspaces/:id/transactions/:txId` returns a transaction with all postings
 - [ ] `PATCH /workspaces/:id/transactions/:txId` updates transaction fields (editor+)
 - [ ] `DELETE /workspaces/:id/transactions/:txId` soft-deletes a transaction (editor+)
-- [ ] `POST /workspaces/:id/transactions/:txId/line-items` adds a line item (editor+)
-- [ ] `PATCH /workspaces/:id/transactions/:txId/line-items/:itemId` updates a line item (editor+)
-- [ ] `DELETE /workspaces/:id/transactions/:txId/line-items/:itemId` removes a line item, provided at least one remains (editor+)
-**Dependencies:** R1, R2, cavekit-ledger.md R3, R4, R6, R7
+- [ ] `POST /workspaces/:id/transactions/:txId/postings` adds a posting (editor+); zero-sum invariant must hold after
+- [ ] `PATCH /workspaces/:id/transactions/:txId/postings/:postingId` updates a posting (editor+); zero-sum invariant must hold after
+- [ ] `DELETE /workspaces/:id/transactions/:txId/postings/:postingId` removes a posting, provided at least two remain and zero-sum holds (editor+)
+**Dependencies:** R1, R2, cavekit-ledger.md R2, R3, R7, R8
 
-### R7: Category Endpoints
-**Description:** Endpoints to manage categories within a workspace.
+### R7: Report Endpoints
+**Description:** Endpoints to retrieve balance sheet and income statement reports.
 **Acceptance Criteria:**
-- [ ] `POST /workspaces/:id/categories` creates a category (editor+)
-- [ ] `GET /workspaces/:id/categories` returns all active categories
-- [ ] `PATCH /workspaces/:id/categories/:catId` updates a category name or description (editor+)
-- [ ] `DELETE /workspaces/:id/categories/:catId` soft-deletes a category with no active line items, or returns a 409 if line items exist (editor+)
-**Dependencies:** R1, R2, cavekit-ledger.md R2, R7
+- [ ] `GET /workspaces/:id/reports/balance-sheet?as_of=DATE` returns balance sheet as-of a date (defaults to today)
+- [ ] `GET /workspaces/:id/reports/income-statement?start=DATE&end=DATE` returns income statement for a date range
+- [ ] Both reports return accounts as hierarchical trees with rolled-up balances
+**Dependencies:** R1, R2, cavekit-ledger.md R5, R6
 
 ### R8: Baseline Endpoints
 **Description:** Endpoints to manage baselines and retrieve variance summaries.
 **Acceptance Criteria:**
-- [ ] `PUT /workspaces/:id/baselines` upserts a baseline for a category and period (editor+)
+- [ ] `PUT /workspaces/:id/baselines` upserts a baseline for an account and period (editor+)
 - [ ] `GET /workspaces/:id/baselines` returns all baselines, filterable by period
-- [ ] `GET /workspaces/:id/summary/:periodType/:periodStart` returns a period summary with actuals, baselines, and variance per category
+- [ ] `GET /workspaces/:id/summary/:periodType/:periodStart` returns a period summary with actuals, baselines, and variance per account
 **Dependencies:** R1, R2, cavekit-baselines.md
 
 ## Out of Scope
@@ -92,5 +91,5 @@ Covers the REST API surface: endpoint contracts, authentication, error handling,
 
 ## Cross-References
 - Depends on: cavekit-workspace.md — workspace and membership requirements
-- Depends on: cavekit-ledger.md — account, transaction, line item, category requirements
+- Depends on: cavekit-ledger.md — account, transaction, posting requirements
 - Depends on: cavekit-baselines.md — baseline and variance requirements
