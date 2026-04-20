@@ -399,8 +399,8 @@ mod tests {
         .unwrap();
 
         NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-10",
             -45000,
             vec![LineItemInput::new(fixture.groceries.as_ref().clone(), -45000)],
@@ -428,8 +428,8 @@ mod tests {
     fn no_baseline_returns_none_variance() {
         let mut fixture = setup();
         NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-10",
             -3000,
             vec![LineItemInput::new(fixture.dining.as_ref().clone(), -3000)],
@@ -495,8 +495,8 @@ mod tests {
         .unwrap();
 
         NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-10",
             -45000,
             vec![LineItemInput::new(fixture.groceries.as_ref().clone(), -45000)],
@@ -531,8 +531,8 @@ mod tests {
         .unwrap();
 
         NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-10",
             -3000,
             vec![LineItemInput::new(fixture.dining.as_ref().clone(), -3000)],
@@ -572,8 +572,8 @@ mod tests {
         .unwrap();
 
         NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-10",
             -60000,
             vec![LineItemInput::new(fixture.groceries.as_ref().clone(), -60000)],

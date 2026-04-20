@@ -88,8 +88,8 @@ pub async fn import(
         let line_item = LineItemInput::new(category.as_ref().clone(), transaction.amount);
 
         let mut builder = NewTransaction::new(
-            &member.workspace,
-            account.as_ref(),
+            member.workspace.clone(),
+            account.as_ref().clone(),
             &transaction.date,
             transaction.amount,
             vec![line_item],

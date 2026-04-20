@@ -185,14 +185,14 @@ pub struct NewTransaction {
 
 impl NewTransaction {
     pub fn new(
-        workspace: &WorkspaceRef,
-        account: &AccountRef,
+        workspace: WorkspaceRef,
+        account: AccountRef,
         date: &str,
         amount: i32,
         line_items: Vec<LineItemInput>,
     ) -> Self {
         NewTransaction {
-            workspace: workspace.clone(),
+            workspace: workspace,
             account: account.clone(),
             transfer_account: None,
             date: date.to_string(),
@@ -329,8 +329,8 @@ mod tests {
     fn create_transaction_with_single_line_item() {
         let mut fixture = setup();
         let transaction = NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-15",
             -5000,
             vec![LineItemInput::new(fixture.groceries.as_ref().clone(), -5000)],
@@ -352,8 +352,8 @@ mod tests {
             .unwrap();
 
         let transaction = NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-15",
             -7500,
             vec![
@@ -374,8 +374,8 @@ mod tests {
     fn line_items_must_sum_to_total() {
         let mut fixture = setup();
         let err = NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-15",
             -5000,
             vec![LineItemInput::new(fixture.groceries.as_ref().clone(), -3000)],
@@ -390,8 +390,8 @@ mod tests {
     fn at_least_one_line_item_required() {
         let mut fixture = setup();
         let err = NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-15",
             -5000,
             vec![],
@@ -406,8 +406,8 @@ mod tests {
     fn zero_amount_line_item_rejected() {
         let mut fixture = setup();
         let err = NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-15",
             0,
             vec![LineItemInput::new(fixture.groceries.as_ref().clone(), 0)],
@@ -422,8 +422,8 @@ mod tests {
     fn cleared_balance_computation() {
         let mut fixture = setup();
         NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-10",
             100000,
             vec![LineItemInput::new(fixture.groceries.as_ref().clone(), 100000)],
@@ -434,8 +434,8 @@ mod tests {
         .unwrap();
 
         NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-12",
             -5000,
             vec![LineItemInput::new(fixture.groceries.as_ref().clone(), -5000)],
@@ -446,8 +446,8 @@ mod tests {
 
         // Pending — should not affect cleared balance
         NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-14",
             -2000,
             vec![LineItemInput::new(fixture.groceries.as_ref().clone(), -2000)],
@@ -465,8 +465,8 @@ mod tests {
     fn soft_deleted_transactions_excluded_from_balance() {
         let mut fixture = setup();
         let transaction = NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-10",
             100000,
             vec![LineItemInput::new(fixture.groceries.as_ref().clone(), 100000)],
@@ -487,8 +487,8 @@ mod tests {
     fn transactions_returns_only_active() {
         let mut fixture = setup();
         NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-10",
             -5000,
             vec![LineItemInput::new(fixture.groceries.as_ref().clone(), -5000)],
@@ -497,8 +497,8 @@ mod tests {
         .unwrap();
 
         let deleted = NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-11",
             -3000,
             vec![LineItemInput::new(fixture.groceries.as_ref().clone(), -3000)],
@@ -523,8 +523,8 @@ mod tests {
             .unwrap();
 
         let transaction = NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-15",
             -10000,
             vec![LineItemInput::new(fixture.groceries.as_ref().clone(), -10000)],
@@ -540,8 +540,8 @@ mod tests {
     fn line_item_note() {
         let mut fixture = setup();
         let transaction = NewTransaction::new(
-            &fixture.workspace.as_ref(),
-            &fixture.chequing.as_ref(),
+            fixture.workspace.as_ref().clone(),
+            fixture.chequing.as_ref().clone(),
             "2026-04-15",
             -5000,
             vec![LineItemInput::new(fixture.groceries.as_ref().clone(), -5000).note("Costco run")],

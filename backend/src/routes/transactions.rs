@@ -112,8 +112,8 @@ pub async fn create(
         .collect();
 
     let mut builder = NewTransaction::new(
-        &member.workspace,
-        &body.account,
+        member.workspace.clone(),
+        body.account.clone(),
         &body.date,
         body.amount,
         line_items,
