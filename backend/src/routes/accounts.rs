@@ -142,9 +142,10 @@ pub async fn balance(
         return Err(AppError::NotFound("account".into()));
     }
 
-    // TODO: Wave 2 — real balance from postings
+    let cleared_balance = account.balance(&mut conn)?;
+
     Ok(Json(json!({
         "account": account.id,
-        "cleared_balance": 0,
+        "cleared_balance": cleared_balance,
     })))
 }

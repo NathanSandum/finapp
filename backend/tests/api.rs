@@ -381,7 +381,7 @@ async fn delete_account_with_children_rejected() {
 }
 
 #[tokio::test]
-async fn account_balance_stub_returns_zero() {
+async fn account_balance_zero_when_no_postings() {
     let app = app();
     let (token, _, workspace_id) = setup_workspace(&app).await;
 
@@ -406,6 +406,83 @@ async fn account_balance_stub_returns_zero() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["cleared_balance"], 0);
+}
+
+#[tokio::test]
+async fn account_balance_reflects_postings() {
+    let pool = test_pool();
+    let app = backend::build_router(pool.clone());
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+
+    // Get account IDs via API
+    let (_, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts"),
+        &token,
+    )
+    .await;
+    let accounts = body["accounts"].as_array().unwrap();
+    let chequing_id = accounts
+        .iter()
+        .find(|a| a["name"] == "Chequing")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let food_id = accounts
+        .iter()
+        .find(|a| a["name"] == "Food")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // Create transaction via domain model (no route yet)
+    {
+        use backend::domain::account::AccountRef;
+        use backend::domain::transaction::{NewTransaction, PostingInput};
+        use backend::domain::workspace::WorkspaceRef;
+
+        let mut conn = pool.get().unwrap();
+        let workspace_ref: WorkspaceRef =
+            serde_json::from_value(json!(workspace_id)).unwrap();
+        let chequing_ref: AccountRef =
+            serde_json::from_value(json!(chequing_id)).unwrap();
+        let food_ref: AccountRef =
+            serde_json::from_value(json!(food_id)).unwrap();
+
+        NewTransaction::new(
+            workspace_ref,
+            "2026-01-15",
+            "Lunch",
+            vec![
+                PostingInput::new(chequing_ref, -1200),
+                PostingInput::new(food_ref, 1200),
+            ],
+        )
+        .cleared(true)
+        .insert(&mut conn)
+        .unwrap();
+    }
+
+    // Verify balance via API
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts/{chequing_id}/balance"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["cleared_balance"], -1200);
+
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts/{food_id}/balance"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["cleared_balance"], 1200);
 }
 
 #[tokio::test]
