@@ -1,9 +1,10 @@
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
+use diesel_derive_newtype::DieselNewType;
 use uuid::Uuid;
 
-use crate::domain::workspace::Workspace;
+use crate::domain::workspace::WorkspaceRef;
 use crate::error::AppError;
 use crate::schema::accounts;
 
@@ -49,17 +50,25 @@ impl AccountType {
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[derive(
+    Hash, Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType,
+)]
 #[serde(transparent)]
 pub struct AccountRef(String);
 
+impl std::fmt::Display for AccountRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
 
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = accounts)]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Account {
-    pub id: String,
+    pub id: AccountRef,
     #[diesel(column_name = workspace_id)]
-    pub workspace: String,
+    pub workspace: WorkspaceRef,
     pub name: String,
     pub account_type: String,
     pub currency: String,
@@ -69,29 +78,20 @@ pub struct Account {
 }
 
 impl Account {
-    pub fn as_ref(&self) -> AccountRef {
-        AccountRef(self.id.clone())
+    pub fn as_ref(&self) -> &AccountRef {
+        &self.id
     }
 
-    pub fn from_ref(account_ref: &AccountRef, conn: &mut SqliteConnection) -> Result<Option<Account>, AppError> {
+    pub fn from_ref(
+        account_ref: &AccountRef,
+        conn: &mut SqliteConnection,
+    ) -> Result<Option<Account>, AppError> {
         accounts::table
-            .find(&account_ref.0)
+            .find(account_ref)
             .select(Account::as_select())
             .first(conn)
             .optional()
             .map_err(|err| AppError::Internal(format!("account lookup failed: {err}")))
-    }
-
-    pub fn for_workspace(
-        workspace: &Workspace,
-        conn: &mut SqliteConnection,
-    ) -> Result<Vec<Account>, AppError> {
-        accounts::table
-            .filter(accounts::workspace_id.eq(&workspace.id))
-            .filter(accounts::deleted_at.is_null())
-            .select(Account::as_select())
-            .load(conn)
-            .map_err(|err| AppError::Internal(format!("account list failed: {err}")))
     }
 
     pub fn parsed_type(&self) -> Option<AccountType> {
@@ -108,6 +108,17 @@ impl Account {
     }
 }
 
+impl WorkspaceRef {
+    pub fn accounts(&self, conn: &mut SqliteConnection) -> Result<Vec<Account>, AppError> {
+        accounts::table
+            .filter(accounts::workspace_id.eq(self))
+            .filter(accounts::deleted_at.is_null())
+            .select(Account::as_select())
+            .load(conn)
+            .map_err(|err| AppError::Internal(format!("account list failed: {err}")))
+    }
+}
+
 // ── NewAccount ───────────────────────────────────────────────────────────────
 
 #[derive(Insertable)]
@@ -115,7 +126,7 @@ impl Account {
 struct NewAccountRow {
     id: String,
     #[diesel(column_name = workspace_id)]
-    workspace: String,
+    workspace: WorkspaceRef,
     name: String,
     account_type: String,
     currency: String,
@@ -124,16 +135,16 @@ struct NewAccountRow {
 }
 
 pub struct NewAccount {
-    workspace: String,
+    workspace: WorkspaceRef,
     name: String,
     account_type: AccountType,
     currency: String,
 }
 
 impl NewAccount {
-    pub fn new(workspace: &Workspace, name: &str, account_type: AccountType) -> Self {
+    pub fn new(workspace: WorkspaceRef, name: &str, account_type: AccountType) -> Self {
         NewAccount {
-            workspace: workspace.id.clone(),
+            workspace: workspace.clone(),
             name: name.to_string(),
             account_type,
             currency: "CAD".to_string(),
@@ -161,7 +172,10 @@ impl NewAccount {
             .get_result(conn)
             .map_err(|err| match err {
                 DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
-                    AppError::Conflict(format!("account '{}' already exists in this workspace", self.name))
+                    AppError::Conflict(format!(
+                        "account '{}' already exists in this workspace",
+                        self.name
+                    ))
                 }
                 other => AppError::Internal(format!("account insert failed: {other}")),
             })
@@ -174,49 +188,53 @@ impl NewAccount {
 mod tests {
     use super::*;
     use crate::domain::user::NewUser;
-    use crate::domain::workspace::NewWorkspace;
+    use crate::domain::workspace::{NewWorkspace, Workspace};
     use crate::test_helpers::setup_test_db;
 
     fn setup() -> (SqliteConnection, Workspace) {
         let mut conn = setup_test_db();
         let user = NewUser::new("alice@example.com", "Alice", "password")
-            .unwrap().insert(&mut conn).unwrap();
-        let ws = NewWorkspace::new("My Finances", &user)
-            .insert(&mut conn).unwrap();
-        (conn, ws)
+            .unwrap()
+            .insert(&mut conn)
+            .unwrap();
+        let workspace = NewWorkspace::new("My Finances", user.as_ref().clone())
+            .insert(&mut conn)
+            .unwrap();
+        (conn, workspace)
     }
 
     #[test]
     fn create_account_succeeds() {
-        let (mut conn, ws) = setup();
-        let acct = NewAccount::new(&ws, "Chequing", AccountType::Chequing)
+        let (mut conn, workspace) = setup();
+        let account = NewAccount::new(workspace.as_ref().clone(), "Chequing", AccountType::Chequing)
             .insert(&mut conn)
             .expect("account creation should succeed");
 
-        assert_eq!(acct.name, "Chequing");
-        assert_eq!(acct.account_type, "chequing");
-        assert_eq!(acct.currency, "CAD");
-        assert_eq!(acct.workspace, ws.id);
+        assert_eq!(account.name, "Chequing");
+        assert_eq!(account.account_type, "chequing");
+        assert_eq!(account.currency, "CAD");
+        assert_eq!(account.workspace, workspace.id);
     }
 
     #[test]
     fn custom_currency() {
-        let (mut conn, ws) = setup();
-        let acct = NewAccount::new(&ws, "USD Savings", AccountType::Savings)
+        let (mut conn, workspace) = setup();
+        let account = NewAccount::new(workspace.as_ref().clone(), "USD Savings", AccountType::Savings)
             .currency("USD")
             .insert(&mut conn)
             .unwrap();
 
-        assert_eq!(acct.currency, "USD");
+        assert_eq!(account.currency, "USD");
     }
 
     #[test]
     fn duplicate_name_in_same_workspace_fails() {
-        let (mut conn, ws) = setup();
-        NewAccount::new(&ws, "Chequing", AccountType::Chequing)
-            .insert(&mut conn).unwrap();
+        let (mut conn, workspace) = setup();
+        NewAccount::new(workspace.as_ref().clone(), "Chequing", AccountType::Chequing)
+            .insert(&mut conn)
+            .unwrap();
 
-        let err = NewAccount::new(&ws, "Chequing", AccountType::Savings)
+        let err = NewAccount::new(workspace.as_ref().clone(), "Chequing", AccountType::Savings)
             .insert(&mut conn)
             .expect_err("duplicate name should fail");
 
@@ -225,53 +243,68 @@ mod tests {
 
     #[test]
     fn same_type_different_names_succeeds() {
-        let (mut conn, ws) = setup();
-        NewAccount::new(&ws, "TFSA 1", AccountType::Tfsa)
-            .insert(&mut conn).unwrap();
-        NewAccount::new(&ws, "TFSA 2", AccountType::Tfsa)
-            .insert(&mut conn).unwrap();
+        let (mut conn, workspace) = setup();
+        NewAccount::new(workspace.as_ref().clone(), "TFSA 1", AccountType::Tfsa)
+            .insert(&mut conn)
+            .unwrap();
+        NewAccount::new(workspace.as_ref().clone(), "TFSA 2", AccountType::Tfsa)
+            .insert(&mut conn)
+            .unwrap();
     }
 
     #[test]
-    fn for_workspace_returns_only_active_accounts() {
-        let (mut conn, ws) = setup();
-        NewAccount::new(&ws, "Chequing", AccountType::Chequing)
-            .insert(&mut conn).unwrap();
-        let savings = NewAccount::new(&ws, "Savings", AccountType::Savings)
-            .insert(&mut conn).unwrap();
+    fn accounts_returns_only_active() {
+        let (mut conn, workspace) = setup();
+        NewAccount::new(workspace.as_ref().clone(), "Chequing", AccountType::Chequing)
+            .insert(&mut conn)
+            .unwrap();
+        let savings = NewAccount::new(workspace.as_ref().clone(), "Savings", AccountType::Savings)
+            .insert(&mut conn)
+            .unwrap();
         savings.soft_delete(&mut conn).unwrap();
 
-        let accts = Account::for_workspace(&ws, &mut conn).unwrap();
-        assert_eq!(accts.len(), 1);
-        assert_eq!(accts[0].name, "Chequing");
+        let accounts = workspace.as_ref().accounts(&mut conn).unwrap();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].name, "Chequing");
     }
 
     #[test]
-    fn for_workspace_excludes_other_workspaces() {
+    fn accounts_excludes_other_workspaces() {
         let mut conn = setup_test_db();
-        let user_a = NewUser::new("a@example.com", "A", "password").unwrap()
-            .insert(&mut conn).unwrap();
-        let user_b = NewUser::new("b@example.com", "B", "password").unwrap()
-            .insert(&mut conn).unwrap();
-        let ws_a = NewWorkspace::new("WS A", &user_a).insert(&mut conn).unwrap();
-        let ws_b = NewWorkspace::new("WS B", &user_b).insert(&mut conn).unwrap();
+        let user_a = NewUser::new("a@example.com", "A", "password")
+            .unwrap()
+            .insert(&mut conn)
+            .unwrap();
+        let user_b = NewUser::new("b@example.com", "B", "password")
+            .unwrap()
+            .insert(&mut conn)
+            .unwrap();
+        let workspace_a = NewWorkspace::new("WS A", user_a.as_ref().clone())
+            .insert(&mut conn)
+            .unwrap();
+        let workspace_b = NewWorkspace::new("WS B", user_b.as_ref().clone())
+            .insert(&mut conn)
+            .unwrap();
 
-        NewAccount::new(&ws_a, "A's Chequing", AccountType::Chequing)
-            .insert(&mut conn).unwrap();
-        NewAccount::new(&ws_b, "B's Chequing", AccountType::Chequing)
-            .insert(&mut conn).unwrap();
+        NewAccount::new(workspace_a.as_ref().clone(), "A's Chequing", AccountType::Chequing)
+            .insert(&mut conn)
+            .unwrap();
+        NewAccount::new(workspace_b.as_ref().clone(), "B's Chequing", AccountType::Chequing)
+            .insert(&mut conn)
+            .unwrap();
 
-        let accts = Account::for_workspace(&ws_a, &mut conn).unwrap();
-        assert_eq!(accts.len(), 1);
-        assert_eq!(accts[0].name, "A's Chequing");
+        let accounts = workspace_a.as_ref().accounts(&mut conn).unwrap();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].name, "A's Chequing");
     }
 
     #[test]
     fn parsed_type_roundtrips() {
-        let (mut conn, ws) = setup();
-        let acct = NewAccount::new(&ws, "My RRSP", AccountType::Rrsp)
-            .insert(&mut conn).unwrap();
+        let (mut conn, workspace) = setup();
+        let account = NewAccount::new(workspace.as_ref().clone(), "My RRSP", AccountType::Rrsp)
+            .insert(&mut conn)
+            .unwrap();
 
-        assert_eq!(acct.parsed_type(), Some(AccountType::Rrsp));
+        assert_eq!(account.parsed_type(), Some(AccountType::Rrsp));
     }
 }

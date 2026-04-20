@@ -18,10 +18,11 @@ pub async fn register(
     Extension(pool): Extension<DbPool>,
     Json(body): Json<RegisterRequest>,
 ) -> Result<Json<Value>, AppError> {
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let user = NewUser::new(&body.email, &body.display_name, &body.password)?
-        .insert(&mut conn)?;
+    let user = NewUser::new(&body.email, &body.display_name, &body.password)?.insert(&mut conn)?;
 
     let session = NewSession::create(&user, &mut conn)?;
 
@@ -46,10 +47,11 @@ pub async fn login(
     Extension(pool): Extension<DbPool>,
     Json(body): Json<LoginRequest>,
 ) -> Result<Json<Value>, AppError> {
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let user = User::from_email(&body.email, &mut conn)?
-        .ok_or(AppError::Unauthorized)?;
+    let user = User::from_email(&body.email, &mut conn)?.ok_or(AppError::Unauthorized)?;
 
     if !user.verify_password(&body.password) {
         return Err(AppError::Unauthorized);
@@ -78,7 +80,9 @@ pub async fn logout(
         .and_then(|v| v.strip_prefix("Bearer "))
         .ok_or(AppError::Unauthorized)?;
 
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
     Session::invalidate(token, &mut conn)?;
 

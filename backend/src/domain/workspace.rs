@@ -1,30 +1,41 @@
 use chrono::NaiveDateTime;
+use diesel::deserialize::{self, FromSql};
 use diesel::prelude::*;
+use diesel::serialize::{self, Output, ToSql};
+use diesel::sql_types::Text;
+use diesel::sqlite::Sqlite;
+use diesel_derive_newtype::DieselNewType;
 use uuid::Uuid;
 
-use crate::domain::user::User;
+use crate::domain::user::UserRef;
 use crate::error::AppError;
 use crate::schema::{membership_events, workspace_members, workspaces};
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
 #[serde(transparent)]
 pub struct WorkspaceRef(String);
 
+impl std::fmt::Display for WorkspaceRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
 
-#[derive(Debug, Queryable, Selectable)]
+#[derive(Debug, Queryable, Selectable, serde::Serialize)]
 #[diesel(table_name = workspaces)]
 pub struct Workspace {
-    pub id: String,
+    #[serde(rename = "workspace")]
+    pub id: WorkspaceRef,
     pub name: String,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
 
 impl Workspace {
-    pub fn as_ref(&self) -> WorkspaceRef {
-        WorkspaceRef(self.id.clone())
+    pub fn as_ref(&self) -> &WorkspaceRef {
+        &self.id
     }
 
     pub fn from_ref(
@@ -32,37 +43,24 @@ impl Workspace {
         conn: &mut SqliteConnection,
     ) -> Result<Option<Workspace>, AppError> {
         workspaces::table
-            .find(&workspace_ref.0)
+            .find(workspace_ref)
             .select(Workspace::as_select())
             .first(conn)
             .optional()
             .map_err(|err| AppError::Internal(format!("workspace lookup failed: {err}")))
     }
 
-    pub fn for_user(
-        user: &User,
-        conn: &mut SqliteConnection,
-    ) -> Result<Vec<Workspace>, AppError> {
-        workspace_members::table
-            .filter(workspace_members::user_id.eq(&user.id))
-            .inner_join(workspaces::table.on(workspaces::id.eq(workspace_members::workspace_id)))
-            .select(Workspace::as_select())
-            .load(conn)
-            .map_err(|err| AppError::Internal(format!("find workspaces for user failed: {err}")))
-    }
-
-    pub fn user_role(
+    pub fn view_user(
         &self,
-        user: &User,
+        user: &UserRef,
         conn: &mut SqliteConnection,
-    ) -> Result<Option<Role>, AppError> {
+    ) -> Result<Option<WorkspaceUser>, AppError> {
         workspace_members::table
             .filter(workspace_members::workspace_id.eq(&self.id))
-            .filter(workspace_members::user_id.eq(&user.id))
-            .select(workspace_members::role)
-            .first::<String>(conn)
+            .filter(workspace_members::user_id.eq(user))
+            .select(WorkspaceUser::as_select())
+            .first(conn)
             .optional()
-            .map(|r| r.and_then(|s| Role::from_str(&s)))
             .map_err(|err| AppError::Internal(format!("role lookup failed: {err}")))
     }
 
@@ -75,25 +73,18 @@ impl Workspace {
             .map_err(|err| AppError::Internal(format!("owner count query failed: {err}")))
     }
 
-    pub fn members(
-        &self,
-        conn: &mut SqliteConnection,
-    ) -> Result<Vec<WorkspaceMember>, AppError> {
+    pub fn members(&self, conn: &mut SqliteConnection) -> Result<Vec<WorkspaceUser>, AppError> {
         workspace_members::table
             .filter(workspace_members::workspace_id.eq(&self.id))
-            .select(WorkspaceMember::as_select())
+            .select(WorkspaceUser::as_select())
             .load(conn)
             .map_err(|err| AppError::Internal(format!("members query failed: {err}")))
     }
 
-    pub fn is_member(
-        &self,
-        user: &User,
-        conn: &mut SqliteConnection,
-    ) -> Result<bool, AppError> {
+    pub fn is_member(&self, user: &UserRef, conn: &mut SqliteConnection) -> Result<bool, AppError> {
         workspace_members::table
             .filter(workspace_members::workspace_id.eq(&self.id))
-            .filter(workspace_members::user_id.eq(&user.id))
+            .filter(workspace_members::user_id.eq(user))
             .count()
             .get_result::<i64>(conn)
             .map(|count| count > 0)
@@ -102,14 +93,14 @@ impl Workspace {
 
     pub fn remove_member(
         &self,
-        user: &User,
-        actor: &User,
+        user: &UserRef,
+        actor: &UserRef,
         conn: &mut SqliteConnection,
     ) -> Result<(), AppError> {
         conn.transaction::<_, AppError, _>(|conn| {
             let role = workspace_members::table
                 .filter(workspace_members::workspace_id.eq(&self.id))
-                .filter(workspace_members::user_id.eq(&user.id))
+                .filter(workspace_members::user_id.eq(&user))
                 .select(workspace_members::role)
                 .first::<String>(conn)
                 .optional()?
@@ -129,15 +120,21 @@ impl Workspace {
                 }
             }
 
-            let event_type = if user.id == actor.id { "left" } else { "removed" };
+            let event_type = if user == actor { "left" } else { "removed" };
 
-            NewMembershipEvent::new(&self.id, &user.id, &actor.id, event_type, None)
-                .insert(conn)?;
+            NewMembershipEvent::new(
+                self.id.clone(),
+                user.clone(),
+                actor.clone(),
+                event_type,
+                None,
+            )
+            .insert(conn)?;
 
             diesel::delete(
                 workspace_members::table
                     .filter(workspace_members::workspace_id.eq(&self.id))
-                    .filter(workspace_members::user_id.eq(&user.id)),
+                    .filter(workspace_members::user_id.eq(&user)),
             )
             .execute(conn)?;
 
@@ -146,14 +143,27 @@ impl Workspace {
     }
 }
 
-#[derive(Debug, Queryable, Selectable)]
+impl UserRef {
+    pub fn workspaces(&self, conn: &mut SqliteConnection) -> Result<Vec<Workspace>, AppError> {
+        workspace_members::table
+            .filter(workspace_members::user_id.eq(self))
+            .inner_join(workspaces::table.on(workspaces::id.eq(workspace_members::workspace_id)))
+            .select(Workspace::as_select())
+            .load(conn)
+            .map_err(|err| AppError::Internal(format!("find workspaces for user failed: {err}")))
+    }
+}
+
+#[derive(Debug, Queryable, Selectable, serde::Serialize)]
 #[diesel(table_name = workspace_members)]
-pub struct WorkspaceMember {
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+pub struct WorkspaceUser {
     #[diesel(column_name = workspace_id)]
-    pub workspace: String,
+    #[serde(skip_serializing)]
+    pub workspace: WorkspaceRef,
     #[diesel(column_name = user_id)]
-    pub user: String,
-    pub role: String,
+    pub user: UserRef,
+    pub role: Role,
     pub joined_at: NaiveDateTime,
 }
 
@@ -188,11 +198,11 @@ struct NewWorkspaceRow {
 struct NewMembershipEvent {
     id: String,
     #[diesel(column_name = workspace_id)]
-    workspace: String,
+    workspace: WorkspaceRef,
     #[diesel(column_name = user_id)]
-    user: String,
+    user: UserRef,
     #[diesel(column_name = actor_id)]
-    actor: String,
+    actor: UserRef,
     event_type: String,
     role: Option<String>,
     created_at: NaiveDateTime,
@@ -200,17 +210,17 @@ struct NewMembershipEvent {
 
 impl NewMembershipEvent {
     fn new(
-        workspace: &str,
-        user: &str,
-        actor: &str,
+        workspace: WorkspaceRef,
+        user: UserRef,
+        actor: UserRef,
         event_type: &str,
         role: Option<&str>,
     ) -> Self {
         NewMembershipEvent {
             id: Uuid::new_v4().to_string(),
-            workspace: workspace.to_string(),
-            user: user.to_string(),
-            actor: actor.to_string(),
+            workspace: workspace,
+            user: user,
+            actor: actor,
             event_type: event_type.to_string(),
             role: role.map(|r| r.to_string()),
             created_at: chrono::Utc::now().naive_utc(),
@@ -227,11 +237,11 @@ impl NewMembershipEvent {
 
 #[derive(Insertable)]
 #[diesel(table_name = workspace_members)]
-struct NewWorkspaceMember {
+struct NewWorkspaceUser {
     #[diesel(column_name = workspace_id)]
     workspace: String,
     #[diesel(column_name = user_id)]
-    user: String,
+    user: UserRef,
     role: String,
     joined_at: NaiveDateTime,
 }
@@ -240,14 +250,14 @@ struct NewWorkspaceMember {
 
 pub struct NewWorkspace {
     name: String,
-    creator_id: String,
+    creator: UserRef,
 }
 
 impl NewWorkspace {
-    pub fn new(name: &str, creator: &User) -> Self {
+    pub fn new(name: &str, creator: UserRef) -> Self {
         NewWorkspace {
             name: name.to_string(),
-            creator_id: creator.id.clone(),
+            creator,
         }
     }
 
@@ -267,18 +277,18 @@ impl NewWorkspace {
                 .get_result(conn)?;
 
             NewMembershipEvent::new(
-                &workspace_id,
-                &self.creator_id,
-                &self.creator_id,
+                workspace.as_ref().clone(),
+                self.creator.clone(),
+                self.creator.clone(),
                 "owner_assigned",
                 Some(Role::Owner.as_str()),
             )
             .insert(conn)?;
 
             diesel::insert_into(workspace_members::table)
-                .values(NewWorkspaceMember {
-                    workspace: workspace_id.clone(),
-                    user: self.creator_id,
+                .values(NewWorkspaceUser {
+                    workspace: workspace_id,
+                    user: self.creator,
                     role: Role::Owner.as_str().to_string(),
                     joined_at: now,
                 })
@@ -291,7 +301,7 @@ impl NewWorkspace {
 
 // ── Role ─────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub enum Role {
     Viewer,
     Editor,
@@ -334,12 +344,35 @@ impl Role {
     }
 }
 
+impl FromSql<Text, Sqlite> for Role {
+    fn from_sql(
+        bytes: <Sqlite as diesel::backend::Backend>::RawValue<'_>,
+    ) -> deserialize::Result<Self> {
+        let s = <String as FromSql<Text, Sqlite>>::from_sql(bytes)?;
+        Role::from_str(&s).ok_or_else(|| format!("unknown role: {s}").into())
+    }
+}
+
+impl ToSql<Text, Sqlite> for Role {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> serialize::Result {
+        <str as ToSql<Text, Sqlite>>::to_sql(self.as_str(), out)
+    }
+}
+
+// Required for Queryable derive to work with Role as a field
+impl diesel::deserialize::Queryable<Text, Sqlite> for Role {
+    type Row = Self;
+    fn build(row: Self::Row) -> deserialize::Result<Self> {
+        Ok(row)
+    }
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::user::NewUser;
+    use crate::domain::user::{NewUser, User};
     use crate::test_helpers::setup_test_db;
 
     fn make_user(conn: &mut SqliteConnection, email: &str) -> User {
@@ -350,7 +383,7 @@ mod tests {
     }
 
     fn make_workspace(conn: &mut SqliteConnection, name: &str, creator: &User) -> Workspace {
-        NewWorkspace::new(name, creator)
+        NewWorkspace::new(name, creator.as_ref().clone())
             .insert(conn)
             .expect("workspace creation should succeed")
     }
@@ -359,22 +392,22 @@ mod tests {
     fn create_workspace_succeeds() {
         let mut conn = setup_test_db();
         let user = make_user(&mut conn, "alice@example.com");
-        let ws = make_workspace(&mut conn, "My Finances", &user);
-        assert_eq!(ws.name, "My Finances");
-        assert!(!ws.id.is_empty());
+        let workspace = make_workspace(&mut conn, "My Finances", &user);
+        assert_eq!(workspace.name, "My Finances");
     }
 
     #[test]
     fn creator_is_assigned_owner() {
         let mut conn = setup_test_db();
         let user = make_user(&mut conn, "alice@example.com");
-        let ws = make_workspace(&mut conn, "My Finances", &user);
+        let workspace = make_workspace(&mut conn, "My Finances", &user);
 
-        let role = ws.user_role(&user, &mut conn)
-            .expect("role query should succeed")
-            .expect("creator should have a role");
+        let member = workspace
+            .view_user(user.as_ref(), &mut conn)
+            .expect("view_user should succeed")
+            .expect("creator should be a member");
 
-        assert_eq!(role, Role::Owner);
+        assert_eq!(member.role, Role::Owner);
     }
 
     #[test]
@@ -384,8 +417,10 @@ mod tests {
         make_workspace(&mut conn, "Workspace A", &user);
         make_workspace(&mut conn, "Workspace B", &user);
 
-        let workspaces = Workspace::for_user(&user, &mut conn)
-            .expect("for_user should succeed");
+        let workspaces = user
+            .as_ref()
+            .workspaces(&mut conn)
+            .expect("workspaces should succeed");
         assert_eq!(workspaces.len(), 2);
     }
 
@@ -393,10 +428,10 @@ mod tests {
     fn owner_event_is_appended_to_log() {
         let mut conn = setup_test_db();
         let user = make_user(&mut conn, "alice@example.com");
-        let ws = make_workspace(&mut conn, "My Finances", &user);
+        let workspace = make_workspace(&mut conn, "My Finances", &user);
 
         let events: Vec<MembershipEvent> = membership_events::table
-            .filter(membership_events::workspace_id.eq(&ws.id))
+            .filter(membership_events::workspace_id.eq(&workspace.id))
             .select(MembershipEvent::as_select())
             .load(&mut conn)
             .expect("event query should succeed");
@@ -410,14 +445,16 @@ mod tests {
     fn remove_last_owner_is_rejected_atomically() {
         let mut conn = setup_test_db();
         let user = make_user(&mut conn, "alice@example.com");
-        let ws = make_workspace(&mut conn, "My Finances", &user);
+        let workspace = make_workspace(&mut conn, "My Finances", &user);
 
-        let err = ws.remove_member(&user, &user, &mut conn)
+        let err = workspace
+            .remove_member(user.as_ref(), user.as_ref(), &mut conn)
             .expect_err("removing last owner should fail");
 
         assert!(matches!(err, AppError::Conflict(_)));
 
-        let count = ws.num_owners(&mut conn)
+        let count = workspace
+            .num_owners(&mut conn)
             .expect("num_owners should succeed");
         assert_eq!(count, 1, "workspace must still have one owner");
     }
@@ -427,11 +464,12 @@ mod tests {
         let mut conn = setup_test_db();
         let owner = make_user(&mut conn, "owner@example.com");
         let outsider = make_user(&mut conn, "outsider@example.com");
-        let ws = make_workspace(&mut conn, "My Finances", &owner);
+        let workspace = make_workspace(&mut conn, "My Finances", &owner);
 
-        let role = ws.user_role(&outsider, &mut conn)
-            .expect("role query should succeed");
-        assert!(role.is_none(), "outsider should have no role");
+        let member = workspace
+            .view_user(outsider.as_ref(), &mut conn)
+            .expect("view_user should succeed");
+        assert!(member.is_none(), "outsider should have no role");
     }
 
     #[test]
@@ -439,11 +477,13 @@ mod tests {
         let mut conn = setup_test_db();
         let owner = make_user(&mut conn, "owner@example.com");
         let outsider = make_user(&mut conn, "outsider@example.com");
-        let ws = make_workspace(&mut conn, "My Finances", &owner);
+        let workspace = make_workspace(&mut conn, "My Finances", &owner);
 
-        assert!(!ws.is_member(&outsider, &mut conn)
+        assert!(!workspace
+            .is_member(outsider.as_ref(), &mut conn)
             .expect("is_member should succeed"));
-        assert!(ws.is_member(&owner, &mut conn)
+        assert!(workspace
+            .is_member(owner.as_ref(), &mut conn)
             .expect("is_member should succeed"));
     }
 
@@ -452,20 +492,22 @@ mod tests {
         let mut conn = setup_test_db();
         let user_a = make_user(&mut conn, "a@example.com");
         let user_b = make_user(&mut conn, "b@example.com");
-        let ws_a = make_workspace(&mut conn, "Workspace A", &user_a);
-        let ws_b = make_workspace(&mut conn, "Workspace B", &user_b);
+        let workspace_a = make_workspace(&mut conn, "Workspace A", &user_a);
+        let workspace_b = make_workspace(&mut conn, "Workspace B", &user_b);
 
-        let members_b = ws_b.members(&mut conn)
+        let members_b = workspace_b
+            .members(&mut conn)
             .expect("members query should succeed");
         assert!(
-            members_b.iter().all(|m| m.user != user_a.id),
+            members_b.iter().all(|m| &m.user != user_a.as_ref()),
             "user_a must not appear in workspace B"
         );
 
-        let members_a = ws_a.members(&mut conn)
+        let members_a = workspace_a
+            .members(&mut conn)
             .expect("members query should succeed");
         assert!(
-            members_a.iter().all(|m| m.user != user_b.id),
+            members_a.iter().all(|m| &m.user != user_b.as_ref()),
             "user_b must not appear in workspace A"
         );
     }
@@ -478,8 +520,10 @@ mod tests {
         make_workspace(&mut conn, "A's Workspace", &user_a);
         make_workspace(&mut conn, "B's Workspace", &user_b);
 
-        let a_workspaces = Workspace::for_user(&user_a, &mut conn)
-            .expect("for_user should succeed");
+        let a_workspaces = user_a
+            .as_ref()
+            .workspaces(&mut conn)
+            .expect("workspaces should succeed");
 
         assert_eq!(a_workspaces.len(), 1);
         assert_eq!(a_workspaces[0].name, "A's Workspace");
@@ -490,23 +534,25 @@ mod tests {
         let mut conn = setup_test_db();
         let owner = make_user(&mut conn, "owner@example.com");
         let editor = make_user(&mut conn, "editor@example.com");
-        let ws = make_workspace(&mut conn, "My Finances", &owner);
+        let workspace = make_workspace(&mut conn, "My Finances", &owner);
 
         diesel::insert_into(workspace_members::table)
-            .values(NewWorkspaceMember {
-                workspace: ws.id.clone(),
-                user: editor.id.clone(),
+            .values(NewWorkspaceUser {
+                workspace: workspace.id.to_string(),
+                user: editor.as_ref().clone(),
                 role: Role::Editor.as_str().to_string(),
                 joined_at: chrono::Utc::now().naive_utc(),
             })
             .execute(&mut conn)
             .expect("insert editor should succeed");
 
-        ws.remove_member(&editor, &owner, &mut conn)
+        workspace
+            .remove_member(editor.as_ref(), owner.as_ref(), &mut conn)
             .expect("removing editor should succeed");
 
-        let role = ws.user_role(&editor, &mut conn)
-            .expect("role query should succeed");
-        assert!(role.is_none(), "editor should no longer be a member");
+        let member = workspace
+            .view_user(editor.as_ref(), &mut conn)
+            .expect("view_user should succeed");
+        assert!(member.is_none(), "editor should no longer be a member");
     }
 }

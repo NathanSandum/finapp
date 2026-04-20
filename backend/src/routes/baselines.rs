@@ -3,7 +3,8 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::auth::WorkspaceMember;
-use crate::domain::baseline::{Baseline, NewBaseline, PeriodType, period_summary};
+use crate::domain::baseline::{Baseline, NewBaseline, PeriodType};
+use crate::domain::category::CategoryRef;
 use crate::domain::workspace::Role;
 use crate::error::AppError;
 use crate::schema::{baselines, categories};
@@ -20,9 +21,11 @@ pub async fn list(
     member: WorkspaceMember,
     Query(query): Query<ListQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let baselines = Baseline::for_workspace_period(&member.workspace, &query.period_start, &mut conn)?;
+    let baselines = member.workspace.baselines(&query.period_start, &mut conn)?;
 
     let items: Vec<Value> = baselines
         .iter()
@@ -42,7 +45,7 @@ pub async fn list(
 
 #[derive(Deserialize)]
 pub struct CreateBaselineRequest {
-    category: String,
+    category: CategoryRef,
     period_type: String,
     period_start: String,
     amount: i32,
@@ -54,15 +57,21 @@ pub async fn create(
     Json(body): Json<CreateBaselineRequest>,
 ) -> Result<(StatusCode, Json<Value>), AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let period_type = PeriodType::from_str(&body.period_type)
-        .ok_or_else(|| AppError::Validation(vec![crate::error::FieldError {
+    let period_type = PeriodType::from_str(&body.period_type).ok_or_else(|| {
+        AppError::Validation(vec![crate::error::FieldError {
             field: "period_type".into(),
-            message: format!("unknown period type '{}', expected 'monthly' or 'quarterly'", body.period_type),
-        }]))?;
+            message: format!(
+                "unknown period type '{}', expected 'monthly' or 'quarterly'",
+                body.period_type
+            ),
+        }])
+    })?;
 
-    let category: crate::domain::category::Category = categories::table
+    let category = categories::table
         .find(&body.category)
         .select(crate::domain::category::Category::as_select())
         .first(&mut conn)
@@ -70,12 +79,18 @@ pub async fn create(
         .map_err(|err| AppError::Internal(format!("category lookup failed: {err}")))?
         .ok_or(AppError::NotFound("category".into()))?;
 
-    if category.workspace != member.workspace.id {
+    if category.workspace != member.workspace {
         return Err(AppError::NotFound("category".into()));
     }
 
-    let baseline = NewBaseline::new(&member.workspace, &category, period_type, &body.period_start, body.amount)
-        .insert(&mut conn)?;
+    let baseline = NewBaseline::new(
+        &member.workspace,
+        &body.category,
+        period_type,
+        &body.period_start,
+        body.amount,
+    )
+    .insert(&mut conn)?;
 
     Ok((
         StatusCode::CREATED,
@@ -108,7 +123,9 @@ pub async fn update(
     Json(body): Json<UpdateBaselineRequest>,
 ) -> Result<Json<Value>, AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
     let baseline = baselines::table
         .find(&path.baseline)
@@ -118,7 +135,7 @@ pub async fn update(
         .map_err(|err| AppError::Internal(format!("baseline lookup failed: {err}")))?
         .ok_or(AppError::NotFound("baseline".into()))?;
 
-    if baseline.workspace != member.workspace.id {
+    if baseline.workspace != member.workspace {
         return Err(AppError::NotFound("baseline".into()));
     }
 
@@ -144,9 +161,14 @@ pub async fn summary(
     member: WorkspaceMember,
     Query(query): Query<SummaryQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let variances = period_summary(&member.workspace, &query.period_start, &query.period_end, &mut conn)?;
+    let variances =
+        member
+            .workspace
+            .period_summary(&query.period_start, &query.period_end, &mut conn)?;
 
     let items: Vec<Value> = variances
         .iter()

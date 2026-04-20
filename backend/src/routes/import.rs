@@ -19,12 +19,12 @@ pub struct ImportRequest {
 
 #[derive(Deserialize)]
 pub struct ImportTransaction {
-    account: String,
+    account_name: String,
     account_type: Option<String>,
     date: String,
     description: Option<String>,
     amount: i32,
-    category: String,
+    category_name: String,
     cleared: Option<bool>,
 }
 
@@ -34,11 +34,13 @@ pub async fn import(
     Json(body): Json<ImportRequest>,
 ) -> Result<Json<Value>, AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
     // Load existing accounts and categories for this workspace
-    let existing_accounts = Account::for_workspace(&member.workspace, &mut conn)?;
-    let existing_categories = Category::for_workspace(&member.workspace, &mut conn)?;
+    let existing_accounts = member.workspace.accounts(&mut conn)?;
+    let existing_categories = member.workspace.categories(&mut conn)?;
 
     let mut account_map: HashMap<String, Account> = existing_accounts
         .into_iter()
@@ -55,48 +57,49 @@ pub async fn import(
     let mut transactions_created: u32 = 0;
 
     // Collect unique accounts and categories to create
-    for txn in &body.transactions {
-        if !account_map.contains_key(&txn.account) {
-            let account_type = txn
+    for transaction in &body.transactions {
+        if !account_map.contains_key(&transaction.account_name) {
+            let account_type = transaction
                 .account_type
                 .as_deref()
                 .and_then(AccountType::from_str)
                 .unwrap_or(AccountType::Other);
 
-            let account = NewAccount::new(&member.workspace, &txn.account, account_type)
-                .insert(&mut conn)?;
-            account_map.insert(txn.account.clone(), account);
+            let account =
+                NewAccount::new(member.workspace.clone(), &transaction.account_name, account_type)
+                    .insert(&mut conn)?;
+            account_map.insert(transaction.account_name.clone(), account);
             accounts_created += 1;
         }
 
-        if !category_map.contains_key(&txn.category) {
-            let category = NewCategory::new(&member.workspace, &txn.category)
+        if !category_map.contains_key(&transaction.category_name) {
+            let category = NewCategory::new(member.workspace.clone(), &transaction.category_name)
                 .insert(&mut conn)?;
-            category_map.insert(txn.category.clone(), category);
+            category_map.insert(transaction.category_name.clone(), category);
             categories_created += 1;
         }
     }
 
     // Create transactions
-    for txn in &body.transactions {
-        let account = &account_map[&txn.account];
-        let category = &category_map[&txn.category];
+    for transaction in &body.transactions {
+        let account = &account_map[&transaction.account_name];
+        let category = &category_map[&transaction.category_name];
 
-        let line_item = LineItemInput::new(category, txn.amount);
+        let line_item = LineItemInput::new(category.as_ref().clone(), transaction.amount);
 
         let mut builder = NewTransaction::new(
-            &member.workspace,
-            account,
-            &txn.date,
-            txn.amount,
+            member.workspace.clone(),
+            account.as_ref().clone(),
+            &transaction.date,
+            transaction.amount,
             vec![line_item],
         );
 
-        if let Some(ref desc) = txn.description {
+        if let Some(ref desc) = transaction.description {
             builder = builder.description(desc);
         }
 
-        if let Some(cleared) = txn.cleared {
+        if let Some(cleared) = transaction.cleared {
             builder = builder.cleared(cleared);
         }
 

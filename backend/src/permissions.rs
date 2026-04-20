@@ -89,21 +89,33 @@ mod tests {
 
     #[test]
     fn self_action_returns_workspace_self() {
-        assert_eq!(membership_resource(&user("u1"), &user("u1"), &Role::Owner), Resource::WorkspaceSelf);
+        assert_eq!(
+            membership_resource(&user("u1"), &user("u1"), &Role::Owner),
+            Resource::WorkspaceSelf
+        );
     }
 
     #[test]
     fn targeting_owner_returns_workspace_owner() {
-        assert_eq!(membership_resource(&user("u1"), &user("u2"), &Role::Owner), Resource::WorkspaceOwner);
+        assert_eq!(
+            membership_resource(&user("u1"), &user("u2"), &Role::Owner),
+            Resource::WorkspaceOwner
+        );
     }
 
     #[test]
     fn targeting_editor_returns_workspace_member() {
-        assert_eq!(membership_resource(&user("u1"), &user("u2"), &Role::Editor), Resource::WorkspaceMember);
+        assert_eq!(
+            membership_resource(&user("u1"), &user("u2"), &Role::Editor),
+            Resource::WorkspaceMember
+        );
     }
 
     #[test]
     fn targeting_viewer_returns_workspace_member() {
-        assert_eq!(membership_resource(&user("u1"), &user("u2"), &Role::Viewer), Resource::WorkspaceMember);
+        assert_eq!(
+            membership_resource(&user("u1"), &user("u2"), &Role::Viewer),
+            Resource::WorkspaceMember
+        );
     }
 }

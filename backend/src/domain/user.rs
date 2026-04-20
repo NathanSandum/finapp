@@ -7,20 +7,25 @@ use diesel::prelude::*;
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use uuid::Uuid;
 
+use diesel_derive_newtype::DieselNewType;
+
 use crate::error::AppError;
 use crate::schema::users;
 
-/// Lightweight identity reference — just an id, no DB load required.
-/// Deserializes from a plain string (e.g. in path parameters).
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
 #[serde(transparent)]
 pub struct UserRef(String);
 
+impl std::fmt::Display for UserRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
 
 #[derive(Debug, Queryable, Selectable)]
 #[diesel(table_name = users)]
 pub struct User {
-    pub id: String,
+    pub id: UserRef,
     pub email: String,
     pub display_name: String,
     pub password_hash: String,
@@ -29,11 +34,14 @@ pub struct User {
 }
 
 impl User {
-    pub fn as_ref(&self) -> UserRef {
-        UserRef(self.id.clone())
+    pub fn as_ref(&self) -> &UserRef {
+        &self.id
     }
 
-    pub fn from_ref(user_ref: &UserRef, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {
+    pub fn from_ref(
+        user_ref: &UserRef,
+        conn: &mut SqliteConnection,
+    ) -> Result<Option<User>, AppError> {
         users::table
             .find(&user_ref.0)
             .select(User::as_select())
@@ -125,7 +133,7 @@ mod tests {
 
         assert_eq!(user.email, "alice@example.com");
         assert_eq!(user.display_name, "Test User");
-        assert!(!user.id.is_empty());
+        assert!(!user.id.to_string().is_empty());
     }
 
     #[test]
@@ -147,7 +155,10 @@ mod tests {
         let user = create_user(&mut conn, "alice@example.com");
 
         assert_ne!(user.password_hash, "password123");
-        assert!(user.password_hash.starts_with("$argon2"), "expected argon2 hash");
+        assert!(
+            user.password_hash.starts_with("$argon2"),
+            "expected argon2 hash"
+        );
     }
 
     #[test]
@@ -165,8 +176,8 @@ mod tests {
     #[test]
     fn from_email_returns_none_for_unknown() {
         let mut conn = setup_test_db();
-        let found = User::from_email("nobody@example.com", &mut conn)
-            .expect("query should succeed");
+        let found =
+            User::from_email("nobody@example.com", &mut conn).expect("query should succeed");
         assert!(found.is_none());
     }
 

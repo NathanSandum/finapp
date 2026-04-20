@@ -30,10 +30,7 @@ pub struct Session {
 
 impl Session {
     /// Validate a raw token and return the associated user if valid and not expired.
-    pub fn validate(
-        token: &str,
-        conn: &mut SqliteConnection,
-    ) -> Result<Option<User>, AppError> {
+    pub fn validate(token: &str, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {
         use crate::schema::users;
 
         let token_hash = hash_token(token);
@@ -91,7 +88,7 @@ impl NewSession {
         diesel::insert_into(sessions::table)
             .values(NewSessionRow {
                 id: Uuid::new_v4().to_string(),
-                user: user.id.clone(),
+                user: user.as_ref().to_string(),
                 token_hash,
                 expires_at,
                 created_at: now,
@@ -123,8 +120,8 @@ mod tests {
         let mut conn = setup_test_db();
         let user = make_user(&mut conn);
 
-        let session = NewSession::create(&user, &mut conn)
-            .expect("session creation should succeed");
+        let session =
+            NewSession::create(&user, &mut conn).expect("session creation should succeed");
 
         assert!(!session.token.is_empty());
         assert!(session.expires_at > chrono::Utc::now().naive_utc());
@@ -149,8 +146,7 @@ mod tests {
         let mut conn = setup_test_db();
         let _user = make_user(&mut conn);
 
-        let found = Session::validate("bogus-token", &mut conn)
-            .expect("validation should succeed");
+        let found = Session::validate("bogus-token", &mut conn).expect("validation should succeed");
 
         assert!(found.is_none());
     }
@@ -169,7 +165,7 @@ mod tests {
         diesel::insert_into(sessions::table)
             .values(NewSessionRow {
                 id: Uuid::new_v4().to_string(),
-                user: user.id.clone(),
+                user: user.as_ref().to_string(),
                 token_hash,
                 expires_at: expired,
                 created_at: now,
@@ -177,8 +173,7 @@ mod tests {
             .execute(&mut conn)
             .unwrap();
 
-        let found = Session::validate(&token, &mut conn)
-            .expect("validation should succeed");
+        let found = Session::validate(&token, &mut conn).expect("validation should succeed");
 
         assert!(found.is_none(), "expired token should not validate");
     }
@@ -189,11 +184,10 @@ mod tests {
         let user = make_user(&mut conn);
         let session = NewSession::create(&user, &mut conn).unwrap();
 
-        Session::invalidate(&session.token, &mut conn)
-            .expect("invalidation should succeed");
+        Session::invalidate(&session.token, &mut conn).expect("invalidation should succeed");
 
-        let found = Session::validate(&session.token, &mut conn)
-            .expect("validation should succeed");
+        let found =
+            Session::validate(&session.token, &mut conn).expect("validation should succeed");
 
         assert!(found.is_none(), "invalidated token should not validate");
     }
@@ -206,7 +200,7 @@ mod tests {
 
         // Check the stored hash doesn't match the raw token
         let stored: Vec<String> = sessions::table
-            .filter(sessions::user_id.eq(&user.id))
+            .filter(sessions::user_id.eq(user.as_ref().to_string()))
             .select(sessions::token_hash)
             .load(&mut conn)
             .unwrap();

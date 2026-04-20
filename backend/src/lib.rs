@@ -1,9 +1,9 @@
-pub mod auth;
+mod auth;
 pub mod domain;
-pub mod error;
-pub mod permissions;
-pub mod routes;
-pub mod schema;
+mod error;
+mod permissions;
+mod routes;
+mod schema;
 pub mod test_helpers;
 
 use axum::{
@@ -17,6 +17,10 @@ use serde_json::{json, Value};
 use tower_http::cors::CorsLayer;
 
 pub type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
+
+async fn health() -> Json<Value> {
+    Json(json!({ "status": "ok" }))
+}
 
 pub fn build_router(pool: DbPool) -> Router {
     Router::new()
@@ -86,8 +90,4 @@ pub fn build_router(pool: DbPool) -> Router {
         )
         .layer(Extension(pool))
         .layer(CorsLayer::permissive())
-}
-
-async fn health() -> Json<Value> {
-    Json(json!({ "status": "ok" }))
 }
