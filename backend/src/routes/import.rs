@@ -73,7 +73,7 @@ pub async fn import(
         }
 
         if !category_map.contains_key(&transaction.category_name) {
-            let category = NewCategory::new(&member.workspace, &transaction.category_name)
+            let category = NewCategory::new(member.workspace.clone(), &transaction.category_name)
                 .insert(&mut conn)?;
             category_map.insert(transaction.category_name.clone(), category);
             categories_created += 1;

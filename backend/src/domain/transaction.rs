@@ -314,7 +314,7 @@ mod tests {
         let chequing = NewAccount::new(&workspace.as_ref(), "Chequing", AccountType::Chequing)
             .insert(&mut conn)
             .unwrap();
-        let groceries = NewCategory::new(&workspace.as_ref(), "Groceries")
+        let groceries = NewCategory::new(workspace.as_ref().clone(), "Groceries")
             .insert(&mut conn)
             .unwrap();
         TestFixture {
@@ -347,7 +347,7 @@ mod tests {
     #[test]
     fn create_transaction_with_multiple_line_items() {
         let mut fixture = setup();
-        let dining = NewCategory::new(&fixture.workspace.as_ref(), "Dining")
+        let dining = NewCategory::new(fixture.workspace.as_ref().clone(), "Dining")
             .insert(&mut fixture.conn)
             .unwrap();
 

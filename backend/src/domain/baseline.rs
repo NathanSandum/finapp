@@ -262,10 +262,10 @@ mod tests {
         let workspace = NewWorkspace::new("My Finances", user.as_ref().clone())
             .insert(&mut conn)
             .unwrap();
-        let groceries = NewCategory::new(&workspace.as_ref(), "Groceries")
+        let groceries = NewCategory::new(workspace.as_ref().clone(), "Groceries")
             .insert(&mut conn)
             .unwrap();
-        let dining = NewCategory::new(&workspace.as_ref(), "Dining")
+        let dining = NewCategory::new(workspace.as_ref().clone(), "Dining")
             .insert(&mut conn)
             .unwrap();
         let chequing = NewAccount::new(&workspace.as_ref(), "Chequing", AccountType::Chequing)

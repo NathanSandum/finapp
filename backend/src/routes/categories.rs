@@ -37,7 +37,7 @@ pub async fn create(
         .get()
         .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let mut builder = NewCategory::new(&member.workspace, &body.name);
+    let mut builder = NewCategory::new(member.workspace, &body.name);
     if let Some(ref desc) = body.description {
         builder = builder.description(desc);
     }

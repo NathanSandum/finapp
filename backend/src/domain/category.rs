@@ -97,9 +97,9 @@ pub struct NewCategory {
 }
 
 impl NewCategory {
-    pub fn new(workspace: &WorkspaceRef, name: &str) -> Self {
+    pub fn new(workspace: WorkspaceRef, name: &str) -> Self {
         NewCategory {
-            workspace: workspace.clone(),
+            workspace: workspace,
             name: name.to_string(),
             description: None,
         }
@@ -153,7 +153,7 @@ pub fn create_defaults(
 ) -> Result<Vec<Category>, AppError> {
     DEFAULT_CATEGORIES
         .iter()
-        .map(|name| NewCategory::new(workspace, name).insert(conn))
+        .map(|name| NewCategory::new(workspace.clone(), name).insert(conn))
         .collect()
 }
 
@@ -181,7 +181,7 @@ mod tests {
     #[test]
     fn create_category_succeeds() {
         let (mut conn, workspace) = setup();
-        let category = NewCategory::new(&workspace.as_ref(), "Groceries")
+        let category = NewCategory::new(workspace.as_ref().clone(), "Groceries")
             .description("Food and household items")
             .insert(&mut conn)
             .expect("category creation should succeed");
@@ -197,11 +197,11 @@ mod tests {
     #[test]
     fn duplicate_name_in_same_workspace_fails() {
         let (mut conn, workspace) = setup();
-        NewCategory::new(&workspace.as_ref(), "Groceries")
+        NewCategory::new(workspace.as_ref().clone(), "Groceries")
             .insert(&mut conn)
             .expect("first insert should succeed");
 
-        let err = NewCategory::new(&workspace.as_ref(), "Groceries")
+        let err = NewCategory::new(workspace.as_ref().clone(), "Groceries")
             .insert(&mut conn)
             .expect_err("duplicate should fail");
 
@@ -226,10 +226,10 @@ mod tests {
             .insert(&mut conn)
             .unwrap();
 
-        NewCategory::new(&workspace_a.as_ref(), "Groceries")
+        NewCategory::new(workspace_a.as_ref().clone(), "Groceries")
             .insert(&mut conn)
             .unwrap();
-        NewCategory::new(&workspace_b.as_ref(), "Groceries")
+        NewCategory::new(workspace_b.as_ref().clone(), "Groceries")
             .insert(&mut conn)
             .unwrap();
     }
@@ -237,10 +237,10 @@ mod tests {
     #[test]
     fn categories_returns_only_active() {
         let (mut conn, workspace) = setup();
-        NewCategory::new(&workspace.as_ref(), "Groceries")
+        NewCategory::new(workspace.as_ref().clone(), "Groceries")
             .insert(&mut conn)
             .unwrap();
-        let dining = NewCategory::new(&workspace.as_ref(), "Dining")
+        let dining = NewCategory::new(workspace.as_ref().clone(), "Dining")
             .insert(&mut conn)
             .unwrap();
         dining.soft_delete(&mut conn).unwrap();
@@ -268,10 +268,10 @@ mod tests {
             .insert(&mut conn)
             .unwrap();
 
-        NewCategory::new(&workspace_a.as_ref(), "A's Category")
+        NewCategory::new(workspace_a.as_ref().clone(), "A's Category")
             .insert(&mut conn)
             .unwrap();
-        NewCategory::new(&workspace_b.as_ref(), "B's Category")
+        NewCategory::new(workspace_b.as_ref().clone(), "B's Category")
             .insert(&mut conn)
             .unwrap();
 
@@ -298,7 +298,7 @@ mod tests {
     #[test]
     fn soft_deleted_category_is_recoverable() {
         let (mut conn, workspace) = setup();
-        let category = NewCategory::new(&workspace.as_ref(), "Groceries")
+        let category = NewCategory::new(workspace.as_ref().clone(), "Groceries")
             .insert(&mut conn)
             .unwrap();
         category.soft_delete(&mut conn).unwrap();
