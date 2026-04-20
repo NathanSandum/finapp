@@ -1,11 +1,11 @@
 use chrono::NaiveDateTime;
-use diesel::prelude::*;
 use diesel::deserialize::{self, FromSql};
+use diesel::prelude::*;
 use diesel::serialize::{self, Output, ToSql};
 use diesel::sql_types::Text;
 use diesel::sqlite::Sqlite;
-use uuid::Uuid;
 use diesel_derive_newtype::DieselNewType;
+use uuid::Uuid;
 
 use crate::domain::user::UserRef;
 use crate::error::AppError;
@@ -73,10 +73,7 @@ impl Workspace {
             .map_err(|err| AppError::Internal(format!("owner count query failed: {err}")))
     }
 
-    pub fn members(
-        &self,
-        conn: &mut SqliteConnection,
-    ) -> Result<Vec<WorkspaceUser>, AppError> {
+    pub fn members(&self, conn: &mut SqliteConnection) -> Result<Vec<WorkspaceUser>, AppError> {
         workspace_members::table
             .filter(workspace_members::workspace_id.eq(&self.id))
             .select(WorkspaceUser::as_select())
@@ -84,11 +81,7 @@ impl Workspace {
             .map_err(|err| AppError::Internal(format!("members query failed: {err}")))
     }
 
-    pub fn is_member(
-        &self,
-        user: UserRef,
-        conn: &mut SqliteConnection,
-    ) -> Result<bool, AppError> {
+    pub fn is_member(&self, user: UserRef, conn: &mut SqliteConnection) -> Result<bool, AppError> {
         workspace_members::table
             .filter(workspace_members::workspace_id.eq(&self.id))
             .filter(workspace_members::user_id.eq(user))
@@ -129,8 +122,7 @@ impl Workspace {
 
             let event_type = if user == actor { "left" } else { "removed" };
 
-            NewMembershipEvent::new(&self.id, &user, &actor, event_type, None)
-                .insert(conn)?;
+            NewMembershipEvent::new(&self.id, &user, &actor, event_type, None).insert(conn)?;
 
             diesel::delete(
                 workspace_members::table
@@ -346,7 +338,9 @@ impl Role {
 }
 
 impl FromSql<Text, Sqlite> for Role {
-    fn from_sql(bytes: <Sqlite as diesel::backend::Backend>::RawValue<'_>) -> deserialize::Result<Self> {
+    fn from_sql(
+        bytes: <Sqlite as diesel::backend::Backend>::RawValue<'_>,
+    ) -> deserialize::Result<Self> {
         let s = <String as FromSql<Text, Sqlite>>::from_sql(bytes)?;
         Role::from_str(&s).ok_or_else(|| format!("unknown role: {s}").into())
     }
@@ -401,7 +395,8 @@ mod tests {
         let user = make_user(&mut conn, "alice@example.com");
         let workspace = make_workspace(&mut conn, "My Finances", &user);
 
-        let member = workspace.view_user(user.as_ref(), &mut conn)
+        let member = workspace
+            .view_user(user.as_ref(), &mut conn)
             .expect("view_user should succeed")
             .expect("creator should be a member");
 
@@ -415,7 +410,9 @@ mod tests {
         make_workspace(&mut conn, "Workspace A", &user);
         make_workspace(&mut conn, "Workspace B", &user);
 
-        let workspaces = user.as_ref().workspaces(&mut conn)
+        let workspaces = user
+            .as_ref()
+            .workspaces(&mut conn)
             .expect("workspaces should succeed");
         assert_eq!(workspaces.len(), 2);
     }
@@ -443,12 +440,14 @@ mod tests {
         let user = make_user(&mut conn, "alice@example.com");
         let workspace = make_workspace(&mut conn, "My Finances", &user);
 
-        let err = workspace.remove_member(user.as_ref(), user.as_ref(), &mut conn)
+        let err = workspace
+            .remove_member(user.as_ref(), user.as_ref(), &mut conn)
             .expect_err("removing last owner should fail");
 
         assert!(matches!(err, AppError::Conflict(_)));
 
-        let count = workspace.num_owners(&mut conn)
+        let count = workspace
+            .num_owners(&mut conn)
             .expect("num_owners should succeed");
         assert_eq!(count, 1, "workspace must still have one owner");
     }
@@ -460,7 +459,8 @@ mod tests {
         let outsider = make_user(&mut conn, "outsider@example.com");
         let workspace = make_workspace(&mut conn, "My Finances", &owner);
 
-        let member = workspace.view_user(outsider.as_ref(), &mut conn)
+        let member = workspace
+            .view_user(outsider.as_ref(), &mut conn)
             .expect("view_user should succeed");
         assert!(member.is_none(), "outsider should have no role");
     }
@@ -472,9 +472,11 @@ mod tests {
         let outsider = make_user(&mut conn, "outsider@example.com");
         let workspace = make_workspace(&mut conn, "My Finances", &owner);
 
-        assert!(!workspace.is_member(outsider.as_ref(), &mut conn)
+        assert!(!workspace
+            .is_member(outsider.as_ref(), &mut conn)
             .expect("is_member should succeed"));
-        assert!(workspace.is_member(owner.as_ref(), &mut conn)
+        assert!(workspace
+            .is_member(owner.as_ref(), &mut conn)
             .expect("is_member should succeed"));
     }
 
@@ -486,14 +488,16 @@ mod tests {
         let workspace_a = make_workspace(&mut conn, "Workspace A", &user_a);
         let workspace_b = make_workspace(&mut conn, "Workspace B", &user_b);
 
-        let members_b = workspace_b.members(&mut conn)
+        let members_b = workspace_b
+            .members(&mut conn)
             .expect("members query should succeed");
         assert!(
             members_b.iter().all(|m| m.user != user_a.as_ref()),
             "user_a must not appear in workspace B"
         );
 
-        let members_a = workspace_a.members(&mut conn)
+        let members_a = workspace_a
+            .members(&mut conn)
             .expect("members query should succeed");
         assert!(
             members_a.iter().all(|m| m.user != user_b.as_ref()),
@@ -509,7 +513,9 @@ mod tests {
         make_workspace(&mut conn, "A's Workspace", &user_a);
         make_workspace(&mut conn, "B's Workspace", &user_b);
 
-        let a_workspaces = user_a.as_ref().workspaces(&mut conn)
+        let a_workspaces = user_a
+            .as_ref()
+            .workspaces(&mut conn)
             .expect("workspaces should succeed");
 
         assert_eq!(a_workspaces.len(), 1);
@@ -533,10 +539,12 @@ mod tests {
             .execute(&mut conn)
             .expect("insert editor should succeed");
 
-        workspace.remove_member(editor.as_ref(), owner.as_ref(), &mut conn)
+        workspace
+            .remove_member(editor.as_ref(), owner.as_ref(), &mut conn)
             .expect("removing editor should succeed");
 
-        let member = workspace.view_user(editor.as_ref(), &mut conn)
+        let member = workspace
+            .view_user(editor.as_ref(), &mut conn)
             .expect("view_user should succeed");
         assert!(member.is_none(), "editor should no longer be a member");
     }

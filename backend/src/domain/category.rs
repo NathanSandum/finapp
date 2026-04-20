@@ -1,8 +1,8 @@
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
-use uuid::Uuid;
 use diesel_derive_newtype::DieselNewType;
+use uuid::Uuid;
 
 use crate::domain::workspace::{Workspace, WorkspaceRef};
 use crate::error::AppError;
@@ -23,7 +23,7 @@ impl std::fmt::Display for CategoryRef {
 #[derive(Debug, Queryable, Selectable, serde::Serialize)]
 #[diesel(table_name = categories)]
 pub struct Category {
-    #[serde(rename = "id")]
+    #[serde(rename = "category")]
     pub id: CategoryRef,
     #[diesel(column_name = workspace_id)]
     #[serde(skip_serializing)]
@@ -41,7 +41,10 @@ impl Category {
         self.id.clone()
     }
 
-    pub fn from_ref(category_ref: &CategoryRef, conn: &mut SqliteConnection) -> Result<Option<Category>, AppError> {
+    pub fn from_ref(
+        category_ref: &CategoryRef,
+        conn: &mut SqliteConnection,
+    ) -> Result<Option<Category>, AppError> {
         categories::table
             .find(category_ref)
             .select(Category::as_select())
@@ -120,7 +123,10 @@ impl NewCategory {
             .get_result(conn)
             .map_err(|err| match err {
                 DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
-                    AppError::Conflict(format!("category '{}' already exists in this workspace", self.name))
+                    AppError::Conflict(format!(
+                        "category '{}' already exists in this workspace",
+                        self.name
+                    ))
                 }
                 other => AppError::Internal(format!("category insert failed: {other}")),
             })
@@ -179,7 +185,10 @@ mod tests {
             .expect("category creation should succeed");
 
         assert_eq!(category.name, "Groceries");
-        assert_eq!(category.description, Some("Food and household items".to_string()));
+        assert_eq!(
+            category.description,
+            Some("Food and household items".to_string())
+        );
         assert_eq!(category.workspace, workspace.id);
     }
 
@@ -208,18 +217,30 @@ mod tests {
             .expect("new user should succeed")
             .insert(&mut conn)
             .expect("insert should succeed");
-        let workspace_a = NewWorkspace::new("WS A", user_a.as_ref()).insert(&mut conn).unwrap();
-        let workspace_b = NewWorkspace::new("WS B", user_b.as_ref()).insert(&mut conn).unwrap();
+        let workspace_a = NewWorkspace::new("WS A", user_a.as_ref())
+            .insert(&mut conn)
+            .unwrap();
+        let workspace_b = NewWorkspace::new("WS B", user_b.as_ref())
+            .insert(&mut conn)
+            .unwrap();
 
-        NewCategory::new(&workspace_a.as_ref(), "Groceries").insert(&mut conn).unwrap();
-        NewCategory::new(&workspace_b.as_ref(), "Groceries").insert(&mut conn).unwrap();
+        NewCategory::new(&workspace_a.as_ref(), "Groceries")
+            .insert(&mut conn)
+            .unwrap();
+        NewCategory::new(&workspace_b.as_ref(), "Groceries")
+            .insert(&mut conn)
+            .unwrap();
     }
 
     #[test]
     fn categories_returns_only_active() {
         let (mut conn, workspace) = setup();
-        NewCategory::new(&workspace.as_ref(), "Groceries").insert(&mut conn).unwrap();
-        let dining = NewCategory::new(&workspace.as_ref(), "Dining").insert(&mut conn).unwrap();
+        NewCategory::new(&workspace.as_ref(), "Groceries")
+            .insert(&mut conn)
+            .unwrap();
+        let dining = NewCategory::new(&workspace.as_ref(), "Dining")
+            .insert(&mut conn)
+            .unwrap();
         dining.soft_delete(&mut conn).unwrap();
 
         let categories = workspace.as_ref().categories(&mut conn).unwrap();
@@ -230,15 +251,27 @@ mod tests {
     #[test]
     fn categories_excludes_other_workspaces() {
         let mut conn = setup_test_db();
-        let user_a = NewUser::new("a@example.com", "A", "password").unwrap()
-            .insert(&mut conn).unwrap();
-        let user_b = NewUser::new("b@example.com", "B", "password").unwrap()
-            .insert(&mut conn).unwrap();
-        let workspace_a = NewWorkspace::new("WS A", user_a.as_ref()).insert(&mut conn).unwrap();
-        let workspace_b = NewWorkspace::new("WS B", user_b.as_ref()).insert(&mut conn).unwrap();
+        let user_a = NewUser::new("a@example.com", "A", "password")
+            .unwrap()
+            .insert(&mut conn)
+            .unwrap();
+        let user_b = NewUser::new("b@example.com", "B", "password")
+            .unwrap()
+            .insert(&mut conn)
+            .unwrap();
+        let workspace_a = NewWorkspace::new("WS A", user_a.as_ref())
+            .insert(&mut conn)
+            .unwrap();
+        let workspace_b = NewWorkspace::new("WS B", user_b.as_ref())
+            .insert(&mut conn)
+            .unwrap();
 
-        NewCategory::new(&workspace_a.as_ref(), "A's Category").insert(&mut conn).unwrap();
-        NewCategory::new(&workspace_b.as_ref(), "B's Category").insert(&mut conn).unwrap();
+        NewCategory::new(&workspace_a.as_ref(), "A's Category")
+            .insert(&mut conn)
+            .unwrap();
+        NewCategory::new(&workspace_b.as_ref(), "B's Category")
+            .insert(&mut conn)
+            .unwrap();
 
         let categories = workspace_a.as_ref().categories(&mut conn).unwrap();
         assert_eq!(categories.len(), 1);
@@ -253,14 +286,19 @@ mod tests {
         assert_eq!(categories.len(), DEFAULT_CATEGORIES.len());
         let names: Vec<&str> = categories.iter().map(|c| c.name.as_str()).collect();
         for &default in DEFAULT_CATEGORIES {
-            assert!(names.contains(&default), "missing default category: {default}");
+            assert!(
+                names.contains(&default),
+                "missing default category: {default}"
+            );
         }
     }
 
     #[test]
     fn soft_deleted_category_is_recoverable() {
         let (mut conn, workspace) = setup();
-        let category = NewCategory::new(&workspace.as_ref(), "Groceries").insert(&mut conn).unwrap();
+        let category = NewCategory::new(&workspace.as_ref(), "Groceries")
+            .insert(&mut conn)
+            .unwrap();
         category.soft_delete(&mut conn).unwrap();
 
         let all: Vec<Category> = categories::table

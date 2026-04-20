@@ -55,10 +55,7 @@ impl Baseline {
     pub fn update_amount(&self, amount: i32, conn: &mut SqliteConnection) -> Result<(), AppError> {
         let now = chrono::Utc::now().naive_utc();
         diesel::update(baselines::table.find(&self.id))
-            .set((
-                baselines::amount.eq(amount),
-                baselines::updated_at.eq(now),
-            ))
+            .set((baselines::amount.eq(amount), baselines::updated_at.eq(now)))
             .execute(conn)
             .map_err(|err| AppError::Internal(format!("baseline update failed: {err}")))?;
         Ok(())
@@ -66,7 +63,11 @@ impl Baseline {
 }
 
 impl WorkspaceRef {
-    pub fn baselines(&self, period_start: &str, conn: &mut SqliteConnection) -> Result<Vec<Baseline>, AppError> {
+    pub fn baselines(
+        &self,
+        period_start: &str,
+        conn: &mut SqliteConnection,
+    ) -> Result<Vec<Baseline>, AppError> {
         baselines::table
             .filter(baselines::workspace_id.eq(self))
             .filter(baselines::period_start.eq(period_start))
@@ -85,7 +86,8 @@ impl WorkspaceRef {
         let actuals = actuals_by_category(self, period_start, period_end, conn)?;
 
         let mut results: Vec<CategoryVariance> = Vec::new();
-        let mut seen_categories: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut seen_categories: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
 
         for baseline in &baselines {
             let actual = actuals
@@ -255,25 +257,42 @@ mod tests {
     fn setup() -> TestFixture {
         let mut conn = setup_test_db();
         let user = NewUser::new("alice@example.com", "Alice", "password")
-            .unwrap().insert(&mut conn).unwrap();
+            .unwrap()
+            .insert(&mut conn)
+            .unwrap();
         let workspace = NewWorkspace::new("My Finances", user.as_ref())
-            .insert(&mut conn).unwrap();
-        let groceries = NewCategory::new(&workspace.as_ref(), "Groceries").insert(&mut conn).unwrap();
-        let dining = NewCategory::new(&workspace.as_ref(), "Dining").insert(&mut conn).unwrap();
+            .insert(&mut conn)
+            .unwrap();
+        let groceries = NewCategory::new(&workspace.as_ref(), "Groceries")
+            .insert(&mut conn)
+            .unwrap();
+        let dining = NewCategory::new(&workspace.as_ref(), "Dining")
+            .insert(&mut conn)
+            .unwrap();
         let chequing = NewAccount::new(&workspace.as_ref(), "Chequing", AccountType::Chequing)
-            .insert(&mut conn).unwrap();
-        TestFixture { conn, workspace, groceries, dining, chequing }
+            .insert(&mut conn)
+            .unwrap();
+        TestFixture {
+            conn,
+            workspace,
+            groceries,
+            dining,
+            chequing,
+        }
     }
 
     #[test]
     fn create_baseline_succeeds() {
         let mut fixture = setup();
         let baseline = NewBaseline::new(
-            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
-            PeriodType::Monthly, "2026-04-01", 50000,
+            &fixture.workspace.as_ref(),
+            &fixture.groceries.as_ref(),
+            PeriodType::Monthly,
+            "2026-04-01",
+            50000,
         )
-            .insert(&mut fixture.conn)
-            .expect("baseline creation should succeed");
+        .insert(&mut fixture.conn)
+        .expect("baseline creation should succeed");
 
         assert_eq!(baseline.amount, 50000);
         assert_eq!(baseline.period_type, "monthly");
@@ -284,15 +303,24 @@ mod tests {
     fn duplicate_baseline_rejected() {
         let mut fixture = setup();
         NewBaseline::new(
-            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
-            PeriodType::Monthly, "2026-04-01", 50000,
-        ).insert(&mut fixture.conn).unwrap();
+            &fixture.workspace.as_ref(),
+            &fixture.groceries.as_ref(),
+            PeriodType::Monthly,
+            "2026-04-01",
+            50000,
+        )
+        .insert(&mut fixture.conn)
+        .unwrap();
 
         let err = NewBaseline::new(
-            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
-            PeriodType::Monthly, "2026-04-01", 60000,
-        ).insert(&mut fixture.conn)
-            .expect_err("duplicate should fail");
+            &fixture.workspace.as_ref(),
+            &fixture.groceries.as_ref(),
+            PeriodType::Monthly,
+            "2026-04-01",
+            60000,
+        )
+        .insert(&mut fixture.conn)
+        .expect_err("duplicate should fail");
 
         assert!(matches!(err, AppError::Conflict(_)));
     }
@@ -301,26 +329,45 @@ mod tests {
     fn same_category_different_periods_allowed() {
         let mut fixture = setup();
         NewBaseline::new(
-            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
-            PeriodType::Monthly, "2026-04-01", 50000,
-        ).insert(&mut fixture.conn).unwrap();
+            &fixture.workspace.as_ref(),
+            &fixture.groceries.as_ref(),
+            PeriodType::Monthly,
+            "2026-04-01",
+            50000,
+        )
+        .insert(&mut fixture.conn)
+        .unwrap();
         NewBaseline::new(
-            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
-            PeriodType::Monthly, "2026-05-01", 55000,
-        ).insert(&mut fixture.conn).unwrap();
+            &fixture.workspace.as_ref(),
+            &fixture.groceries.as_ref(),
+            PeriodType::Monthly,
+            "2026-05-01",
+            55000,
+        )
+        .insert(&mut fixture.conn)
+        .unwrap();
     }
 
     #[test]
     fn update_amount() {
         let mut fixture = setup();
         let baseline = NewBaseline::new(
-            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
-            PeriodType::Monthly, "2026-04-01", 50000,
-        ).insert(&mut fixture.conn).unwrap();
+            &fixture.workspace.as_ref(),
+            &fixture.groceries.as_ref(),
+            PeriodType::Monthly,
+            "2026-04-01",
+            50000,
+        )
+        .insert(&mut fixture.conn)
+        .unwrap();
 
         baseline.update_amount(60000, &mut fixture.conn).unwrap();
 
-        let loaded = fixture.workspace.as_ref().baselines("2026-04-01", &mut fixture.conn).unwrap();
+        let loaded = fixture
+            .workspace
+            .as_ref()
+            .baselines("2026-04-01", &mut fixture.conn)
+            .unwrap();
         assert_eq!(loaded[0].amount, 60000);
     }
 
@@ -328,9 +375,14 @@ mod tests {
     fn zero_baseline_allowed() {
         let mut fixture = setup();
         let baseline = NewBaseline::new(
-            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
-            PeriodType::Monthly, "2026-04-01", 0,
-        ).insert(&mut fixture.conn).unwrap();
+            &fixture.workspace.as_ref(),
+            &fixture.groceries.as_ref(),
+            PeriodType::Monthly,
+            "2026-04-01",
+            0,
+        )
+        .insert(&mut fixture.conn)
+        .unwrap();
         assert_eq!(baseline.amount, 0);
     }
 
@@ -338,17 +390,35 @@ mod tests {
     fn variance_with_actuals_and_baseline() {
         let mut fixture = setup();
         NewBaseline::new(
-            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
-            PeriodType::Monthly, "2026-04-01", -50000,
-        ).insert(&mut fixture.conn).unwrap();
+            &fixture.workspace.as_ref(),
+            &fixture.groceries.as_ref(),
+            PeriodType::Monthly,
+            "2026-04-01",
+            -50000,
+        )
+        .insert(&mut fixture.conn)
+        .unwrap();
 
         NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-10", -45000,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-10",
+            -45000,
             vec![LineItemInput::new(&fixture.groceries.as_ref(), -45000)],
-        ).cleared(true).insert(&mut fixture.conn).unwrap();
+        )
+        .cleared(true)
+        .insert(&mut fixture.conn)
+        .unwrap();
 
-        let summary = fixture.workspace.as_ref().period_summary("2026-04-01", "2026-04-30", &mut fixture.conn).unwrap();
-        let groceries_variance = summary.iter().find(|v| v.category == fixture.groceries.id.to_string()).unwrap();
+        let summary = fixture
+            .workspace
+            .as_ref()
+            .period_summary("2026-04-01", "2026-04-30", &mut fixture.conn)
+            .unwrap();
+        let groceries_variance = summary
+            .iter()
+            .find(|v| v.category == fixture.groceries.id.to_string())
+            .unwrap();
 
         assert_eq!(groceries_variance.actual, -45000);
         assert_eq!(groceries_variance.baseline, Some(-50000));
@@ -359,12 +429,25 @@ mod tests {
     fn no_baseline_returns_none_variance() {
         let mut fixture = setup();
         NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-10", -3000,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-10",
+            -3000,
             vec![LineItemInput::new(&fixture.dining.as_ref(), -3000)],
-        ).cleared(true).insert(&mut fixture.conn).unwrap();
+        )
+        .cleared(true)
+        .insert(&mut fixture.conn)
+        .unwrap();
 
-        let summary = fixture.workspace.as_ref().period_summary("2026-04-01", "2026-04-30", &mut fixture.conn).unwrap();
-        let dining_variance = summary.iter().find(|v| v.category == fixture.dining.id.to_string()).unwrap();
+        let summary = fixture
+            .workspace
+            .as_ref()
+            .period_summary("2026-04-01", "2026-04-30", &mut fixture.conn)
+            .unwrap();
+        let dining_variance = summary
+            .iter()
+            .find(|v| v.category == fixture.dining.id.to_string())
+            .unwrap();
 
         assert_eq!(dining_variance.actual, -3000);
         assert!(dining_variance.baseline.is_none());
@@ -375,12 +458,24 @@ mod tests {
     fn baseline_with_no_actuals_shows_full_variance() {
         let mut fixture = setup();
         NewBaseline::new(
-            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
-            PeriodType::Monthly, "2026-04-01", -50000,
-        ).insert(&mut fixture.conn).unwrap();
+            &fixture.workspace.as_ref(),
+            &fixture.groceries.as_ref(),
+            PeriodType::Monthly,
+            "2026-04-01",
+            -50000,
+        )
+        .insert(&mut fixture.conn)
+        .unwrap();
 
-        let summary = fixture.workspace.as_ref().period_summary("2026-04-01", "2026-04-30", &mut fixture.conn).unwrap();
-        let groceries_variance = summary.iter().find(|v| v.category == fixture.groceries.id.to_string()).unwrap();
+        let summary = fixture
+            .workspace
+            .as_ref()
+            .period_summary("2026-04-01", "2026-04-30", &mut fixture.conn)
+            .unwrap();
+        let groceries_variance = summary
+            .iter()
+            .find(|v| v.category == fixture.groceries.id.to_string())
+            .unwrap();
 
         assert_eq!(groceries_variance.actual, 0);
         assert_eq!(groceries_variance.baseline, Some(-50000));
@@ -391,17 +486,34 @@ mod tests {
     fn pending_transactions_excluded_from_variance() {
         let mut fixture = setup();
         NewBaseline::new(
-            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
-            PeriodType::Monthly, "2026-04-01", -50000,
-        ).insert(&mut fixture.conn).unwrap();
+            &fixture.workspace.as_ref(),
+            &fixture.groceries.as_ref(),
+            PeriodType::Monthly,
+            "2026-04-01",
+            -50000,
+        )
+        .insert(&mut fixture.conn)
+        .unwrap();
 
         NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-10", -45000,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-10",
+            -45000,
             vec![LineItemInput::new(&fixture.groceries.as_ref(), -45000)],
-        ).insert(&mut fixture.conn).unwrap();
+        )
+        .insert(&mut fixture.conn)
+        .unwrap();
 
-        let summary = fixture.workspace.as_ref().period_summary("2026-04-01", "2026-04-30", &mut fixture.conn).unwrap();
-        let groceries_variance = summary.iter().find(|v| v.category == fixture.groceries.id.to_string()).unwrap();
+        let summary = fixture
+            .workspace
+            .as_ref()
+            .period_summary("2026-04-01", "2026-04-30", &mut fixture.conn)
+            .unwrap();
+        let groceries_variance = summary
+            .iter()
+            .find(|v| v.category == fixture.groceries.id.to_string())
+            .unwrap();
 
         assert_eq!(groceries_variance.actual, 0);
     }
@@ -410,20 +522,39 @@ mod tests {
     fn period_summary_includes_all_active_categories() {
         let mut fixture = setup();
         NewBaseline::new(
-            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
-            PeriodType::Monthly, "2026-04-01", -50000,
-        ).insert(&mut fixture.conn).unwrap();
+            &fixture.workspace.as_ref(),
+            &fixture.groceries.as_ref(),
+            PeriodType::Monthly,
+            "2026-04-01",
+            -50000,
+        )
+        .insert(&mut fixture.conn)
+        .unwrap();
 
         NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-10", -3000,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-10",
+            -3000,
             vec![LineItemInput::new(&fixture.dining.as_ref(), -3000)],
-        ).cleared(true).insert(&mut fixture.conn).unwrap();
+        )
+        .cleared(true)
+        .insert(&mut fixture.conn)
+        .unwrap();
 
-        let summary = fixture.workspace.as_ref().period_summary("2026-04-01", "2026-04-30", &mut fixture.conn).unwrap();
+        let summary = fixture
+            .workspace
+            .as_ref()
+            .period_summary("2026-04-01", "2026-04-30", &mut fixture.conn)
+            .unwrap();
         assert_eq!(summary.len(), 2);
 
-        let has_groceries = summary.iter().any(|v| v.category == fixture.groceries.id.to_string());
-        let has_dining = summary.iter().any(|v| v.category == fixture.dining.id.to_string());
+        let has_groceries = summary
+            .iter()
+            .any(|v| v.category == fixture.groceries.id.to_string());
+        let has_dining = summary
+            .iter()
+            .any(|v| v.category == fixture.dining.id.to_string());
         assert!(has_groceries);
         assert!(has_dining);
     }
@@ -432,17 +563,35 @@ mod tests {
     fn variance_percentage() {
         let mut fixture = setup();
         NewBaseline::new(
-            &fixture.workspace.as_ref(), &fixture.groceries.as_ref(),
-            PeriodType::Monthly, "2026-04-01", -50000,
-        ).insert(&mut fixture.conn).unwrap();
+            &fixture.workspace.as_ref(),
+            &fixture.groceries.as_ref(),
+            PeriodType::Monthly,
+            "2026-04-01",
+            -50000,
+        )
+        .insert(&mut fixture.conn)
+        .unwrap();
 
         NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-10", -60000,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-10",
+            -60000,
             vec![LineItemInput::new(&fixture.groceries.as_ref(), -60000)],
-        ).cleared(true).insert(&mut fixture.conn).unwrap();
+        )
+        .cleared(true)
+        .insert(&mut fixture.conn)
+        .unwrap();
 
-        let summary = fixture.workspace.as_ref().period_summary("2026-04-01", "2026-04-30", &mut fixture.conn).unwrap();
-        let groceries_variance = summary.iter().find(|v| v.category == fixture.groceries.id.to_string()).unwrap();
+        let summary = fixture
+            .workspace
+            .as_ref()
+            .period_summary("2026-04-01", "2026-04-30", &mut fixture.conn)
+            .unwrap();
+        let groceries_variance = summary
+            .iter()
+            .find(|v| v.category == fixture.groceries.id.to_string())
+            .unwrap();
 
         assert_eq!(groceries_variance.variance, Some(-10000));
         let pct = groceries_variance.variance_pct.unwrap();

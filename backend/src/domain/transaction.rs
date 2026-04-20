@@ -45,7 +45,10 @@ impl Transaction {
         self.id.clone()
     }
 
-    pub fn from_ref(transaction_ref: &TransactionRef, conn: &mut SqliteConnection) -> Result<Option<Transaction>, AppError> {
+    pub fn from_ref(
+        transaction_ref: &TransactionRef,
+        conn: &mut SqliteConnection,
+    ) -> Result<Option<Transaction>, AppError> {
         transactions::table
             .find(transaction_ref)
             .select(Transaction::as_select())
@@ -302,26 +305,39 @@ mod tests {
     fn setup() -> TestFixture {
         let mut conn = setup_test_db();
         let user = NewUser::new("alice@example.com", "Alice", "password")
-            .unwrap().insert(&mut conn).unwrap();
+            .unwrap()
+            .insert(&mut conn)
+            .unwrap();
         let workspace = NewWorkspace::new("My Finances", user.as_ref())
-            .insert(&mut conn).unwrap();
+            .insert(&mut conn)
+            .unwrap();
         let chequing = NewAccount::new(&workspace.as_ref(), "Chequing", AccountType::Chequing)
-            .insert(&mut conn).unwrap();
+            .insert(&mut conn)
+            .unwrap();
         let groceries = NewCategory::new(&workspace.as_ref(), "Groceries")
-            .insert(&mut conn).unwrap();
-        TestFixture { conn, workspace, chequing, groceries }
+            .insert(&mut conn)
+            .unwrap();
+        TestFixture {
+            conn,
+            workspace,
+            chequing,
+            groceries,
+        }
     }
 
     #[test]
     fn create_transaction_with_single_line_item() {
         let mut fixture = setup();
         let transaction = NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-15", -5000,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-15",
+            -5000,
             vec![LineItemInput::new(&fixture.groceries.as_ref(), -5000)],
         )
-            .description("Weekly groceries")
-            .insert(&mut fixture.conn)
-            .expect("transaction creation should succeed");
+        .description("Weekly groceries")
+        .insert(&mut fixture.conn)
+        .expect("transaction creation should succeed");
 
         assert_eq!(transaction.amount, -5000);
         assert_eq!(transaction.description, "Weekly groceries");
@@ -332,17 +348,21 @@ mod tests {
     fn create_transaction_with_multiple_line_items() {
         let mut fixture = setup();
         let dining = NewCategory::new(&fixture.workspace.as_ref(), "Dining")
-            .insert(&mut fixture.conn).unwrap();
+            .insert(&mut fixture.conn)
+            .unwrap();
 
         let transaction = NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-15", -7500,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-15",
+            -7500,
             vec![
                 LineItemInput::new(&fixture.groceries.as_ref(), -5000),
                 LineItemInput::new(&dining.as_ref(), -2500),
             ],
         )
-            .insert(&mut fixture.conn)
-            .expect("multi-line transaction should succeed");
+        .insert(&mut fixture.conn)
+        .expect("multi-line transaction should succeed");
 
         let items = transaction.line_items(&mut fixture.conn).unwrap();
         assert_eq!(items.len(), 2);
@@ -354,11 +374,14 @@ mod tests {
     fn line_items_must_sum_to_total() {
         let mut fixture = setup();
         let err = NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-15", -5000,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-15",
+            -5000,
             vec![LineItemInput::new(&fixture.groceries.as_ref(), -3000)],
         )
-            .insert(&mut fixture.conn)
-            .expect_err("mismatched sum should fail");
+        .insert(&mut fixture.conn)
+        .expect_err("mismatched sum should fail");
 
         assert!(matches!(err, AppError::Validation(_)));
     }
@@ -367,11 +390,14 @@ mod tests {
     fn at_least_one_line_item_required() {
         let mut fixture = setup();
         let err = NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-15", -5000,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-15",
+            -5000,
             vec![],
         )
-            .insert(&mut fixture.conn)
-            .expect_err("empty line items should fail");
+        .insert(&mut fixture.conn)
+        .expect_err("empty line items should fail");
 
         assert!(matches!(err, AppError::Validation(_)));
     }
@@ -380,11 +406,14 @@ mod tests {
     fn zero_amount_line_item_rejected() {
         let mut fixture = setup();
         let err = NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-15", 0,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-15",
+            0,
             vec![LineItemInput::new(&fixture.groceries.as_ref(), 0)],
         )
-            .insert(&mut fixture.conn)
-            .expect_err("zero amount should fail");
+        .insert(&mut fixture.conn)
+        .expect_err("zero amount should fail");
 
         assert!(matches!(err, AppError::Validation(_)));
     }
@@ -393,28 +422,42 @@ mod tests {
     fn cleared_balance_computation() {
         let mut fixture = setup();
         NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-10", 100000,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-10",
+            100000,
             vec![LineItemInput::new(&fixture.groceries.as_ref(), 100000)],
         )
-            .cleared(true)
-            .description("Paycheck")
-            .insert(&mut fixture.conn).unwrap();
+        .cleared(true)
+        .description("Paycheck")
+        .insert(&mut fixture.conn)
+        .unwrap();
 
         NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-12", -5000,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-12",
+            -5000,
             vec![LineItemInput::new(&fixture.groceries.as_ref(), -5000)],
         )
-            .cleared(true)
-            .insert(&mut fixture.conn).unwrap();
+        .cleared(true)
+        .insert(&mut fixture.conn)
+        .unwrap();
 
         // Pending — should not affect cleared balance
         NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-14", -2000,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-14",
+            -2000,
             vec![LineItemInput::new(&fixture.groceries.as_ref(), -2000)],
         )
-            .insert(&mut fixture.conn).unwrap();
+        .insert(&mut fixture.conn)
+        .unwrap();
 
-        let balance = Transaction::cleared_balance_for_account(&fixture.chequing.as_ref(), &mut fixture.conn).unwrap();
+        let balance =
+            Transaction::cleared_balance_for_account(&fixture.chequing.as_ref(), &mut fixture.conn)
+                .unwrap();
         assert_eq!(balance, 95000); // 100000 - 5000
     }
 
@@ -422,15 +465,21 @@ mod tests {
     fn soft_deleted_transactions_excluded_from_balance() {
         let mut fixture = setup();
         let transaction = NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-10", 100000,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-10",
+            100000,
             vec![LineItemInput::new(&fixture.groceries.as_ref(), 100000)],
         )
-            .cleared(true)
-            .insert(&mut fixture.conn).unwrap();
+        .cleared(true)
+        .insert(&mut fixture.conn)
+        .unwrap();
 
         transaction.soft_delete(&mut fixture.conn).unwrap();
 
-        let balance = Transaction::cleared_balance_for_account(&fixture.chequing.as_ref(), &mut fixture.conn).unwrap();
+        let balance =
+            Transaction::cleared_balance_for_account(&fixture.chequing.as_ref(), &mut fixture.conn)
+                .unwrap();
         assert_eq!(balance, 0);
     }
 
@@ -438,19 +487,31 @@ mod tests {
     fn transactions_returns_only_active() {
         let mut fixture = setup();
         NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-10", -5000,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-10",
+            -5000,
             vec![LineItemInput::new(&fixture.groceries.as_ref(), -5000)],
         )
-            .insert(&mut fixture.conn).unwrap();
+        .insert(&mut fixture.conn)
+        .unwrap();
 
         let deleted = NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-11", -3000,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-11",
+            -3000,
             vec![LineItemInput::new(&fixture.groceries.as_ref(), -3000)],
         )
-            .insert(&mut fixture.conn).unwrap();
+        .insert(&mut fixture.conn)
+        .unwrap();
         deleted.soft_delete(&mut fixture.conn).unwrap();
 
-        let transactions = fixture.chequing.as_ref().transactions(&mut fixture.conn).unwrap();
+        let transactions = fixture
+            .chequing
+            .as_ref()
+            .transactions(&mut fixture.conn)
+            .unwrap();
         assert_eq!(transactions.len(), 1);
     }
 
@@ -458,15 +519,19 @@ mod tests {
     fn transfer_transaction() {
         let mut fixture = setup();
         let savings = NewAccount::new(&fixture.workspace.as_ref(), "Savings", AccountType::Savings)
-            .insert(&mut fixture.conn).unwrap();
-
-        let transaction = NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-15", -10000,
-            vec![LineItemInput::new(&fixture.groceries.as_ref(), -10000)],
-        )
-            .transfer_to(&savings.as_ref())
             .insert(&mut fixture.conn)
             .unwrap();
+
+        let transaction = NewTransaction::new(
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-15",
+            -10000,
+            vec![LineItemInput::new(&fixture.groceries.as_ref(), -10000)],
+        )
+        .transfer_to(&savings.as_ref())
+        .insert(&mut fixture.conn)
+        .unwrap();
 
         assert_eq!(transaction.transfer_account, Some(savings.as_ref()));
     }
@@ -475,10 +540,14 @@ mod tests {
     fn line_item_note() {
         let mut fixture = setup();
         let transaction = NewTransaction::new(
-            &fixture.workspace.as_ref(), &fixture.chequing.as_ref(), "2026-04-15", -5000,
+            &fixture.workspace.as_ref(),
+            &fixture.chequing.as_ref(),
+            "2026-04-15",
+            -5000,
             vec![LineItemInput::new(&fixture.groceries.as_ref(), -5000).note("Costco run")],
         )
-            .insert(&mut fixture.conn).unwrap();
+        .insert(&mut fixture.conn)
+        .unwrap();
 
         let items = transaction.line_items(&mut fixture.conn).unwrap();
         assert_eq!(items[0].note, Some("Costco run".to_string()));

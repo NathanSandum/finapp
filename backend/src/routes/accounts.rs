@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use crate::auth::WorkspaceMember;
 use crate::domain::account::{Account, AccountRef, AccountType, NewAccount};
 use crate::domain::transaction::Transaction;
-use crate::domain::workspace::{Role,WorkspaceRef};
+use crate::domain::workspace::{Role, WorkspaceRef};
 use crate::error::AppError;
 use crate::DbPool;
 
@@ -13,7 +13,9 @@ pub async fn list(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
 ) -> Result<Json<Value>, AppError> {
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
     let accounts = member.workspace.accounts(&mut conn)?;
 
@@ -45,13 +47,16 @@ pub async fn create(
     Json(body): Json<CreateAccountRequest>,
 ) -> Result<(axum::http::StatusCode, Json<Value>), AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let account_type = AccountType::from_str(&body.account_type)
-        .ok_or_else(|| AppError::Validation(vec![crate::error::FieldError {
+    let account_type = AccountType::from_str(&body.account_type).ok_or_else(|| {
+        AppError::Validation(vec![crate::error::FieldError {
             field: "account_type".into(),
             message: format!("unknown account type '{}'", body.account_type),
-        }]))?;
+        }])
+    })?;
 
     let mut builder = NewAccount::new(&member.workspace, &body.name, account_type);
     if let Some(ref currency) = body.currency {
@@ -83,10 +88,12 @@ pub async fn delete(
     Path(path): Path<AccountPath>,
 ) -> Result<Json<Value>, AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let account = Account::from_ref(&path.account, &mut conn)?
-        .ok_or(AppError::NotFound("account".into()))?;
+    let account =
+        Account::from_ref(&path.account, &mut conn)?.ok_or(AppError::NotFound("account".into()))?;
 
     if account.workspace != member.workspace {
         return Err(AppError::NotFound("account".into()));
@@ -102,10 +109,12 @@ pub async fn balance(
     member: WorkspaceMember,
     Path(path): Path<AccountPath>,
 ) -> Result<Json<Value>, AppError> {
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let account = Account::from_ref(&path.account, &mut conn)?
-        .ok_or(AppError::NotFound("account".into()))?;
+    let account =
+        Account::from_ref(&path.account, &mut conn)?.ok_or(AppError::NotFound("account".into()))?;
 
     if account.workspace != member.workspace {
         return Err(AppError::NotFound("account".into()));

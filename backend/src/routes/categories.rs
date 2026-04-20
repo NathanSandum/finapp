@@ -12,7 +12,9 @@ pub async fn list(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
 ) -> Result<Json<Value>, AppError> {
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
     let categories = member.workspace.categories(&mut conn)?;
 
@@ -31,7 +33,9 @@ pub async fn create(
     Json(body): Json<CreateCategoryRequest>,
 ) -> Result<(axum::http::StatusCode, Json<Category>), AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
     let mut builder = NewCategory::new(&member.workspace, &body.name);
     if let Some(ref desc) = body.description {
@@ -39,10 +43,7 @@ pub async fn create(
     }
     let category = builder.insert(&mut conn)?;
 
-    Ok((
-        axum::http::StatusCode::CREATED,
-        Json(category),
-    ))
+    Ok((axum::http::StatusCode::CREATED, Json(category)))
 }
 
 #[derive(Deserialize)]
@@ -57,7 +58,9 @@ pub async fn delete(
     Path(path): Path<DeleteCategoryPath>,
 ) -> Result<Json<Value>, AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
     let category = Category::from_ref(&path.category, &mut conn)?
         .ok_or(AppError::NotFound("category".into()))?;

@@ -47,27 +47,51 @@ impl IntoResponse for AppError {
         let (status, body) = match self {
             AppError::NotFound(msg) => (
                 StatusCode::NOT_FOUND,
-                ErrorBody { code: "not_found", message: msg, fields: None },
+                ErrorBody {
+                    code: "not_found",
+                    message: msg,
+                    fields: None,
+                },
             ),
             AppError::Forbidden => (
                 StatusCode::FORBIDDEN,
-                ErrorBody { code: "forbidden", message: "insufficient permissions".into(), fields: None },
+                ErrorBody {
+                    code: "forbidden",
+                    message: "insufficient permissions".into(),
+                    fields: None,
+                },
             ),
             AppError::Unauthorized => (
                 StatusCode::UNAUTHORIZED,
-                ErrorBody { code: "unauthorized", message: "authentication required".into(), fields: None },
+                ErrorBody {
+                    code: "unauthorized",
+                    message: "authentication required".into(),
+                    fields: None,
+                },
             ),
             AppError::Conflict(msg) => (
                 StatusCode::CONFLICT,
-                ErrorBody { code: "conflict", message: msg, fields: None },
+                ErrorBody {
+                    code: "conflict",
+                    message: msg,
+                    fields: None,
+                },
             ),
             AppError::Validation(fields) => (
                 StatusCode::UNPROCESSABLE_ENTITY,
-                ErrorBody { code: "validation_error", message: "validation failed".into(), fields: Some(fields) },
+                ErrorBody {
+                    code: "validation_error",
+                    message: "validation failed".into(),
+                    fields: Some(fields),
+                },
             ),
             AppError::Internal(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                ErrorBody { code: "internal_error", message: "an unexpected error occurred".into(), fields: None },
+                ErrorBody {
+                    code: "internal_error",
+                    message: "an unexpected error occurred".into(),
+                    fields: None,
+                },
             ),
         };
         (status, Json(body)).into_response()
@@ -82,12 +106,7 @@ mod tests {
 
     async fn body_json(err: AppError) -> serde_json::Value {
         let resp = err.into_response();
-        let bytes = resp
-            .into_body()
-            .collect()
-            .await
-            .unwrap()
-            .to_bytes();
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
         serde_json::from_slice(&bytes).unwrap()
     }
 
@@ -125,7 +144,10 @@ mod tests {
         let body = body_json(AppError::NotFound("workspace".into())).await;
         assert!(body.get("code").is_some(), "missing 'code' field");
         assert!(body.get("message").is_some(), "missing 'message' field");
-        assert!(body.get("fields").is_none(), "unexpected 'fields' on non-validation error");
+        assert!(
+            body.get("fields").is_none(),
+            "unexpected 'fields' on non-validation error"
+        );
     }
 
     #[tokio::test]
@@ -139,8 +161,14 @@ mod tests {
     #[tokio::test]
     async fn validation_is_422_with_fields() {
         let err = AppError::Validation(vec![
-            FieldError { field: "email".into(), message: "is required".into() },
-            FieldError { field: "password".into(), message: "too short".into() },
+            FieldError {
+                field: "email".into(),
+                message: "is required".into(),
+            },
+            FieldError {
+                field: "password".into(),
+                message: "too short".into(),
+            },
         ]);
         let resp = err.into_response();
         assert_eq!(resp.status().as_u16(), 422);

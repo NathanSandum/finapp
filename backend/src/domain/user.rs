@@ -38,7 +38,10 @@ impl User {
         self.id.clone()
     }
 
-    pub fn from_ref(user_ref: &UserRef, conn: &mut SqliteConnection) -> Result<Option<User>, AppError> {
+    pub fn from_ref(
+        user_ref: &UserRef,
+        conn: &mut SqliteConnection,
+    ) -> Result<Option<User>, AppError> {
         users::table
             .find(&user_ref.0)
             .select(User::as_select())
@@ -152,7 +155,10 @@ mod tests {
         let user = create_user(&mut conn, "alice@example.com");
 
         assert_ne!(user.password_hash, "password123");
-        assert!(user.password_hash.starts_with("$argon2"), "expected argon2 hash");
+        assert!(
+            user.password_hash.starts_with("$argon2"),
+            "expected argon2 hash"
+        );
     }
 
     #[test]
@@ -170,8 +176,8 @@ mod tests {
     #[test]
     fn from_email_returns_none_for_unknown() {
         let mut conn = setup_test_db();
-        let found = User::from_email("nobody@example.com", &mut conn)
-            .expect("query should succeed");
+        let found =
+            User::from_email("nobody@example.com", &mut conn).expect("query should succeed");
         assert!(found.is_none());
     }
 

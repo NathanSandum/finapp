@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use crate::auth::WorkspaceMember;
 use crate::domain::account::{Account, AccountRef};
 use crate::domain::transaction::{LineItemInput, NewTransaction, Transaction, TransactionRef};
-use crate::domain::workspace::{Role,WorkspaceRef};
+use crate::domain::workspace::{Role, WorkspaceRef};
 use crate::error::AppError;
 use crate::DbPool;
 
@@ -21,10 +21,12 @@ pub async fn list(
     member: WorkspaceMember,
     Path(path): Path<AccountTransactionsPath>,
 ) -> Result<Json<Value>, AppError> {
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let account = Account::from_ref(&path.account, &mut conn)?
-        .ok_or(AppError::NotFound("account".into()))?;
+    let account =
+        Account::from_ref(&path.account, &mut conn)?.ok_or(AppError::NotFound("account".into()))?;
 
     if account.workspace != member.workspace {
         return Err(AppError::NotFound("account".into()));
@@ -86,10 +88,12 @@ pub async fn create(
     Json(body): Json<CreateTransactionRequest>,
 ) -> Result<(axum::http::StatusCode, Json<Value>), AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let account = Account::from_ref(&body.account, &mut conn)?
-        .ok_or(AppError::NotFound("account".into()))?;
+    let account =
+        Account::from_ref(&body.account, &mut conn)?.ok_or(AppError::NotFound("account".into()))?;
 
     if account.workspace != member.workspace {
         return Err(AppError::NotFound("account".into()));
@@ -173,7 +177,9 @@ pub async fn delete(
     Path(path): Path<DeleteTransactionPath>,
 ) -> Result<Json<Value>, AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
     let transaction = Transaction::from_ref(&path.transaction, &mut conn)?
         .ok_or(AppError::NotFound("transaction".into()))?;

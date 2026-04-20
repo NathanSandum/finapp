@@ -111,10 +111,14 @@ async fn setup_workspace(app: &Router) -> (String, String, String) {
         json!({ "name": "My Finances" }),
     )
     .await;
-    assert_eq!(status, StatusCode::CREATED, "create workspace failed: {body}");
-    let ws_id = body["id"].as_str().unwrap().to_string();
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "create workspace failed: {body}"
+    );
+    let workspace_id = body["id"].as_str().unwrap().to_string();
 
-    (token, user_id, ws_id)
+    (token, user_id, workspace_id)
 }
 
 // ── Auth tests ───────────────────────────────────────────────────────────────
@@ -198,9 +202,9 @@ async fn create_and_list_workspaces() {
 #[tokio::test]
 async fn get_workspace_returns_members() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
+    let (token, _, workspace_id) = setup_workspace(&app).await;
 
-    let (status, body) = get(&app, &format!("/workspaces/{ws_id}"), &token).await;
+    let (status, body) = get(&app, &format!("/workspaces/{workspace_id}"), &token).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["name"], "My Finances");
     assert_eq!(body["your_role"], "owner");
@@ -210,10 +214,15 @@ async fn get_workspace_returns_members() {
 #[tokio::test]
 async fn non_member_cannot_access_workspace() {
     let app = app();
-    let (_, _, ws_id) = setup_workspace(&app).await;
+    let (_, _, workspace_id) = setup_workspace(&app).await;
 
     let (outsider_token, _) = register(&app, "outsider@example.com").await;
-    let (status, _) = get(&app, &format!("/workspaces/{ws_id}"), &outsider_token).await;
+    let (status, _) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}"),
+        &outsider_token,
+    )
+    .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
 
@@ -222,36 +231,46 @@ async fn non_member_cannot_access_workspace() {
 #[tokio::test]
 async fn category_crud() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
+    let (token, _, workspace_id) = setup_workspace(&app).await;
 
     // Create
     let (status, body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/categories"),
+        &format!("/workspaces/{workspace_id}/categories"),
         Some(&token),
         json!({ "name": "Groceries", "description": "Food" }),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
-    let category: CategoryRef = serde_json::from_value(body["id"].clone()).unwrap();
+    let category_id = body["category"].as_str().unwrap().to_string();
     assert_eq!(body["name"], "Groceries");
 
     // List
-    let (status, body) = get(&app, &format!("/workspaces/{ws_id}/categories"), &token).await;
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/categories"),
+        &token,
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["categories"].as_array().unwrap().len(), 1);
 
     // Delete
     let (status, _) = delete(
         &app,
-        &format!("/workspaces/{ws_id}/categories/{category}"),
+        &format!("/workspaces/{workspace_id}/categories/{category_id}"),
         &token,
     )
     .await;
     assert_eq!(status, StatusCode::OK);
 
     // List should be empty after soft delete
-    let (status, body) = get(&app, &format!("/workspaces/{ws_id}/categories"), &token).await;
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/categories"),
+        &token,
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["categories"].as_array().unwrap().len(), 0);
 }
@@ -261,12 +280,12 @@ async fn category_crud() {
 #[tokio::test]
 async fn account_crud_and_balance() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
+    let (token, _, workspace_id) = setup_workspace(&app).await;
 
     // Create account
     let (status, body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/accounts"),
+        &format!("/workspaces/{workspace_id}/accounts"),
         Some(&token),
         json!({ "name": "Chequing", "account_type": "chequing" }),
     )
@@ -276,14 +295,19 @@ async fn account_crud_and_balance() {
     assert_eq!(body["currency"], "CAD");
 
     // List
-    let (status, body) = get(&app, &format!("/workspaces/{ws_id}/accounts"), &token).await;
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts"),
+        &token,
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["accounts"].as_array().unwrap().len(), 1);
 
     // Balance (should be 0)
     let (status, body) = get(
         &app,
-        &format!("/workspaces/{ws_id}/accounts/{account_id}/balance"),
+        &format!("/workspaces/{workspace_id}/accounts/{account_id}/balance"),
         &token,
     )
     .await;
@@ -293,13 +317,18 @@ async fn account_crud_and_balance() {
     // Delete
     let (status, _) = delete(
         &app,
-        &format!("/workspaces/{ws_id}/accounts/{account_id}"),
+        &format!("/workspaces/{workspace_id}/accounts/{account_id}"),
         &token,
     )
     .await;
     assert_eq!(status, StatusCode::OK);
 
-    let (status, body) = get(&app, &format!("/workspaces/{ws_id}/accounts"), &token).await;
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts"),
+        &token,
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["accounts"].as_array().unwrap().len(), 0);
 }
@@ -309,31 +338,31 @@ async fn account_crud_and_balance() {
 #[tokio::test]
 async fn transaction_lifecycle() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
+    let (token, _, workspace_id) = setup_workspace(&app).await;
 
     // Create account + category
     let (_, account_body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/accounts"),
+        &format!("/workspaces/{workspace_id}/accounts"),
         Some(&token),
         json!({ "name": "Chequing", "account_type": "chequing" }),
     )
     .await;
     let account_id = account_body["id"].as_str().unwrap();
 
-    let (_, cat_body) = post(
+    let (_, category_body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/categories"),
+        &format!("/workspaces/{workspace_id}/categories"),
         Some(&token),
         json!({ "name": "Groceries" }),
     )
     .await;
-    let category: CategoryRef = serde_json::from_value(cat_body["id"].clone()).unwrap();
+    let category_id = category_body["category"].as_str().unwrap();
 
     // Create transaction
-    let (status, txn_body) = post(
+    let (status, transaction_body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/transactions"),
+        &format!("/workspaces/{workspace_id}/transactions"),
         Some(&token),
         json!({
             "account": account_id,
@@ -342,20 +371,20 @@ async fn transaction_lifecycle() {
             "amount": -5000,
             "cleared": true,
             "line_items": [
-                { "category_id": category, "amount": -5000 }
+                { "category_id": category_id, "amount": -5000 }
             ]
         }),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
-    let txn_id = txn_body["id"].as_str().unwrap().to_string();
-    assert_eq!(txn_body["amount"], -5000);
-    assert_eq!(txn_body["line_items"].as_array().unwrap().len(), 1);
+    let transaction_id = transaction_body["id"].as_str().unwrap().to_string();
+    assert_eq!(transaction_body["amount"], -5000);
+    assert_eq!(transaction_body["line_items"].as_array().unwrap().len(), 1);
 
     // List transactions for account
     let (status, body) = get(
         &app,
-        &format!("/workspaces/{ws_id}/accounts/{account_id}/transactions"),
+        &format!("/workspaces/{workspace_id}/accounts/{account_id}/transactions"),
         &token,
     )
     .await;
@@ -365,7 +394,7 @@ async fn transaction_lifecycle() {
     // Balance should reflect cleared transaction
     let (_, balance_body) = get(
         &app,
-        &format!("/workspaces/{ws_id}/accounts/{account_id}/balance"),
+        &format!("/workspaces/{workspace_id}/accounts/{account_id}/balance"),
         &token,
     )
     .await;
@@ -374,7 +403,7 @@ async fn transaction_lifecycle() {
     // Delete transaction
     let (status, _) = delete(
         &app,
-        &format!("/workspaces/{ws_id}/transactions/{txn_id}"),
+        &format!("/workspaces/{workspace_id}/transactions/{transaction_id}"),
         &token,
     )
     .await;
@@ -383,7 +412,7 @@ async fn transaction_lifecycle() {
     // Balance should be back to 0
     let (_, balance_body) = get(
         &app,
-        &format!("/workspaces/{ws_id}/accounts/{account_id}/balance"),
+        &format!("/workspaces/{workspace_id}/accounts/{account_id}/balance"),
         &token,
     )
     .await;
@@ -393,37 +422,37 @@ async fn transaction_lifecycle() {
 #[tokio::test]
 async fn transaction_validation_errors() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
+    let (token, _, workspace_id) = setup_workspace(&app).await;
 
     let (_, account_body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/accounts"),
+        &format!("/workspaces/{workspace_id}/accounts"),
         Some(&token),
         json!({ "name": "Chequing", "account_type": "chequing" }),
     )
     .await;
     let account_id = account_body["id"].as_str().unwrap();
 
-    let (_, cat_body) = post(
+    let (_, category_body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/categories"),
+        &format!("/workspaces/{workspace_id}/categories"),
         Some(&token),
         json!({ "name": "Groceries" }),
     )
     .await;
-    let category: CategoryRef = serde_json::from_value(cat_body["id"].clone()).unwrap();
+    let category_id = category_body["category"].as_str().unwrap();
 
     // Mismatched line items sum
     let (status, body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/transactions"),
+        &format!("/workspaces/{workspace_id}/transactions"),
         Some(&token),
         json!({
             "account": account_id,
             "date": "2026-04-15",
             "amount": -5000,
             "line_items": [
-                { "category_id": category, "amount": -3000 }
+                { "category_id": category_id, "amount": -3000 }
             ]
         }),
     )
@@ -434,7 +463,7 @@ async fn transaction_validation_errors() {
     // Empty line items
     let (status, _) = post(
         &app,
-        &format!("/workspaces/{ws_id}/transactions"),
+        &format!("/workspaces/{workspace_id}/transactions"),
         Some(&token),
         json!({
             "account": account_id,
@@ -450,15 +479,15 @@ async fn transaction_validation_errors() {
 #[tokio::test]
 async fn cross_workspace_access_denied() {
     let app = app();
-    let (_, _, ws_id) = setup_workspace(&app).await;
+    let (_, _, workspace_id) = setup_workspace(&app).await;
 
-    let (token_b, _) = register(&app, "bob@example.com").await;
+    let (bob_token, _) = register(&app, "bob@example.com").await;
 
     // Bob can't list Alice's categories
     let (status, _) = get(
         &app,
-        &format!("/workspaces/{ws_id}/categories"),
-        &token_b,
+        &format!("/workspaces/{workspace_id}/categories"),
+        &bob_token,
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
@@ -466,8 +495,8 @@ async fn cross_workspace_access_denied() {
     // Bob can't list Alice's accounts
     let (status, _) = get(
         &app,
-        &format!("/workspaces/{ws_id}/accounts"),
-        &token_b,
+        &format!("/workspaces/{workspace_id}/accounts"),
+        &bob_token,
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
@@ -501,15 +530,19 @@ async fn owner_can_leave_if_not_last_owner() {
     // Can't test multi-owner without an invite API — skip for now.
     // But we CAN test that the last owner is rejected.
     let app = app();
-    let (token, user_id, ws_id) = setup_workspace(&app).await;
+    let (token, user_id, workspace_id) = setup_workspace(&app).await;
 
     let (status, body) = delete(
         &app,
-        &format!("/workspaces/{ws_id}/members/{user_id}"),
+        &format!("/workspaces/{workspace_id}/members/{user_id}"),
         &token,
     )
     .await;
-    assert_eq!(status, StatusCode::CONFLICT, "last owner removal should fail: {body}");
+    assert_eq!(
+        status,
+        StatusCode::CONFLICT,
+        "last owner removal should fail: {body}"
+    );
 }
 
 // ── Balance: pending vs cleared ─────────────────────────────────────────────
@@ -517,37 +550,37 @@ async fn owner_can_leave_if_not_last_owner() {
 #[tokio::test]
 async fn balance_only_includes_cleared() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
+    let (token, _, workspace_id) = setup_workspace(&app).await;
 
     let (_, account_body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/accounts"),
+        &format!("/workspaces/{workspace_id}/accounts"),
         Some(&token),
         json!({ "name": "Chequing", "account_type": "chequing" }),
     )
     .await;
     let account_id = account_body["id"].as_str().unwrap();
 
-    let (_, cat_body) = post(
+    let (_, category_body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/categories"),
+        &format!("/workspaces/{workspace_id}/categories"),
         Some(&token),
         json!({ "name": "Income" }),
     )
     .await;
-    let category: CategoryRef = serde_json::from_value(cat_body["id"].clone()).unwrap();
+    let category_id = category_body["category"].as_str().unwrap();
 
     // Cleared transaction
     post(
         &app,
-        &format!("/workspaces/{ws_id}/transactions"),
+        &format!("/workspaces/{workspace_id}/transactions"),
         Some(&token),
         json!({
             "account": account_id,
             "date": "2026-04-10",
             "amount": 100000,
             "cleared": true,
-            "line_items": [{ "category_id": category, "amount": 100000 }]
+            "line_items": [{ "category_id": category_id, "amount": 100000 }]
         }),
     )
     .await;
@@ -555,20 +588,20 @@ async fn balance_only_includes_cleared() {
     // Pending transaction — should NOT affect balance
     post(
         &app,
-        &format!("/workspaces/{ws_id}/transactions"),
+        &format!("/workspaces/{workspace_id}/transactions"),
         Some(&token),
         json!({
             "account": account_id,
             "date": "2026-04-12",
             "amount": -5000,
-            "line_items": [{ "category_id": category, "amount": -5000 }]
+            "line_items": [{ "category_id": category_id, "amount": -5000 }]
         }),
     )
     .await;
 
     let (_, body) = get(
         &app,
-        &format!("/workspaces/{workspace}/accounts/{account_id}/balance"),
+        &format!("/workspaces/{workspace_id}/accounts/{account_id}/balance"),
         &token,
     )
     .await;
@@ -580,50 +613,50 @@ async fn balance_only_includes_cleared() {
 #[tokio::test]
 async fn transfer_transaction_records_transfer_account() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
+    let (token, _, workspace_id) = setup_workspace(&app).await;
 
-    let (_, chq_body) = post(
+    let (_, chequing_body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/accounts"),
+        &format!("/workspaces/{workspace_id}/accounts"),
         Some(&token),
         json!({ "name": "Chequing", "account_type": "chequing" }),
     )
     .await;
-    let chq_id = chq_body["id"].as_str().unwrap();
+    let chequing_id = chequing_body["id"].as_str().unwrap();
 
-    let (_, sav_body) = post(
+    let (_, savings_body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/accounts"),
+        &format!("/workspaces/{workspace_id}/accounts"),
         Some(&token),
         json!({ "name": "Savings", "account_type": "savings" }),
     )
     .await;
-    let sav_id = sav_body["id"].as_str().unwrap();
+    let savings_id = savings_body["id"].as_str().unwrap();
 
-    let (_, cat_body) = post(
+    let (_, category_body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/categories"),
+        &format!("/workspaces/{workspace_id}/categories"),
         Some(&token),
         json!({ "name": "Transfer" }),
     )
     .await;
-    let category: CategoryRef = serde_json::from_value(cat_body["id"].clone()).unwrap();
+    let category_id = category_body["category"].as_str().unwrap();
 
-    let (status, txn_body) = post(
+    let (status, transaction_body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/transactions"),
+        &format!("/workspaces/{workspace_id}/transactions"),
         Some(&token),
         json!({
-            "account": chq_id,
-            "transfer_account": sav_id,
+            "account": chequing_id,
+            "transfer_account": savings_id,
             "date": "2026-04-15",
             "amount": -10000,
-            "line_items": [{ "category_id": category, "amount": -10000 }]
+            "line_items": [{ "category_id": category_id, "amount": -10000 }]
         }),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
-    assert_eq!(txn_body["transfer_account"], sav_id);
+    assert_eq!(transaction_body["transfer_account"], savings_id);
 }
 
 // ── Baseline tests ─────────────────────────────────────────────────────────

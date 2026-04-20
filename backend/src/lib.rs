@@ -91,4 +91,3 @@ pub fn build_router(pool: DbPool) -> Router {
         .layer(Extension(pool))
         .layer(CorsLayer::permissive())
 }
-

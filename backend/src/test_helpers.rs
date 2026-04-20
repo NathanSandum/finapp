@@ -31,9 +31,11 @@ mod tests {
         let mut conn_a = setup_test_db();
         let mut conn_b = setup_test_db();
 
-        diesel::sql_query("INSERT INTO users (id, created_at) VALUES ('test-user', datetime('now'))")
-            .execute(&mut conn_a)
-            .expect("insert into conn_a should succeed");
+        diesel::sql_query(
+            "INSERT INTO users (id, created_at) VALUES ('test-user', datetime('now'))",
+        )
+        .execute(&mut conn_a)
+        .expect("insert into conn_a should succeed");
 
         let count: i64 = diesel::sql_query("SELECT COUNT(*) as count FROM users")
             .load::<CountRow>(&mut conn_b)

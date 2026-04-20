@@ -30,9 +30,9 @@ impl<S: Send + Sync> FromRequestParts<S> for AuthUser {
             .get::<DbPool>()
             .ok_or_else(|| AppError::Internal("missing db pool".into()))?;
 
-        let mut conn = pool.get().map_err(|err| {
-            AppError::Internal(format!("db pool error: {err}"))
-        })?;
+        let mut conn = pool
+            .get()
+            .map_err(|err| AppError::Internal(format!("db pool error: {err}")))?;
 
         Session::validate(token, &mut conn)?
             .map(AuthUser)
@@ -86,17 +86,19 @@ impl<S: Send + Sync> FromRequestParts<S> for WorkspaceMember {
             .get::<DbPool>()
             .ok_or_else(|| AppError::Internal("missing db pool".into()))?;
 
-        let mut conn = pool.get().map_err(|err| {
-            AppError::Internal(format!("db pool error: {err}"))
-        })?;
+        let mut conn = pool
+            .get()
+            .map_err(|err| AppError::Internal(format!("db pool error: {err}")))?;
 
-        let workspace_ref: WorkspaceRef = serde_json::from_value(serde_json::json!(workspace_id))
-            .map_err(|_| AppError::Internal("invalid workspace id".into()))?;
+        let workspace_ref: WorkspaceRef =
+            serde_json::from_value(serde_json::json!(workspace_id))
+                .map_err(|_| AppError::Internal("invalid workspace id".into()))?;
 
-        let workspace = Workspace::from_ref(&workspace_ref, &mut conn)?
-            .ok_or(AppError::Forbidden)?;
+        let workspace =
+            Workspace::from_ref(&workspace_ref, &mut conn)?.ok_or(AppError::Forbidden)?;
 
-        let member = workspace.view_user(user.as_ref(), &mut conn)?
+        let member = workspace
+            .view_user(user.as_ref(), &mut conn)?
             .ok_or(AppError::Forbidden)?;
 
         Ok(WorkspaceMember {
