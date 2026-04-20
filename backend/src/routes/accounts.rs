@@ -4,7 +4,6 @@ use serde_json::{json, Value};
 
 use crate::auth::WorkspaceMember;
 use crate::domain::account::{Account, AccountRef, AccountType, NewAccount};
-use crate::domain::transaction::Transaction;
 use crate::domain::workspace::{Role, WorkspaceRef};
 use crate::error::AppError;
 use crate::DbPool;
@@ -24,6 +23,7 @@ pub async fn list(
         .map(|a| {
             json!({
                 "id": a.id,
+                "parent_id": a.parent_id,
                 "name": a.name,
                 "account_type": a.account_type,
                 "currency": a.currency,
@@ -37,7 +37,8 @@ pub async fn list(
 #[derive(Deserialize)]
 pub struct CreateAccountRequest {
     name: String,
-    account_type: String,
+    parent_id: Option<AccountRef>,
+    account_type: Option<String>,
     currency: Option<String>,
 }
 
@@ -51,23 +52,44 @@ pub async fn create(
         .get()
         .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let account_type = AccountType::from_str(&body.account_type).ok_or_else(|| {
-        AppError::Validation(vec![crate::error::FieldError {
-            field: "account_type".into(),
-            message: format!("unknown account type '{}'", body.account_type),
-        }])
-    })?;
+    let mut builder = if let Some(ref parent_id) = body.parent_id {
+        let parent = Account::from_ref(parent_id, &mut conn)?
+            .ok_or(AppError::NotFound("parent account".into()))?;
 
-    let mut builder = NewAccount::new(member.workspace.clone(), &body.name, account_type);
+        if parent.workspace != member.workspace {
+            return Err(AppError::NotFound("parent account".into()));
+        }
+
+        NewAccount::child(&parent, &body.name)
+    } else {
+        let account_type_str = body.account_type.as_deref().ok_or_else(|| {
+            AppError::Validation(vec![crate::error::FieldError {
+                field: "account_type".into(),
+                message: "account_type is required for root accounts".into(),
+            }])
+        })?;
+
+        let account_type = AccountType::from_str(account_type_str).ok_or_else(|| {
+            AppError::Validation(vec![crate::error::FieldError {
+                field: "account_type".into(),
+                message: format!("unknown account type '{account_type_str}'"),
+            }])
+        })?;
+
+        NewAccount::root(member.workspace.clone(), &body.name, account_type)
+    };
+
     if let Some(ref currency) = body.currency {
         builder = builder.currency(currency);
     }
+
     let account = builder.insert(&mut conn)?;
 
     Ok((
         axum::http::StatusCode::CREATED,
         Json(json!({
             "id": account.id,
+            "parent_id": account.parent_id,
             "name": account.name,
             "account_type": account.account_type,
             "currency": account.currency,
@@ -120,10 +142,9 @@ pub async fn balance(
         return Err(AppError::NotFound("account".into()));
     }
 
-    let cleared = Transaction::cleared_balance_for_account(&path.account, &mut conn)?;
-
+    // TODO: Wave 2 — real balance from postings
     Ok(Json(json!({
         "account": account.id,
-        "cleared_balance": cleared,
+        "cleared_balance": 0,
     })))
 }

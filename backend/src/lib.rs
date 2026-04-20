@@ -8,7 +8,7 @@ pub mod test_helpers;
 
 use axum::{
     extract::Extension,
-    routing::{delete, get, post, put},
+    routing::{delete, get, post},
     Json, Router,
 };
 use diesel::r2d2::{self, ConnectionManager};
@@ -35,15 +35,6 @@ pub fn build_router(pool: DbPool) -> Router {
             "/workspaces/{workspace}/members/{user}",
             delete(routes::workspaces::remove_member),
         )
-        // Categories
-        .route(
-            "/workspaces/{workspace}/categories",
-            get(routes::categories::list).post(routes::categories::create),
-        )
-        .route(
-            "/workspaces/{workspace}/categories/{category}",
-            delete(routes::categories::delete),
-        )
         // Accounts
         .route(
             "/workspaces/{workspace}/accounts",
@@ -57,37 +48,9 @@ pub fn build_router(pool: DbPool) -> Router {
             "/workspaces/{workspace}/accounts/{account}/balance",
             get(routes::accounts::balance),
         )
-        // Baselines
-        .route(
-            "/workspaces/{workspace}/baselines",
-            get(routes::baselines::list).post(routes::baselines::create),
-        )
-        .route(
-            "/workspaces/{workspace}/baselines/summary",
-            get(routes::baselines::summary),
-        )
-        .route(
-            "/workspaces/{workspace}/baselines/{baseline}",
-            put(routes::baselines::update),
-        )
-        // Import
-        .route(
-            "/workspaces/{workspace}/import",
-            post(routes::import::import),
-        )
-        // Transactions
-        .route(
-            "/workspaces/{workspace}/transactions",
-            post(routes::transactions::create),
-        )
-        .route(
-            "/workspaces/{workspace}/accounts/{account}/transactions",
-            get(routes::transactions::list),
-        )
-        .route(
-            "/workspaces/{workspace}/transactions/{transaction}",
-            delete(routes::transactions::delete),
-        )
+        // TODO: Wave 2 — transaction routes (postings)
+        // TODO: Wave 3 — baseline routes
+        // TODO: Wave 4 — report routes, import
         .layer(Extension(pool))
         .layer(CorsLayer::permissive())
 }
