@@ -34,8 +34,8 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn as_ref(&self) -> WorkspaceRef {
-        self.id.clone()
+    pub fn as_ref(&self) -> &WorkspaceRef {
+        &self.id
     }
 
     pub fn from_ref(
@@ -52,7 +52,7 @@ impl Workspace {
 
     pub fn view_user(
         &self,
-        user: UserRef,
+        user: &UserRef,
         conn: &mut SqliteConnection,
     ) -> Result<Option<WorkspaceUser>, AppError> {
         workspace_members::table
@@ -81,7 +81,7 @@ impl Workspace {
             .map_err(|err| AppError::Internal(format!("members query failed: {err}")))
     }
 
-    pub fn is_member(&self, user: UserRef, conn: &mut SqliteConnection) -> Result<bool, AppError> {
+    pub fn is_member(&self, user: &UserRef, conn: &mut SqliteConnection) -> Result<bool, AppError> {
         workspace_members::table
             .filter(workspace_members::workspace_id.eq(&self.id))
             .filter(workspace_members::user_id.eq(user))
@@ -93,8 +93,8 @@ impl Workspace {
 
     pub fn remove_member(
         &self,
-        user: UserRef,
-        actor: UserRef,
+        user: &UserRef,
+        actor: &UserRef,
         conn: &mut SqliteConnection,
     ) -> Result<(), AppError> {
         conn.transaction::<_, AppError, _>(|conn| {
@@ -376,7 +376,7 @@ mod tests {
     }
 
     fn make_workspace(conn: &mut SqliteConnection, name: &str, creator: &User) -> Workspace {
-        NewWorkspace::new(name, creator.as_ref())
+        NewWorkspace::new(name, creator.as_ref().clone())
             .insert(conn)
             .expect("workspace creation should succeed")
     }
@@ -492,7 +492,7 @@ mod tests {
             .members(&mut conn)
             .expect("members query should succeed");
         assert!(
-            members_b.iter().all(|m| m.user != user_a.as_ref()),
+            members_b.iter().all(|m| &m.user != user_a.as_ref()),
             "user_a must not appear in workspace B"
         );
 
@@ -500,7 +500,7 @@ mod tests {
             .members(&mut conn)
             .expect("members query should succeed");
         assert!(
-            members_a.iter().all(|m| m.user != user_b.as_ref()),
+            members_a.iter().all(|m| &m.user != user_b.as_ref()),
             "user_b must not appear in workspace A"
         );
     }
@@ -532,7 +532,7 @@ mod tests {
         diesel::insert_into(workspace_members::table)
             .values(NewWorkspaceUser {
                 workspace: workspace.id.to_string(),
-                user: editor.as_ref(),
+                user: editor.as_ref().clone(),
                 role: Role::Editor.as_str().to_string(),
                 joined_at: chrono::Utc::now().naive_utc(),
             })

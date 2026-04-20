@@ -2,16 +2,13 @@ use axum::{
     extract::FromRequestParts,
     http::{header::AUTHORIZATION, request::Parts},
 };
-use diesel::prelude::*;
 
 use crate::domain::session::Session;
-use crate::domain::user::User;
+use crate::domain::user::{User,UserRef};
 use crate::domain::workspace::{Role, Workspace, WorkspaceRef};
 use crate::error::AppError;
-use crate::schema::workspace_members;
 use crate::DbPool;
 
-/// Extracts the authenticated user from the Bearer token.
 pub struct AuthUser(pub User);
 
 impl<S: Send + Sync> FromRequestParts<S> for AuthUser {
@@ -42,7 +39,7 @@ impl<S: Send + Sync> FromRequestParts<S> for AuthUser {
 
 /// Extracts the authenticated user + workspace, enforcing membership and minimum role.
 pub struct WorkspaceMember {
-    pub user: crate::domain::user::UserRef,
+    pub user: UserRef,
     pub workspace: WorkspaceRef,
     pub role: Role,
 }
@@ -102,8 +99,8 @@ impl<S: Send + Sync> FromRequestParts<S> for WorkspaceMember {
             .ok_or(AppError::Forbidden)?;
 
         Ok(WorkspaceMember {
-            user: user.as_ref(),
-            workspace: workspace.as_ref(),
+            user: user.as_ref().clone(),
+            workspace: workspace.as_ref().clone(),
             role: member.role,
         })
     }

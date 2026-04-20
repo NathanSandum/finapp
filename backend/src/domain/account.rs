@@ -4,7 +4,7 @@ use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use diesel_derive_newtype::DieselNewType;
 use uuid::Uuid;
 
-use crate::domain::workspace::{Workspace, WorkspaceRef};
+use crate::domain::workspace::WorkspaceRef;
 use crate::error::AppError;
 use crate::schema::accounts;
 
@@ -50,7 +50,7 @@ impl AccountType {
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
+#[derive(Hash, Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
 #[serde(transparent)]
 pub struct AccountRef(String);
 
@@ -76,8 +76,8 @@ pub struct Account {
 }
 
 impl Account {
-    pub fn as_ref(&self) -> AccountRef {
-        self.id.clone()
+    pub fn as_ref(&self) -> &AccountRef {
+        &self.id
     }
 
     pub fn from_ref(
@@ -186,7 +186,7 @@ impl NewAccount {
 mod tests {
     use super::*;
     use crate::domain::user::NewUser;
-    use crate::domain::workspace::NewWorkspace;
+    use crate::domain::workspace::{Workspace, NewWorkspace};
     use crate::test_helpers::setup_test_db;
 
     fn setup() -> (SqliteConnection, Workspace) {
@@ -195,7 +195,7 @@ mod tests {
             .unwrap()
             .insert(&mut conn)
             .unwrap();
-        let workspace = NewWorkspace::new("My Finances", user.as_ref())
+        let workspace = NewWorkspace::new("My Finances", user.as_ref().clone())
             .insert(&mut conn)
             .unwrap();
         (conn, workspace)
@@ -277,10 +277,10 @@ mod tests {
             .unwrap()
             .insert(&mut conn)
             .unwrap();
-        let workspace_a = NewWorkspace::new("WS A", user_a.as_ref())
+        let workspace_a = NewWorkspace::new("WS A", user_a.as_ref().clone())
             .insert(&mut conn)
             .unwrap();
-        let workspace_b = NewWorkspace::new("WS B", user_b.as_ref())
+        let workspace_b = NewWorkspace::new("WS B", user_b.as_ref().clone())
             .insert(&mut conn)
             .unwrap();
 

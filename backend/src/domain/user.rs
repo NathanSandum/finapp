@@ -34,8 +34,8 @@ pub struct User {
 }
 
 impl User {
-    pub fn as_ref(&self) -> UserRef {
-        self.id.clone()
+    pub fn as_ref(&self) -> &UserRef {
+        &self.id
     }
 
     pub fn from_ref(

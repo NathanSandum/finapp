@@ -3,11 +3,12 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::auth::WorkspaceMember;
-use crate::domain::baseline::{Baseline, NewBaseline, PeriodType, period_summary};
+use crate::domain::baseline::{Baseline, NewBaseline, PeriodType};
 use crate::domain::workspace::Role;
 use crate::error::AppError;
 use crate::schema::{baselines, categories};
 use crate::DbPool;
+use crate::domain::category::CategoryRef;
 use diesel::prelude::*;
 
 #[derive(Deserialize)]
@@ -42,7 +43,7 @@ pub async fn list(
 
 #[derive(Deserialize)]
 pub struct CreateBaselineRequest {
-    category: String,
+    category: CategoryRef,
     period_type: String,
     period_start: String,
     amount: i32,
@@ -62,7 +63,7 @@ pub async fn create(
             message: format!("unknown period type '{}', expected 'monthly' or 'quarterly'", body.period_type),
         }]))?;
 
-    let category: crate::domain::category::Category = categories::table
+    let category = categories::table
         .find(&body.category)
         .select(crate::domain::category::Category::as_select())
         .first(&mut conn)
@@ -70,11 +71,11 @@ pub async fn create(
         .map_err(|err| AppError::Internal(format!("category lookup failed: {err}")))?
         .ok_or(AppError::NotFound("category".into()))?;
 
-    if category.workspace != member.workspace.id {
+    if category.workspace != member.workspace {
         return Err(AppError::NotFound("category".into()));
     }
 
-    let baseline = NewBaseline::new(&member.workspace, &category, period_type, &body.period_start, body.amount)
+    let baseline = NewBaseline::new(&member.workspace, &body.category, period_type, &body.period_start, body.amount)
         .insert(&mut conn)?;
 
     Ok((
@@ -118,7 +119,7 @@ pub async fn update(
         .map_err(|err| AppError::Internal(format!("baseline lookup failed: {err}")))?
         .ok_or(AppError::NotFound("baseline".into()))?;
 
-    if baseline.workspace != member.workspace.id {
+    if baseline.workspace != member.workspace {
         return Err(AppError::NotFound("baseline".into()));
     }
 
@@ -146,7 +147,7 @@ pub async fn summary(
 ) -> Result<Json<Value>, AppError> {
     let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let variances = period_summary(&member.workspace, &query.period_start, &query.period_end, &mut conn)?;
+    let variances = member.workspace.period_summary(&query.period_start, &query.period_end, &mut conn)?;
 
     let items: Vec<Value> = variances
         .iter()

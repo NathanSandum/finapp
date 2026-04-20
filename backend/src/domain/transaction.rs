@@ -3,9 +3,9 @@ use diesel::prelude::*;
 use diesel_derive_newtype::DieselNewType;
 use uuid::Uuid;
 
-use crate::domain::account::{Account, AccountRef};
-use crate::domain::category::{Category, CategoryRef};
-use crate::domain::workspace::{Workspace, WorkspaceRef};
+use crate::domain::account::AccountRef;
+use crate::domain::category::CategoryRef;
+use crate::domain::workspace::WorkspaceRef;
 use crate::error::AppError;
 use crate::schema::{line_items, transactions};
 
@@ -41,8 +41,8 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub fn as_ref(&self) -> TransactionRef {
-        self.id.clone()
+    pub fn as_ref(&self) -> &TransactionRef {
+        &self.id
     }
 
     pub fn from_ref(
@@ -289,10 +289,10 @@ impl NewTransaction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::account::{AccountType, NewAccount};
-    use crate::domain::category::NewCategory;
+    use crate::domain::account::{Account, AccountType, NewAccount};
+    use crate::domain::category::{Category, NewCategory};
     use crate::domain::user::NewUser;
-    use crate::domain::workspace::NewWorkspace;
+    use crate::domain::workspace::{Workspace,NewWorkspace};
     use crate::test_helpers::setup_test_db;
 
     struct TestFixture {
@@ -308,7 +308,7 @@ mod tests {
             .unwrap()
             .insert(&mut conn)
             .unwrap();
-        let workspace = NewWorkspace::new("My Finances", user.as_ref())
+        let workspace = NewWorkspace::new("My Finances", user.as_ref().clone())
             .insert(&mut conn)
             .unwrap();
         let chequing = NewAccount::new(&workspace.as_ref(), "Chequing", AccountType::Chequing)
@@ -533,7 +533,7 @@ mod tests {
         .insert(&mut fixture.conn)
         .unwrap();
 
-        assert_eq!(transaction.transfer_account, Some(savings.as_ref()));
+        assert_eq!(transaction.transfer_account, Some(savings.as_ref().clone()));
     }
 
     #[test]

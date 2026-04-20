@@ -1,5 +1,5 @@
 mod auth;
-mod domain;
+pub mod domain;
 mod error;
 mod permissions;
 mod routes;

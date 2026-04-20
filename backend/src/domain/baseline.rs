@@ -3,9 +3,8 @@ use diesel::prelude::*;
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use uuid::Uuid;
 
-use crate::domain::account::{Account, AccountRef};
-use crate::domain::category::{Category, CategoryRef};
-use crate::domain::workspace::{Workspace, WorkspaceRef};
+use crate::domain::category::CategoryRef;
+use crate::domain::workspace::WorkspaceRef;
 use crate::error::AppError;
 use crate::schema::{baselines, line_items, transactions};
 
@@ -52,6 +51,19 @@ pub struct Baseline {
 }
 
 impl Baseline {
+    pub fn for_workspace_period(
+        workspace: &WorkspaceRef,
+        period_start: &str,
+        conn: &mut SqliteConnection,
+    ) -> Result<Vec<Baseline>, AppError> {
+        baselines::table
+            .filter(baselines::workspace_id.eq(workspace))
+            .filter(baselines::period_start.eq(period_start))
+            .select(Baseline::as_select())
+            .load(conn)
+            .map_err(|err| AppError::Internal(format!("baseline list failed: {err}")))
+    }
+
     pub fn update_amount(&self, amount: i32, conn: &mut SqliteConnection) -> Result<(), AppError> {
         let now = chrono::Utc::now().naive_utc();
         diesel::update(baselines::table.find(&self.id))
@@ -239,11 +251,11 @@ fn actuals_by_category(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::account::{AccountType, NewAccount};
-    use crate::domain::category::NewCategory;
+    use crate::domain::account::{Account, AccountType, NewAccount};
+    use crate::domain::category::{Category, NewCategory};
     use crate::domain::transaction::{LineItemInput, NewTransaction};
     use crate::domain::user::NewUser;
-    use crate::domain::workspace::NewWorkspace;
+    use crate::domain::workspace::{Workspace, NewWorkspace};
     use crate::test_helpers::setup_test_db;
 
     struct TestFixture {
@@ -260,7 +272,7 @@ mod tests {
             .unwrap()
             .insert(&mut conn)
             .unwrap();
-        let workspace = NewWorkspace::new("My Finances", user.as_ref())
+        let workspace = NewWorkspace::new("My Finances", user.as_ref().clone())
             .insert(&mut conn)
             .unwrap();
         let groceries = NewCategory::new(&workspace.as_ref(), "Groceries")

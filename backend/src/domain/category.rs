@@ -4,13 +4,13 @@ use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use diesel_derive_newtype::DieselNewType;
 use uuid::Uuid;
 
-use crate::domain::workspace::{Workspace, WorkspaceRef};
+use crate::domain::workspace::WorkspaceRef;
 use crate::error::AppError;
 use crate::schema::categories;
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
+#[derive(Hash, Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
 #[serde(transparent)]
 pub struct CategoryRef(String);
 
@@ -37,8 +37,8 @@ pub struct Category {
 }
 
 impl Category {
-    pub fn as_ref(&self) -> CategoryRef {
-        self.id.clone()
+    pub fn as_ref(&self) -> &CategoryRef {
+        &self.id
     }
 
     pub fn from_ref(
@@ -161,7 +161,7 @@ pub fn create_defaults(
 mod tests {
     use super::*;
     use crate::domain::user::NewUser;
-    use crate::domain::workspace::NewWorkspace;
+    use crate::domain::workspace::{Workspace,NewWorkspace};
     use crate::test_helpers::setup_test_db;
 
     fn setup() -> (SqliteConnection, Workspace) {
@@ -170,7 +170,7 @@ mod tests {
             .expect("new user should succeed")
             .insert(&mut conn)
             .expect("user insert should succeed");
-        let workspace = NewWorkspace::new("My Finances", user.as_ref())
+        let workspace = NewWorkspace::new("My Finances", user.as_ref().clone())
             .insert(&mut conn)
             .expect("workspace creation should succeed");
         (conn, workspace)
@@ -217,10 +217,10 @@ mod tests {
             .expect("new user should succeed")
             .insert(&mut conn)
             .expect("insert should succeed");
-        let workspace_a = NewWorkspace::new("WS A", user_a.as_ref())
+        let workspace_a = NewWorkspace::new("WS A", user_a.as_ref().clone())
             .insert(&mut conn)
             .unwrap();
-        let workspace_b = NewWorkspace::new("WS B", user_b.as_ref())
+        let workspace_b = NewWorkspace::new("WS B", user_b.as_ref().clone())
             .insert(&mut conn)
             .unwrap();
 
@@ -259,10 +259,10 @@ mod tests {
             .unwrap()
             .insert(&mut conn)
             .unwrap();
-        let workspace_a = NewWorkspace::new("WS A", user_a.as_ref())
+        let workspace_a = NewWorkspace::new("WS A", user_a.as_ref().clone())
             .insert(&mut conn)
             .unwrap();
-        let workspace_b = NewWorkspace::new("WS B", user_b.as_ref())
+        let workspace_b = NewWorkspace::new("WS B", user_b.as_ref().clone())
             .insert(&mut conn)
             .unwrap();
 

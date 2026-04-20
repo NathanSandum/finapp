@@ -23,7 +23,7 @@ pub async fn create(
         .get()
         .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let workspace = NewWorkspace::new(&body.name, user.as_ref()).insert(&mut conn)?;
+    let workspace = NewWorkspace::new(&body.name, user.as_ref().clone()).insert(&mut conn)?;
 
     Ok((axum::http::StatusCode::CREATED, Json(workspace)))
 }
