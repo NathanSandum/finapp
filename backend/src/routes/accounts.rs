@@ -58,7 +58,7 @@ pub async fn create(
         }])
     })?;
 
-    let mut builder = NewAccount::new(&member.workspace, &body.name, account_type);
+    let mut builder = NewAccount::new(member.workspace.clone(), &body.name, account_type);
     if let Some(ref currency) = body.currency {
         builder = builder.currency(currency);
     }

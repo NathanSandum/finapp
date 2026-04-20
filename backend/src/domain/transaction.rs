@@ -311,7 +311,7 @@ mod tests {
         let workspace = NewWorkspace::new("My Finances", user.as_ref().clone())
             .insert(&mut conn)
             .unwrap();
-        let chequing = NewAccount::new(&workspace.as_ref(), "Chequing", AccountType::Chequing)
+        let chequing = NewAccount::new(workspace.as_ref().clone(), "Chequing", AccountType::Chequing)
             .insert(&mut conn)
             .unwrap();
         let groceries = NewCategory::new(workspace.as_ref().clone(), "Groceries")
@@ -518,7 +518,7 @@ mod tests {
     #[test]
     fn transfer_transaction() {
         let mut fixture = setup();
-        let savings = NewAccount::new(&fixture.workspace.as_ref(), "Savings", AccountType::Savings)
+        let savings = NewAccount::new(fixture.workspace.as_ref().clone(), "Savings", AccountType::Savings)
             .insert(&mut fixture.conn)
             .unwrap();
 

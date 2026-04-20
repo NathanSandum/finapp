@@ -66,7 +66,7 @@ pub async fn import(
                 .unwrap_or(AccountType::Other);
 
             let account =
-                NewAccount::new(&member.workspace, &transaction.account_name, account_type)
+                NewAccount::new(member.workspace.clone(), &transaction.account_name, account_type)
                     .insert(&mut conn)?;
             account_map.insert(transaction.account_name.clone(), account);
             accounts_created += 1;

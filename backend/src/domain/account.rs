@@ -142,7 +142,7 @@ pub struct NewAccount {
 }
 
 impl NewAccount {
-    pub fn new(workspace: &WorkspaceRef, name: &str, account_type: AccountType) -> Self {
+    pub fn new(workspace: WorkspaceRef, name: &str, account_type: AccountType) -> Self {
         NewAccount {
             workspace: workspace.clone(),
             name: name.to_string(),
@@ -206,7 +206,7 @@ mod tests {
     #[test]
     fn create_account_succeeds() {
         let (mut conn, workspace) = setup();
-        let account = NewAccount::new(&workspace.as_ref(), "Chequing", AccountType::Chequing)
+        let account = NewAccount::new(workspace.as_ref().clone(), "Chequing", AccountType::Chequing)
             .insert(&mut conn)
             .expect("account creation should succeed");
 
@@ -219,7 +219,7 @@ mod tests {
     #[test]
     fn custom_currency() {
         let (mut conn, workspace) = setup();
-        let account = NewAccount::new(&workspace.as_ref(), "USD Savings", AccountType::Savings)
+        let account = NewAccount::new(workspace.as_ref().clone(), "USD Savings", AccountType::Savings)
             .currency("USD")
             .insert(&mut conn)
             .unwrap();
@@ -230,11 +230,11 @@ mod tests {
     #[test]
     fn duplicate_name_in_same_workspace_fails() {
         let (mut conn, workspace) = setup();
-        NewAccount::new(&workspace.as_ref(), "Chequing", AccountType::Chequing)
+        NewAccount::new(workspace.as_ref().clone(), "Chequing", AccountType::Chequing)
             .insert(&mut conn)
             .unwrap();
 
-        let err = NewAccount::new(&workspace.as_ref(), "Chequing", AccountType::Savings)
+        let err = NewAccount::new(workspace.as_ref().clone(), "Chequing", AccountType::Savings)
             .insert(&mut conn)
             .expect_err("duplicate name should fail");
 
@@ -244,10 +244,10 @@ mod tests {
     #[test]
     fn same_type_different_names_succeeds() {
         let (mut conn, workspace) = setup();
-        NewAccount::new(&workspace.as_ref(), "TFSA 1", AccountType::Tfsa)
+        NewAccount::new(workspace.as_ref().clone(), "TFSA 1", AccountType::Tfsa)
             .insert(&mut conn)
             .unwrap();
-        NewAccount::new(&workspace.as_ref(), "TFSA 2", AccountType::Tfsa)
+        NewAccount::new(workspace.as_ref().clone(), "TFSA 2", AccountType::Tfsa)
             .insert(&mut conn)
             .unwrap();
     }
@@ -255,10 +255,10 @@ mod tests {
     #[test]
     fn accounts_returns_only_active() {
         let (mut conn, workspace) = setup();
-        NewAccount::new(&workspace.as_ref(), "Chequing", AccountType::Chequing)
+        NewAccount::new(workspace.as_ref().clone(), "Chequing", AccountType::Chequing)
             .insert(&mut conn)
             .unwrap();
-        let savings = NewAccount::new(&workspace.as_ref(), "Savings", AccountType::Savings)
+        let savings = NewAccount::new(workspace.as_ref().clone(), "Savings", AccountType::Savings)
             .insert(&mut conn)
             .unwrap();
         savings.soft_delete(&mut conn).unwrap();
@@ -286,10 +286,10 @@ mod tests {
             .insert(&mut conn)
             .unwrap();
 
-        NewAccount::new(&workspace_a.as_ref(), "A's Chequing", AccountType::Chequing)
+        NewAccount::new(workspace_a.as_ref().clone(), "A's Chequing", AccountType::Chequing)
             .insert(&mut conn)
             .unwrap();
-        NewAccount::new(&workspace_b.as_ref(), "B's Chequing", AccountType::Chequing)
+        NewAccount::new(workspace_b.as_ref().clone(), "B's Chequing", AccountType::Chequing)
             .insert(&mut conn)
             .unwrap();
 
@@ -301,7 +301,7 @@ mod tests {
     #[test]
     fn parsed_type_roundtrips() {
         let (mut conn, workspace) = setup();
-        let account = NewAccount::new(&workspace.as_ref(), "My RRSP", AccountType::Rrsp)
+        let account = NewAccount::new(workspace.as_ref().clone(), "My RRSP", AccountType::Rrsp)
             .insert(&mut conn)
             .unwrap();
 

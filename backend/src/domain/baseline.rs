@@ -268,7 +268,7 @@ mod tests {
         let dining = NewCategory::new(workspace.as_ref().clone(), "Dining")
             .insert(&mut conn)
             .unwrap();
-        let chequing = NewAccount::new(&workspace.as_ref(), "Chequing", AccountType::Chequing)
+        let chequing = NewAccount::new(workspace.as_ref().clone(), "Chequing", AccountType::Chequing)
             .insert(&mut conn)
             .unwrap();
         TestFixture {
