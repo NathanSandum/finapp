@@ -25,8 +25,7 @@ pub async fn list(
         .get()
         .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let baselines =
-        Baseline::for_workspace_period(&member.workspace, &query.period_start, &mut conn)?;
+    let baselines = member.workspace.baselines(&query.period_start, &mut conn)?;
 
     let items: Vec<Value> = baselines
         .iter()

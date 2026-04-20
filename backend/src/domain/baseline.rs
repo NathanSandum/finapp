@@ -51,19 +51,6 @@ pub struct Baseline {
 }
 
 impl Baseline {
-    pub fn for_workspace_period(
-        workspace: &WorkspaceRef,
-        period_start: &str,
-        conn: &mut SqliteConnection,
-    ) -> Result<Vec<Baseline>, AppError> {
-        baselines::table
-            .filter(baselines::workspace_id.eq(workspace))
-            .filter(baselines::period_start.eq(period_start))
-            .select(Baseline::as_select())
-            .load(conn)
-            .map_err(|err| AppError::Internal(format!("baseline list failed: {err}")))
-    }
-
     pub fn update_amount(&self, amount: i32, conn: &mut SqliteConnection) -> Result<(), AppError> {
         let now = chrono::Utc::now().naive_utc();
         diesel::update(baselines::table.find(&self.id))
