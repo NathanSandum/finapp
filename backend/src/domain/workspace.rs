@@ -122,7 +122,14 @@ impl Workspace {
 
             let event_type = if user == actor { "left" } else { "removed" };
 
-            NewMembershipEvent::new(&self.id, &user, &actor, event_type, None).insert(conn)?;
+            NewMembershipEvent::new(
+                self.id.clone(),
+                user.clone(),
+                actor.clone(),
+                event_type,
+                None,
+            )
+            .insert(conn)?;
 
             diesel::delete(
                 workspace_members::table
@@ -203,17 +210,17 @@ struct NewMembershipEvent {
 
 impl NewMembershipEvent {
     fn new(
-        workspace: &WorkspaceRef,
-        user: &UserRef,
-        actor: &UserRef,
+        workspace: WorkspaceRef,
+        user: UserRef,
+        actor: UserRef,
         event_type: &str,
         role: Option<&str>,
     ) -> Self {
         NewMembershipEvent {
             id: Uuid::new_v4().to_string(),
-            workspace: workspace.clone(),
-            user: user.clone(),
-            actor: actor.clone(),
+            workspace: workspace,
+            user: user,
+            actor: actor,
             event_type: event_type.to_string(),
             role: role.map(|r| r.to_string()),
             created_at: chrono::Utc::now().naive_utc(),
@@ -270,9 +277,9 @@ impl NewWorkspace {
                 .get_result(conn)?;
 
             NewMembershipEvent::new(
-                &workspace.as_ref(),
-                &self.creator,
-                &self.creator,
+                workspace.as_ref().clone(),
+                self.creator.clone(),
+                self.creator.clone(),
                 "owner_assigned",
                 Some(Role::Owner.as_str()),
             )
