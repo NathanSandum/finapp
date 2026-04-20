@@ -102,7 +102,7 @@ async fn register(app: &Router, email: &str) -> (String, String) {
 
 /// Register + create a workspace, return (token, user_id, workspace_id).
 async fn setup_workspace(app: &Router) -> (String, String, String) {
-    let (token, user_id) = register(app, "alice@example.com").await;
+    let (token, user) = register(app, "alice@example.com").await;
 
     let (status, body) = post(
         app,
@@ -116,9 +116,9 @@ async fn setup_workspace(app: &Router) -> (String, String, String) {
         StatusCode::CREATED,
         "create workspace failed: {body}"
     );
-    let workspace_id = body["id"].as_str().unwrap().to_string();
+    let workspace = body["workspace"].as_str().unwrap().to_string();
 
-    (token, user_id, workspace_id)
+    (token, user, workspace)
 }
 
 // ── Auth tests ───────────────────────────────────────────────────────────────
@@ -661,27 +661,27 @@ async fn transfer_transaction_records_transfer_account() {
 
 // ── Baseline tests ─────────────────────────────────────────────────────────
 
-async fn create_category(app: &Router, ws_id: &str, token: &str, name: &str) -> CategoryRef {
+async fn create_category(app: &Router, workspace: &str, token: &str, name: &str) -> CategoryRef {
     let (_, body) = post(
         app,
-        &format!("/workspaces/{ws_id}/categories"),
+        &format!("/workspaces/{workspace}/categories"),
         Some(token),
         json!({ "name": name }),
     )
     .await;
-    serde_json::from_value(body["id"].clone()).unwrap()
+    serde_json::from_value(body["category"].clone()).unwrap()
 }
 
 #[tokio::test]
 async fn create_and_list_baselines() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
-    let category = create_category(&app, &ws_id, &token, "Groceries").await;
+    let (token, _, workspace) = setup_workspace(&app).await;
+    let category = create_category(&app, &workspace, &token, "Groceries").await;
 
     // Create baseline
     let (status, body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/baselines"),
+        &format!("/workspaces/{workspace}/baselines"),
         Some(&token),
         json!({
             "category": category,
@@ -699,7 +699,7 @@ async fn create_and_list_baselines() {
     // List baselines for this period
     let (status, body) = get(
         &app,
-        &format!("/workspaces/{ws_id}/baselines?period_start=2026-04-01"),
+        &format!("/workspaces/{workspace}/baselines?period_start=2026-04-01"),
         &token,
     )
     .await;
@@ -712,12 +712,12 @@ async fn create_and_list_baselines() {
 #[tokio::test]
 async fn update_baseline_amount() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
-    let category = create_category(&app, &ws_id, &token, "Groceries").await;
+    let (token, _, workspace) = setup_workspace(&app).await;
+    let category = create_category(&app, &workspace, &token, "Groceries").await;
 
     let (_, body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/baselines"),
+        &format!("/workspaces/{workspace}/baselines"),
         Some(&token),
         json!({
             "category": category,
@@ -732,7 +732,7 @@ async fn update_baseline_amount() {
     // Update
     let (status, body) = put(
         &app,
-        &format!("/workspaces/{ws_id}/baselines/{baseline_id}"),
+        &format!("/workspaces/{workspace}/baselines/{baseline_id}"),
         &token,
         json!({ "amount": -60000 }),
     )
@@ -743,7 +743,7 @@ async fn update_baseline_amount() {
     // Verify via list
     let (_, body) = get(
         &app,
-        &format!("/workspaces/{ws_id}/baselines?period_start=2026-04-01"),
+        &format!("/workspaces/{workspace}/baselines?period_start=2026-04-01"),
         &token,
     )
     .await;
@@ -753,12 +753,12 @@ async fn update_baseline_amount() {
 #[tokio::test]
 async fn duplicate_baseline_rejected() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
-    let category = create_category(&app, &ws_id, &token, "Groceries").await;
+    let (token, _, workspace) = setup_workspace(&app).await;
+    let category = create_category(&app, &workspace, &token, "Groceries").await;
 
     post(
         &app,
-        &format!("/workspaces/{ws_id}/baselines"),
+        &format!("/workspaces/{workspace}/baselines"),
         Some(&token),
         json!({
             "category": category,
@@ -771,7 +771,7 @@ async fn duplicate_baseline_rejected() {
 
     let (status, _) = post(
         &app,
-        &format!("/workspaces/{ws_id}/baselines"),
+        &format!("/workspaces/{workspace}/baselines"),
         Some(&token),
         json!({
             "category": category,
@@ -787,13 +787,13 @@ async fn duplicate_baseline_rejected() {
 #[tokio::test]
 async fn baseline_summary_with_actuals() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
-    let category = create_category(&app, &ws_id, &token, "Groceries").await;
+    let (token, _, workspace) = setup_workspace(&app).await;
+    let category = create_category(&app, &workspace, &token, "Groceries").await;
 
     // Create account for transactions
     let (_, acct_body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/accounts"),
+        &format!("/workspaces/{workspace}/accounts"),
         Some(&token),
         json!({ "name": "Chequing", "account_type": "chequing" }),
     )
@@ -803,7 +803,7 @@ async fn baseline_summary_with_actuals() {
     // Set baseline
     post(
         &app,
-        &format!("/workspaces/{ws_id}/baselines"),
+        &format!("/workspaces/{workspace}/baselines"),
         Some(&token),
         json!({
             "category": category,
@@ -817,7 +817,7 @@ async fn baseline_summary_with_actuals() {
     // Create cleared transaction
     post(
         &app,
-        &format!("/workspaces/{ws_id}/transactions"),
+        &format!("/workspaces/{workspace}/transactions"),
         Some(&token),
         json!({
             "account": acct_id,
@@ -833,7 +833,7 @@ async fn baseline_summary_with_actuals() {
     let (status, body) = get(
         &app,
         &format!(
-            "/workspaces/{ws_id}/baselines/summary?period_start=2026-04-01&period_end=2026-04-30"
+            "/workspaces/{workspace}/baselines/summary?period_start=2026-04-01&period_end=2026-04-30"
         ),
         &token,
     )
@@ -849,13 +849,13 @@ async fn baseline_summary_with_actuals() {
 #[tokio::test]
 async fn non_member_cannot_access_baselines() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
-    let category = create_category(&app, &ws_id, &token, "Groceries").await;
+    let (token, _, workspace) = setup_workspace(&app).await;
+    let category = create_category(&app, &workspace, &token, "Groceries").await;
 
     // Create a baseline as owner
     post(
         &app,
-        &format!("/workspaces/{ws_id}/baselines"),
+        &format!("/workspaces/{workspace}/baselines"),
         Some(&token),
         json!({
             "category": category,
@@ -870,7 +870,7 @@ async fn non_member_cannot_access_baselines() {
     let (outsider_token, _) = register(&app, "outsider@example.com").await;
     let (status, _) = get(
         &app,
-        &format!("/workspaces/{ws_id}/baselines?period_start=2026-04-01"),
+        &format!("/workspaces/{workspace}/baselines?period_start=2026-04-01"),
         &outsider_token,
     )
     .await;
@@ -881,39 +881,39 @@ async fn non_member_cannot_access_baselines() {
 #[tokio::test]
 async fn import_creates_accounts_categories_and_transactions() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
+    let (token, _, workspace) = setup_workspace(&app).await;
 
     let (status, body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/import"),
+        &format!("/workspaces/{workspace}/import"),
         Some(&token),
         json!({
             "transactions": [
                 {
-                    "account": "Chequing",
+                    "account_name": "Chequing",
                     "account_type": "chequing",
                     "date": "2026-01-02",
                     "description": "Household Expenses",
                     "amount": -12318,
-                    "category": "Household Expenses",
+                    "category_name": "Household Expenses",
                     "cleared": true
                 },
                 {
-                    "account": "Chequing",
+                    "account_name": "Chequing",
                     "account_type": "chequing",
                     "date": "2026-01-02",
                     "description": "Cafes",
                     "amount": -901,
-                    "category": "Cafes",
+                    "category_name": "Cafes",
                     "cleared": true
                 },
                 {
-                    "account": "Chequing",
+                    "account_name": "Chequing",
                     "account_type": "chequing",
                     "date": "2026-01-05",
                     "description": "Benefits and Tax Credits",
                     "amount": 13325,
-                    "category": "Benefits and Tax Credits",
+                    "category_name": "Benefits and Tax Credits",
                     "cleared": true
                 }
             ]
@@ -926,32 +926,32 @@ async fn import_creates_accounts_categories_and_transactions() {
     assert_eq!(body["transactions_created"], 3);
 
     // Verify accounts exist
-    let (_, acct_body) = get(&app, &format!("/workspaces/{ws_id}/accounts"), &token).await;
+    let (_, acct_body) = get(&app, &format!("/workspaces/{workspace}/accounts"), &token).await;
     let accounts = acct_body["accounts"].as_array().unwrap();
     assert_eq!(accounts.len(), 1);
     assert_eq!(accounts[0]["name"], "Chequing");
 
     // Verify categories exist
-    let (_, cat_body) = get(&app, &format!("/workspaces/{ws_id}/categories"), &token).await;
+    let (_, cat_body) = get(&app, &format!("/workspaces/{workspace}/categories"), &token).await;
     assert_eq!(cat_body["categories"].as_array().unwrap().len(), 3);
 }
 
 #[tokio::test]
 async fn import_reuses_existing_accounts_and_categories() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
+    let (token, _, workspace) = setup_workspace(&app).await;
 
     // Pre-create an account and category
     post(
         &app,
-        &format!("/workspaces/{ws_id}/accounts"),
+        &format!("/workspaces/{workspace}/accounts"),
         Some(&token),
         json!({ "name": "Chequing", "account_type": "chequing" }),
     )
     .await;
     post(
         &app,
-        &format!("/workspaces/{ws_id}/categories"),
+        &format!("/workspaces/{workspace}/categories"),
         Some(&token),
         json!({ "name": "Cafes" }),
     )
@@ -959,17 +959,17 @@ async fn import_reuses_existing_accounts_and_categories() {
 
     let (status, body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/import"),
+        &format!("/workspaces/{workspace}/import"),
         Some(&token),
         json!({
             "transactions": [
                 {
-                    "account": "Chequing",
+                    "account_name": "Chequing",
                     "account_type": "chequing",
                     "date": "2026-01-06",
                     "description": "Cafes",
                     "amount": -1506,
-                    "category": "Cafes",
+                    "category_name": "Cafes",
                     "cleared": true
                 }
             ]
@@ -982,37 +982,37 @@ async fn import_reuses_existing_accounts_and_categories() {
     assert_eq!(body["transactions_created"], 1);
 
     // Should still only have 1 account, 1 category
-    let (_, acct_body) = get(&app, &format!("/workspaces/{ws_id}/accounts"), &token).await;
+    let (_, acct_body) = get(&app, &format!("/workspaces/{workspace}/accounts"), &token).await;
     assert_eq!(acct_body["accounts"].as_array().unwrap().len(), 1);
 }
 
 #[tokio::test]
 async fn import_multiple_accounts() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
+    let (token, _, workspace) = setup_workspace(&app).await;
 
     let (status, body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/import"),
+        &format!("/workspaces/{workspace}/import"),
         Some(&token),
         json!({
             "transactions": [
                 {
-                    "account": "Chequing",
+                    "account_name": "Chequing",
                     "account_type": "chequing",
                     "date": "2026-01-02",
                     "description": "Groceries",
                     "amount": -5000,
-                    "category": "Household Expenses",
+                    "category_name": "Household Expenses",
                     "cleared": true
                 },
                 {
-                    "account": "Credit Card",
+                    "account_name": "Credit Card",
                     "account_type": "credit",
                     "date": "2026-01-03",
                     "description": "Recreation",
                     "amount": -2559,
-                    "category": "Recreation",
+                    "category_name": "Recreation",
                     "cleared": true
                 }
             ]
@@ -1027,11 +1027,11 @@ async fn import_multiple_accounts() {
 #[tokio::test]
 async fn import_empty_transactions_succeeds() {
     let app = app();
-    let (token, _, ws_id) = setup_workspace(&app).await;
+    let (token, _, workspace) = setup_workspace(&app).await;
 
     let (status, body) = post(
         &app,
-        &format!("/workspaces/{ws_id}/import"),
+        &format!("/workspaces/{workspace}/import"),
         Some(&token),
         json!({ "transactions": [] }),
     )
@@ -1043,12 +1043,12 @@ async fn import_empty_transactions_succeeds() {
 #[tokio::test]
 async fn import_non_member_denied() {
     let app = app();
-    let (_, _, ws_id) = setup_workspace(&app).await;
+    let (_, _, workspace) = setup_workspace(&app).await;
     let (outsider_token, _) = register(&app, "outsider@example.com").await;
 
     let (status, _) = post(
         &app,
-        &format!("/workspaces/{ws_id}/import"),
+        &format!("/workspaces/{workspace}/import"),
         Some(&outsider_token),
         json!({
             "transactions": [{

@@ -26,7 +26,7 @@ impl std::fmt::Display for WorkspaceRef {
 #[derive(Debug, Queryable, Selectable, serde::Serialize)]
 #[diesel(table_name = workspaces)]
 pub struct Workspace {
-    #[serde(rename = "id")]
+    #[serde(rename = "workspace")]
     pub id: WorkspaceRef,
     pub name: String,
     pub created_at: NaiveDateTime,
