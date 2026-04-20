@@ -4,7 +4,7 @@ use axum::{
 };
 
 use crate::domain::session::Session;
-use crate::domain::user::{User,UserRef};
+use crate::domain::user::{User, UserRef};
 use crate::domain::workspace::{Role, Workspace, WorkspaceRef};
 use crate::error::AppError;
 use crate::DbPool;

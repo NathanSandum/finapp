@@ -255,7 +255,7 @@ mod tests {
     use crate::domain::category::{Category, NewCategory};
     use crate::domain::transaction::{LineItemInput, NewTransaction};
     use crate::domain::user::NewUser;
-    use crate::domain::workspace::{Workspace, NewWorkspace};
+    use crate::domain::workspace::{NewWorkspace, Workspace};
     use crate::test_helpers::setup_test_db;
 
     struct TestFixture {

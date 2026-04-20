@@ -10,7 +10,9 @@ use crate::schema::categories;
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
-#[derive(Hash, Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
+#[derive(
+    Hash, Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType,
+)]
 #[serde(transparent)]
 pub struct CategoryRef(String);
 
@@ -161,7 +163,7 @@ pub fn create_defaults(
 mod tests {
     use super::*;
     use crate::domain::user::NewUser;
-    use crate::domain::workspace::{Workspace,NewWorkspace};
+    use crate::domain::workspace::{NewWorkspace, Workspace};
     use crate::test_helpers::setup_test_db;
 
     fn setup() -> (SqliteConnection, Workspace) {

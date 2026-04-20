@@ -34,7 +34,9 @@ pub async fn import(
     Json(body): Json<ImportRequest>,
 ) -> Result<Json<Value>, AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool.get().map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
     // Load existing accounts and categories for this workspace
     let existing_accounts = member.workspace.accounts(&mut conn)?;
@@ -57,14 +59,15 @@ pub async fn import(
     // Collect unique accounts and categories to create
     for transaction in &body.transactions {
         if !account_map.contains_key(&transaction.account_name) {
-            let account_type =transaction 
+            let account_type = transaction
                 .account_type
                 .as_deref()
                 .and_then(AccountType::from_str)
                 .unwrap_or(AccountType::Other);
 
-            let account = NewAccount::new(&member.workspace, &transaction.account_name, account_type)
-                .insert(&mut conn)?;
+            let account =
+                NewAccount::new(&member.workspace, &transaction.account_name, account_type)
+                    .insert(&mut conn)?;
             account_map.insert(transaction.account_name.clone(), account);
             accounts_created += 1;
         }

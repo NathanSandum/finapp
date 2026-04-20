@@ -292,7 +292,7 @@ mod tests {
     use crate::domain::account::{Account, AccountType, NewAccount};
     use crate::domain::category::{Category, NewCategory};
     use crate::domain::user::NewUser;
-    use crate::domain::workspace::{Workspace,NewWorkspace};
+    use crate::domain::workspace::{NewWorkspace, Workspace};
     use crate::test_helpers::setup_test_db;
 
     struct TestFixture {

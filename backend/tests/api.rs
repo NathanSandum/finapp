@@ -832,7 +832,9 @@ async fn baseline_summary_with_actuals() {
     // Get summary
     let (status, body) = get(
         &app,
-        &format!("/workspaces/{ws_id}/baselines/summary?period_start=2026-04-01&period_end=2026-04-30"),
+        &format!(
+            "/workspaces/{ws_id}/baselines/summary?period_start=2026-04-01&period_end=2026-04-30"
+        ),
         &token,
     )
     .await;
