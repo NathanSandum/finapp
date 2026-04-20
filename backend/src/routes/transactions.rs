@@ -103,7 +103,7 @@ pub async fn create(
         .line_items
         .into_iter()
         .map(|li| {
-            let mut input = LineItemInput::new(&li.category_id, li.amount);
+            let mut input = LineItemInput::new(li.category_id.clone(), li.amount);
             if let Some(note) = li.note {
                 input = input.note(&note);
             }

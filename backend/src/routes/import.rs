@@ -85,7 +85,7 @@ pub async fn import(
         let account = &account_map[&transaction.account_name];
         let category = &category_map[&transaction.category_name];
 
-        let line_item = LineItemInput::new(category.as_ref(), transaction.amount);
+        let line_item = LineItemInput::new(category.as_ref().clone(), transaction.amount);
 
         let mut builder = NewTransaction::new(
             &member.workspace,

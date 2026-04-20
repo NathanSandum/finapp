@@ -403,7 +403,7 @@ mod tests {
             &fixture.chequing.as_ref(),
             "2026-04-10",
             -45000,
-            vec![LineItemInput::new(&fixture.groceries.as_ref(), -45000)],
+            vec![LineItemInput::new(fixture.groceries.as_ref().clone(), -45000)],
         )
         .cleared(true)
         .insert(&mut fixture.conn)
@@ -432,7 +432,7 @@ mod tests {
             &fixture.chequing.as_ref(),
             "2026-04-10",
             -3000,
-            vec![LineItemInput::new(&fixture.dining.as_ref(), -3000)],
+            vec![LineItemInput::new(fixture.dining.as_ref().clone(), -3000)],
         )
         .cleared(true)
         .insert(&mut fixture.conn)
@@ -499,7 +499,7 @@ mod tests {
             &fixture.chequing.as_ref(),
             "2026-04-10",
             -45000,
-            vec![LineItemInput::new(&fixture.groceries.as_ref(), -45000)],
+            vec![LineItemInput::new(fixture.groceries.as_ref().clone(), -45000)],
         )
         .insert(&mut fixture.conn)
         .unwrap();
@@ -535,7 +535,7 @@ mod tests {
             &fixture.chequing.as_ref(),
             "2026-04-10",
             -3000,
-            vec![LineItemInput::new(&fixture.dining.as_ref(), -3000)],
+            vec![LineItemInput::new(fixture.dining.as_ref().clone(), -3000)],
         )
         .cleared(true)
         .insert(&mut fixture.conn)
@@ -576,7 +576,7 @@ mod tests {
             &fixture.chequing.as_ref(),
             "2026-04-10",
             -60000,
-            vec![LineItemInput::new(&fixture.groceries.as_ref(), -60000)],
+            vec![LineItemInput::new(fixture.groceries.as_ref().clone(), -60000)],
         )
         .cleared(true)
         .insert(&mut fixture.conn)
