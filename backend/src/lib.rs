@@ -48,8 +48,7 @@ pub fn build_router(pool: DbPool) -> Router {
             "/workspaces/{workspace}/accounts/{account}/balance",
             get(routes::accounts::balance),
         )
-        // TODO: Wave 2 — transaction routes (postings)
-        // TODO: Wave 3 — baseline routes
+        // TODO: Wave 3 — entry routes, baseline routes
         // TODO: Wave 4 — report routes, import
         .layer(Extension(pool))
         .layer(CorsLayer::permissive())

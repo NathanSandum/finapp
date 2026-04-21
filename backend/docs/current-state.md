@@ -7,19 +7,21 @@ Last updated: 2026-04-20
 | Wave | Status | Branch |
 |------|--------|--------|
 | 1 — Account Hierarchy | Merged to main | interface-rework |
-| 2 — Transactions & Postings | Complete (on interface-rework) | interface-rework |
+| 2 — Entries & Postings | Merged to main | wave-2-postings |
 | 3 — Reports & Baselines | Not started | — |
 | 4 — API Routes (rewrite) | Not started | — |
 | 5 — Frontend Updates | Not started | — |
 
 ## What Wave 2 Did
 
-- Created migration `00000000000011_postings`: postings table with transaction_id, account_id, amount (integer cents), note, timestamps + indexes
-- Rewrote `domain/transaction.rs`: PostingRef, Posting struct, PostingInput builder, NewTransaction with zero-sum validation (min 2 postings, sum=0, no zero amounts), atomic insert
-- Transaction query methods: `for_account()`, `for_account_tree()`, `for_workspace()`, all exclude soft-deleted
+- Created migration `00000000000011_postings`: postings table with entry_id, account_id, amount (integer cents), note, timestamps + indexes
+- Created migration `00000000000012_rename_transactions_to_entries`: renamed transactions table → entries, transaction_id → entry_id
+- Rewrote `domain/entry.rs`: PostingRef, Posting struct, PostingInput builder, NewEntry with zero-sum validation (min 2 postings, sum=0, no zero amounts), atomic insert
+- Entry query methods on owning types: `AccountRef::entries()`, `Account::entries_with_descendants()`, `WorkspaceRef::entries()`
 - Added balance methods to Account: `balance()`, `balance_with_descendants()`, `balance_as_of()`
-- Updated `Account::soft_delete()` to block deletion when account has postings on active transactions
+- Updated `Account::soft_delete()` to block deletion when account has postings on active entries
 - Balance route now returns real computed balance (was stub returning 0)
+- Deleted dead `routes/transactions.rs` (old pre-double-entry code, was not declared in routes.rs)
 - 107 tests total (88 unit + 19 integration), all pass
 
 ## What Wave 1 Did
@@ -29,10 +31,6 @@ Last updated: 2026-04-20
 - Deleted: `domain/category.rs`, `domain/baseline.rs`, `routes/categories.rs`, `routes/baselines.rs`, `routes/import.rs`
 - Updated account routes for hierarchical creation (parent_id-based)
 - 18 default accounts created on workspace creation
-
-## Dead Code / Stubs
-
-- `routes/transactions.rs` — old transaction routes file, not declared in `routes.rs`. References deleted types. Should be rewritten in Wave 4.
 
 ## What's Compiling and Tested
 

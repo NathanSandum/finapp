@@ -437,10 +437,10 @@ async fn account_balance_reflects_postings() {
         .unwrap()
         .to_string();
 
-    // Create transaction via domain model (no route yet)
+    // Create entry via domain model (no route yet)
     {
         use backend::domain::account::AccountRef;
-        use backend::domain::transaction::{NewTransaction, PostingInput};
+        use backend::domain::entry::{NewEntry, PostingInput};
         use backend::domain::workspace::WorkspaceRef;
 
         let mut conn = pool.get().unwrap();
@@ -451,7 +451,7 @@ async fn account_balance_reflects_postings() {
         let food_ref: AccountRef =
             serde_json::from_value(json!(food_id)).unwrap();
 
-        NewTransaction::new(
+        NewEntry::new(
             workspace_ref,
             "2026-01-15",
             "Lunch",

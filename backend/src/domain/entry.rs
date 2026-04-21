@@ -7,15 +7,15 @@ use uuid::Uuid;
 use crate::domain::account::AccountRef;
 use crate::domain::workspace::WorkspaceRef;
 use crate::error::AppError;
-use crate::schema::{postings, transactions};
+use crate::schema::{entries, postings};
 
-// ── TransactionRef ──────────────────────────────────────────────────────────
+// ── EntryRef ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
 #[serde(transparent)]
-pub struct TransactionRef(String);
+pub struct EntryRef(String);
 
-impl std::fmt::Display for TransactionRef {
+impl std::fmt::Display for EntryRef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
     }
@@ -33,13 +33,13 @@ impl std::fmt::Display for PostingRef {
     }
 }
 
-// ── Transaction ─────────────────────────────────────────────────────────────
+// ── Entry ───────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Queryable, Selectable)]
-#[diesel(table_name = transactions)]
+#[diesel(table_name = entries)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
-pub struct Transaction {
-    pub id: TransactionRef,
+pub struct Entry {
+    pub id: EntryRef,
     #[diesel(column_name = workspace_id)]
     pub workspace: WorkspaceRef,
     pub date: String,
@@ -50,26 +50,26 @@ pub struct Transaction {
     pub updated_at: NaiveDateTime,
 }
 
-impl Transaction {
-    pub fn as_ref(&self) -> &TransactionRef {
+impl Entry {
+    pub fn as_ref(&self) -> &EntryRef {
         &self.id
     }
 
     pub fn from_ref(
-        transaction_ref: &TransactionRef,
+        entry_ref: &EntryRef,
         conn: &mut SqliteConnection,
-    ) -> Result<Option<Transaction>, AppError> {
-        transactions::table
-            .find(transaction_ref)
-            .select(Transaction::as_select())
+    ) -> Result<Option<Entry>, AppError> {
+        entries::table
+            .find(entry_ref)
+            .select(Entry::as_select())
             .first(conn)
             .optional()
-            .map_err(|err| AppError::Internal(format!("transaction lookup failed: {err}")))
+            .map_err(|err| AppError::Internal(format!("entry lookup failed: {err}")))
     }
 
     pub fn postings(&self, conn: &mut SqliteConnection) -> Result<Vec<Posting>, AppError> {
         postings::table
-            .filter(postings::transaction_id.eq(&self.id))
+            .filter(postings::entry_id.eq(&self.id))
             .select(Posting::as_select())
             .load(conn)
             .map_err(|err| AppError::Internal(format!("postings query failed: {err}")))
@@ -77,10 +77,10 @@ impl Transaction {
 
     pub fn soft_delete(&self, conn: &mut SqliteConnection) -> Result<(), AppError> {
         let now = chrono::Utc::now().naive_utc();
-        diesel::update(transactions::table.find(&self.id))
-            .set(transactions::deleted_at.eq(Some(now)))
+        diesel::update(entries::table.find(&self.id))
+            .set(entries::deleted_at.eq(Some(now)))
             .execute(conn)
-            .map_err(|err| AppError::Internal(format!("transaction soft delete failed: {err}")))?;
+            .map_err(|err| AppError::Internal(format!("entry soft delete failed: {err}")))?;
         Ok(())
     }
 }
@@ -88,56 +88,56 @@ impl Transaction {
 // ── Query methods on owning types ────────────────────────────────────────────
 
 impl AccountRef {
-    /// Transactions with any posting to this account, excluding soft-deleted, ordered by date desc.
-    pub fn transactions(&self, conn: &mut SqliteConnection) -> Result<Vec<Transaction>, AppError> {
-        transactions::table
-            .inner_join(postings::table.on(postings::transaction_id.eq(transactions::id)))
+    /// Entries with any posting to this account, excluding soft-deleted, ordered by date desc.
+    pub fn entries(&self, conn: &mut SqliteConnection) -> Result<Vec<Entry>, AppError> {
+        entries::table
+            .inner_join(postings::table.on(postings::entry_id.eq(entries::id)))
             .filter(postings::account_id.eq(self))
-            .filter(transactions::deleted_at.is_null())
-            .select(Transaction::as_select())
+            .filter(entries::deleted_at.is_null())
+            .select(Entry::as_select())
             .distinct()
-            .order(transactions::date.desc())
+            .order(entries::date.desc())
             .load(conn)
-            .map_err(|err| AppError::Internal(format!("account transactions query failed: {err}")))
+            .map_err(|err| AppError::Internal(format!("account entries query failed: {err}")))
     }
 }
 
 impl crate::domain::account::Account {
-    /// Transactions with postings to this account or any of its descendants.
-    /// Use case: viewing all activity under a parent account (e.g. all Expense transactions
+    /// Entries with postings to this account or any of its descendants.
+    /// Use case: viewing all activity under a parent account (e.g. all Expense entries
     /// when looking at the Expenses root, including Food, Rent, etc.).
-    pub fn transactions_with_descendants(
+    pub fn entries_with_descendants(
         &self,
         conn: &mut SqliteConnection,
-    ) -> Result<Vec<Transaction>, AppError> {
+    ) -> Result<Vec<Entry>, AppError> {
         let descendants = self.descendants(conn)?;
         let mut account_ids: Vec<&AccountRef> = descendants.iter().map(|a| &a.id).collect();
         account_ids.push(&self.id);
 
-        transactions::table
-            .inner_join(postings::table.on(postings::transaction_id.eq(transactions::id)))
+        entries::table
+            .inner_join(postings::table.on(postings::entry_id.eq(entries::id)))
             .filter(postings::account_id.eq_any(&account_ids))
-            .filter(transactions::deleted_at.is_null())
-            .select(Transaction::as_select())
+            .filter(entries::deleted_at.is_null())
+            .select(Entry::as_select())
             .distinct()
-            .order(transactions::date.desc())
+            .order(entries::date.desc())
             .load(conn)
             .map_err(|err| {
-                AppError::Internal(format!("account tree transactions query failed: {err}"))
+                AppError::Internal(format!("account tree entries query failed: {err}"))
             })
     }
 }
 
 impl WorkspaceRef {
-    pub fn transactions(&self, conn: &mut SqliteConnection) -> Result<Vec<Transaction>, AppError> {
-        transactions::table
-            .filter(transactions::workspace_id.eq(self))
-            .filter(transactions::deleted_at.is_null())
-            .select(Transaction::as_select())
-            .order(transactions::date.desc())
+    pub fn entries(&self, conn: &mut SqliteConnection) -> Result<Vec<Entry>, AppError> {
+        entries::table
+            .filter(entries::workspace_id.eq(self))
+            .filter(entries::deleted_at.is_null())
+            .select(Entry::as_select())
+            .order(entries::date.desc())
             .load(conn)
             .map_err(|err| {
-                AppError::Internal(format!("workspace transactions query failed: {err}"))
+                AppError::Internal(format!("workspace entries query failed: {err}"))
             })
     }
 }
@@ -149,8 +149,8 @@ impl WorkspaceRef {
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Posting {
     pub id: PostingRef,
-    #[diesel(column_name = transaction_id)]
-    pub transaction: TransactionRef,
+    #[diesel(column_name = entry_id)]
+    pub entry: EntryRef,
     #[diesel(column_name = account_id)]
     pub account: AccountRef,
     pub amount: i32,
@@ -173,7 +173,7 @@ impl Posting {
     }
 }
 
-// ── NewTransaction ──────────────────────────────────────────────────────────
+// ── NewEntry ────────────────────────────────────────────────────────────────
 
 pub struct PostingInput {
     pub account: AccountRef,
@@ -197,8 +197,8 @@ impl PostingInput {
 }
 
 #[derive(Insertable)]
-#[diesel(table_name = transactions)]
-struct NewTransactionRow {
+#[diesel(table_name = entries)]
+struct NewEntryRow {
     id: String,
     #[diesel(column_name = workspace_id)]
     workspace: WorkspaceRef,
@@ -213,8 +213,8 @@ struct NewTransactionRow {
 #[diesel(table_name = postings)]
 struct NewPostingRow {
     id: String,
-    #[diesel(column_name = transaction_id)]
-    transaction: TransactionRef,
+    #[diesel(column_name = entry_id)]
+    entry: EntryRef,
     #[diesel(column_name = account_id)]
     account: AccountRef,
     amount: i32,
@@ -223,7 +223,7 @@ struct NewPostingRow {
     updated_at: NaiveDateTime,
 }
 
-pub struct NewTransaction {
+pub struct NewEntry {
     workspace: WorkspaceRef,
     date: String,
     description: String,
@@ -231,14 +231,14 @@ pub struct NewTransaction {
     posting_inputs: Vec<PostingInput>,
 }
 
-impl NewTransaction {
+impl NewEntry {
     pub fn new(
         workspace: WorkspaceRef,
         date: &str,
         description: &str,
         posting_inputs: Vec<PostingInput>,
     ) -> Self {
-        NewTransaction {
+        NewEntry {
             workspace,
             date: date.to_string(),
             description: description.to_string(),
@@ -252,12 +252,12 @@ impl NewTransaction {
         self
     }
 
-    pub fn insert(self, conn: &mut SqliteConnection) -> Result<Transaction, AppError> {
+    pub fn insert(self, conn: &mut SqliteConnection) -> Result<Entry, AppError> {
         // Validate: at least 2 postings
         if self.posting_inputs.len() < 2 {
             return Err(AppError::Validation(vec![crate::error::FieldError {
                 field: "postings".into(),
-                message: "transaction must have at least 2 postings".into(),
+                message: "entry must have at least 2 postings".into(),
             }]));
         }
 
@@ -283,8 +283,8 @@ impl NewTransaction {
         conn.transaction::<_, AppError, _>(|conn| {
             let now = chrono::Utc::now().naive_utc();
 
-            let transaction = diesel::insert_into(transactions::table)
-                .values(NewTransactionRow {
+            let entry = diesel::insert_into(entries::table)
+                .values(NewEntryRow {
                     id: Uuid::new_v4().to_string(),
                     workspace: self.workspace,
                     date: self.date,
@@ -293,14 +293,14 @@ impl NewTransaction {
                     created_at: now,
                     updated_at: now,
                 })
-                .returning(Transaction::as_returning())
+                .returning(Entry::as_returning())
                 .get_result(conn)?;
 
             for input in self.posting_inputs {
                 diesel::insert_into(postings::table)
                     .values(NewPostingRow {
                         id: Uuid::new_v4().to_string(),
-                        transaction: transaction.id.clone(),
+                        entry: entry.id.clone(),
                         account: input.account,
                         amount: input.amount,
                         note: input.note.unwrap_or_default(),
@@ -310,7 +310,7 @@ impl NewTransaction {
                     .execute(conn)?;
             }
 
-            Ok(transaction)
+            Ok(entry)
         })
     }
 }
@@ -349,8 +349,8 @@ mod tests {
         amount: i32,
         date: &str,
         conn: &mut SqliteConnection,
-    ) -> Transaction {
-        NewTransaction::new(
+    ) -> Entry {
+        NewEntry::new(
             workspace.as_ref().clone(),
             date,
             "Groceries",
@@ -365,12 +365,12 @@ mod tests {
     }
 
     #[test]
-    fn two_posting_transaction_succeeds() {
+    fn two_posting_entry_succeeds() {
         let (mut conn, workspace) = setup();
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        let transaction = NewTransaction::new(
+        let entry = NewEntry::new(
             workspace.as_ref().clone(),
             "2026-01-15",
             "Lunch",
@@ -382,19 +382,19 @@ mod tests {
         .insert(&mut conn)
         .unwrap();
 
-        assert_eq!(transaction.date, "2026-01-15");
-        assert_eq!(transaction.description, "Lunch");
-        assert!(!transaction.cleared);
+        assert_eq!(entry.date, "2026-01-15");
+        assert_eq!(entry.description, "Lunch");
+        assert!(!entry.cleared);
     }
 
     #[test]
-    fn three_posting_transaction_succeeds() {
+    fn three_posting_entry_succeeds() {
         let (mut conn, workspace) = setup();
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
         let dining = find_account("Dining", &workspace, &mut conn);
 
-        let transaction = NewTransaction::new(
+        let entry = NewEntry::new(
             workspace.as_ref().clone(),
             "2026-01-15",
             "Split meal",
@@ -407,7 +407,7 @@ mod tests {
         .insert(&mut conn)
         .unwrap();
 
-        let postings = transaction.postings(&mut conn).unwrap();
+        let postings = entry.postings(&mut conn).unwrap();
         assert_eq!(postings.len(), 3);
     }
 
@@ -417,7 +417,7 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        let err = NewTransaction::new(
+        let err = NewEntry::new(
             workspace.as_ref().clone(),
             "2026-01-15",
             "Bad",
@@ -437,7 +437,7 @@ mod tests {
         let (mut conn, workspace) = setup();
         let chequing = find_account("Chequing", &workspace, &mut conn);
 
-        let err = NewTransaction::new(
+        let err = NewEntry::new(
             workspace.as_ref().clone(),
             "2026-01-15",
             "Bad",
@@ -455,7 +455,7 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        let err = NewTransaction::new(
+        let err = NewEntry::new(
             workspace.as_ref().clone(),
             "2026-01-15",
             "Bad",
@@ -476,7 +476,7 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        let transaction = NewTransaction::new(
+        let entry = NewEntry::new(
             workspace.as_ref().clone(),
             "2026-01-15",
             "Lunch",
@@ -488,7 +488,7 @@ mod tests {
         .insert(&mut conn)
         .unwrap();
 
-        let postings = transaction.postings(&mut conn).unwrap();
+        let postings = entry.postings(&mut conn).unwrap();
         assert_eq!(postings.len(), 2);
 
         let sum: i64 = postings.iter().map(|p| p.amount as i64).sum();
@@ -496,17 +496,17 @@ mod tests {
     }
 
     #[test]
-    fn for_account_returns_matching_transactions() {
+    fn for_account_returns_matching_entries() {
         let (mut conn, workspace) = setup();
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
         let rent = find_account("Rent", &workspace, &mut conn);
 
-        // Transaction touching chequing + food
+        // Entry touching chequing + food
         simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
 
-        // Transaction touching chequing + rent
-        NewTransaction::new(
+        // Entry touching chequing + rent
+        NewEntry::new(
             workspace.as_ref().clone(),
             "2026-01-16",
             "Rent payment",
@@ -519,28 +519,28 @@ mod tests {
         .insert(&mut conn)
         .unwrap();
 
-        // Food account should see only 1 transaction
-        let food_transactions = food.id.transactions(&mut conn).unwrap();
-        assert_eq!(food_transactions.len(), 1);
-        assert_eq!(food_transactions[0].description, "Groceries");
+        // Food account should see only 1 entry
+        let food_entries = food.id.entries(&mut conn).unwrap();
+        assert_eq!(food_entries.len(), 1);
+        assert_eq!(food_entries[0].description, "Groceries");
 
         // Chequing should see both
-        let chequing_transactions = chequing.id.transactions(&mut conn).unwrap();
-        assert_eq!(chequing_transactions.len(), 2);
+        let chequing_entries = chequing.id.entries(&mut conn).unwrap();
+        assert_eq!(chequing_entries.len(), 2);
     }
 
     #[test]
-    fn soft_deleted_transactions_excluded_from_queries() {
+    fn soft_deleted_entries_excluded_from_queries() {
         let (mut conn, workspace) = setup();
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        let transaction = simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+        let entry = simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
 
-        transaction.soft_delete(&mut conn).unwrap();
+        entry.soft_delete(&mut conn).unwrap();
 
-        let transactions = food.id.transactions(&mut conn).unwrap();
-        assert!(transactions.is_empty());
+        let entries = food.id.entries(&mut conn).unwrap();
+        assert!(entries.is_empty());
     }
 
     #[test]
@@ -549,7 +549,7 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        let transaction = NewTransaction::new(
+        let entry = NewEntry::new(
             workspace.as_ref().clone(),
             "2026-01-15",
             "Lunch",
@@ -562,7 +562,7 @@ mod tests {
         .insert(&mut conn)
         .unwrap();
 
-        assert!(transaction.cleared);
+        assert!(entry.cleared);
     }
 
     #[test]
@@ -571,7 +571,7 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        let transaction = NewTransaction::new(
+        let entry = NewEntry::new(
             workspace.as_ref().clone(),
             "2026-01-15",
             "Lunch",
@@ -583,20 +583,20 @@ mod tests {
         .insert(&mut conn)
         .unwrap();
 
-        let postings = transaction.postings(&mut conn).unwrap();
+        let postings = entry.postings(&mut conn).unwrap();
         let food_posting = postings.iter().find(|p| p.amount == 1200).unwrap();
         assert_eq!(food_posting.note, "tacos");
     }
 
     #[test]
-    fn for_workspace_returns_all_workspace_transactions() {
+    fn for_workspace_returns_all_workspace_entries() {
         let (mut conn, workspace) = setup();
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
         let rent = find_account("Rent", &workspace, &mut conn);
 
         simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
-        NewTransaction::new(
+        NewEntry::new(
             workspace.as_ref().clone(),
             "2026-01-16",
             "Rent",
@@ -608,7 +608,7 @@ mod tests {
         .insert(&mut conn)
         .unwrap();
 
-        let all = workspace.as_ref().transactions(&mut conn).unwrap();
+        let all = workspace.as_ref().entries(&mut conn).unwrap();
         assert_eq!(all.len(), 2);
     }
 
@@ -626,7 +626,7 @@ mod tests {
         simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
 
         // Post to Cafes (child of Food)
-        NewTransaction::new(
+        NewEntry::new(
             workspace.as_ref().clone(),
             "2026-01-16",
             "Coffee",
@@ -639,12 +639,12 @@ mod tests {
         .insert(&mut conn)
         .unwrap();
 
-        // for_account_tree on Expenses should find both (Food and Cafes are descendants)
-        let transactions = expenses.transactions_with_descendants(&mut conn).unwrap();
-        assert_eq!(transactions.len(), 2);
+        // entries_with_descendants on Expenses should find both (Food and Cafes are descendants)
+        let entries = expenses.entries_with_descendants(&mut conn).unwrap();
+        assert_eq!(entries.len(), 2);
 
-        // for_account on Expenses directly should find none (no posting directly to Expenses)
-        let direct = expenses.id.transactions(&mut conn).unwrap();
+        // entries on Expenses directly should find none (no posting directly to Expenses)
+        let direct = expenses.id.entries(&mut conn).unwrap();
         assert!(direct.is_empty());
     }
 }

@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::domain::workspace::WorkspaceRef;
 use crate::error::AppError;
-use crate::schema::{accounts, postings, transactions};
+use crate::schema::{accounts, entries, postings};
 
 // ── AccountType ──────────────────────────────────────────────────────────────
 
@@ -190,11 +190,11 @@ impl Account {
             ));
         }
 
-        // Prevent deleting accounts with postings on active transactions
+        // Prevent deleting accounts with postings on active entries
         let active_posting_count: i64 = postings::table
-            .inner_join(transactions::table.on(transactions::id.eq(postings::transaction_id)))
+            .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
             .filter(postings::account_id.eq(&self.id))
-            .filter(transactions::deleted_at.is_null())
+            .filter(entries::deleted_at.is_null())
             .count()
             .get_result(conn)
             .map_err(|err| AppError::Internal(format!("posting count failed: {err}")))?;
@@ -213,13 +213,13 @@ impl Account {
         Ok(())
     }
 
-    /// Sum of postings for this account on cleared, non-deleted transactions.
+    /// Sum of postings for this account on cleared, non-deleted entries.
     pub fn balance(&self, conn: &mut SqliteConnection) -> Result<i64, AppError> {
         let result: Option<i64> = postings::table
-            .inner_join(transactions::table.on(transactions::id.eq(postings::transaction_id)))
+            .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
             .filter(postings::account_id.eq(&self.id))
-            .filter(transactions::cleared.eq(true))
-            .filter(transactions::deleted_at.is_null())
+            .filter(entries::cleared.eq(true))
+            .filter(entries::deleted_at.is_null())
             .select(diesel::dsl::sum(postings::amount))
             .first(conn)
             .map_err(|err| AppError::Internal(format!("balance query failed: {err}")))?;
@@ -234,10 +234,10 @@ impl Account {
         account_ids.push(&self.id);
 
         let result: Option<i64> = postings::table
-            .inner_join(transactions::table.on(transactions::id.eq(postings::transaction_id)))
+            .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
             .filter(postings::account_id.eq_any(&account_ids))
-            .filter(transactions::cleared.eq(true))
-            .filter(transactions::deleted_at.is_null())
+            .filter(entries::cleared.eq(true))
+            .filter(entries::deleted_at.is_null())
             .select(diesel::dsl::sum(postings::amount))
             .first(conn)
             .map_err(|err| {
@@ -247,14 +247,14 @@ impl Account {
         Ok(result.unwrap_or(0))
     }
 
-    /// Balance filtered by transaction date <= given date.
+    /// Balance filtered by entry date <= given date.
     pub fn balance_as_of(&self, date: &str, conn: &mut SqliteConnection) -> Result<i64, AppError> {
         let result: Option<i64> = postings::table
-            .inner_join(transactions::table.on(transactions::id.eq(postings::transaction_id)))
+            .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
             .filter(postings::account_id.eq(&self.id))
-            .filter(transactions::cleared.eq(true))
-            .filter(transactions::deleted_at.is_null())
-            .filter(transactions::date.le(date))
+            .filter(entries::cleared.eq(true))
+            .filter(entries::deleted_at.is_null())
+            .filter(entries::date.le(date))
             .select(diesel::dsl::sum(postings::amount))
             .first(conn)
             .map_err(|err| AppError::Internal(format!("balance_as_of query failed: {err}")))?;
@@ -429,7 +429,7 @@ pub fn create_default_tree(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::transaction::{NewTransaction, PostingInput};
+    use crate::domain::entry::{NewEntry, PostingInput};
     use crate::domain::user::NewUser;
     use crate::domain::workspace::{NewWorkspace, Workspace};
     use crate::test_helpers::setup_test_db;
@@ -747,7 +747,7 @@ mod tests {
 
     // ── Balance tests ───────────────────────────────────────────────────
 
-    fn make_transaction(
+    fn make_entry(
         workspace: &Workspace,
         from: &Account,
         to: &Account,
@@ -755,8 +755,8 @@ mod tests {
         date: &str,
         cleared: bool,
         conn: &mut SqliteConnection,
-    ) -> crate::domain::transaction::Transaction {
-        NewTransaction::new(
+    ) -> crate::domain::entry::Entry {
+        NewEntry::new(
             workspace.as_ref().clone(),
             date,
             "test",
@@ -776,34 +776,34 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        make_transaction(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
-        make_transaction(&workspace, &chequing, &food, 800, "2026-01-16", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 800, "2026-01-16", true, &mut conn);
 
         assert_eq!(food.balance(&mut conn).unwrap(), 2000);
         assert_eq!(chequing.balance(&mut conn).unwrap(), -2000);
     }
 
     #[test]
-    fn balance_excludes_uncleared_transactions() {
+    fn balance_excludes_uncleared_entries() {
         let (mut conn, workspace) = setup();
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        make_transaction(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
-        make_transaction(&workspace, &chequing, &food, 800, "2026-01-16", false, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 800, "2026-01-16", false, &mut conn);
 
         assert_eq!(food.balance(&mut conn).unwrap(), 1200);
     }
 
     #[test]
-    fn balance_excludes_soft_deleted_transactions() {
+    fn balance_excludes_soft_deleted_entries() {
         let (mut conn, workspace) = setup();
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        make_transaction(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
-        let deleted = make_transaction(&workspace, &chequing, &food, 800, "2026-01-16", true, &mut conn);
-        deleted.soft_delete(&mut conn).unwrap();
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+        let deleted_entry = make_entry(&workspace, &chequing, &food, 800, "2026-01-16", true, &mut conn);
+        deleted_entry.soft_delete(&mut conn).unwrap();
 
         assert_eq!(food.balance(&mut conn).unwrap(), 1200);
     }
@@ -817,8 +817,8 @@ mod tests {
 
         let cafes = NewAccount::child(&food, "Cafes").insert(&mut conn).unwrap();
 
-        make_transaction(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
-        make_transaction(&workspace, &chequing, &cafes, 500, "2026-01-16", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+        make_entry(&workspace, &chequing, &cafes, 500, "2026-01-16", true, &mut conn);
 
         // Food direct balance = 1200
         assert_eq!(food.balance(&mut conn).unwrap(), 1200);
@@ -834,8 +834,8 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        make_transaction(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
-        make_transaction(&workspace, &chequing, &food, 800, "2026-01-20", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 800, "2026-01-20", true, &mut conn);
 
         assert_eq!(food.balance_as_of("2026-01-15", &mut conn).unwrap(), 1200);
         assert_eq!(food.balance_as_of("2026-01-20", &mut conn).unwrap(), 2000);
@@ -851,13 +851,13 @@ mod tests {
         let rent = find_account("Rent", &workspace, &mut conn);
 
         // Earn salary: debit chequing, credit employment
-        make_transaction(&workspace, &employment, &chequing, 500000, "2026-01-01", true, &mut conn);
+        make_entry(&workspace, &employment, &chequing, 500000, "2026-01-01", true, &mut conn);
 
         // Spend on food
-        make_transaction(&workspace, &chequing, &food, 5000, "2026-01-05", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 5000, "2026-01-05", true, &mut conn);
 
         // Pay rent
-        make_transaction(&workspace, &chequing, &rent, 150000, "2026-01-05", true, &mut conn);
+        make_entry(&workspace, &chequing, &rent, 150000, "2026-01-05", true, &mut conn);
 
         let assets = find_account("Assets", &workspace, &mut conn);
         let liabilities = find_account("Liabilities", &workspace, &mut conn);
@@ -883,22 +883,22 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        make_transaction(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
 
         let err = food.soft_delete(&mut conn).expect_err("should fail with active postings");
         assert!(matches!(err, AppError::Conflict(_)));
     }
 
     #[test]
-    fn account_with_only_deleted_transaction_postings_can_be_deleted() {
+    fn account_with_only_deleted_entry_postings_can_be_deleted() {
         let (mut conn, workspace) = setup();
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        let transaction = make_transaction(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
-        transaction.soft_delete(&mut conn).unwrap();
+        let entry = make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+        entry.soft_delete(&mut conn).unwrap();
 
-        food.soft_delete(&mut conn).expect("should succeed when all transactions deleted");
+        food.soft_delete(&mut conn).expect("should succeed when all entries deleted");
     }
 
     #[test]
