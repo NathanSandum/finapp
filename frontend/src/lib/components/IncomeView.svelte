@@ -2,29 +2,31 @@
 	import * as api from '$lib/api.svelte';
 	import { onMount } from 'svelte';
 
-	type SummaryItem = {
-		category: string;
-		actual: number;
-		baseline: number | null;
-		variance: number | null;
-		variance_pct: number | null;
+	type AccountBalance = { account: string; name: string; balance: number };
+	type IncomeStatement = {
+		start_date: string;
+		end_date: string;
+		revenue: AccountBalance[];
+		expenses: AccountBalance[];
+		total_revenue: number;
+		total_expenses: number;
+		net_income: number;
 	};
 
 	let { workspaceId }: { workspaceId: string } = $props();
 
-	let summary: SummaryItem[] = $state([]);
+	let statement: IncomeStatement | null = $state(null);
 	let loading = $state(true);
 
 	// Current month boundaries
 	const now = new Date();
 	const periodStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-	const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-	const periodEnd = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-${String(nextMonth.getDate()).padStart(2, '0')}`;
+	const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+	const periodEnd = `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
 
 	onMount(async () => {
 		try {
-			const data = await api.baselineSummary(workspaceId, periodStart, periodEnd);
-			summary = data.summary;
+			statement = await api.getIncomeStatement(workspaceId, periodStart, periodEnd);
 		} catch {
 			// no data yet
 		} finally {
@@ -39,63 +41,103 @@
 		const sign = cents < 0 ? '-' : '';
 		return `${sign}$${dollars.toLocaleString()}.${String(remainder).padStart(2, '0')}`;
 	}
-
-	function varianceColor(variance: number | null): string {
-		if (variance === null) return 'text-gray-500';
-		// For expenses (negative baseline), positive variance = under budget = good
-		// For income (positive baseline), positive variance = over target = good
-		return variance >= 0 ? 'text-emerald-400' : 'text-red-400';
-	}
 </script>
 
 <div>
 	<header class="mb-6 border-b border-gray-800 pb-4">
-		<h2 class="text-lg font-semibold text-gray-100">Income</h2>
-		<span class="text-sm text-gray-600">Budget vs actual for {periodStart}</span>
+		<h2 class="text-lg font-semibold text-gray-100">Income Statement</h2>
+		<span class="text-sm text-gray-600">{periodStart} to {periodEnd}</span>
 	</header>
 
 	{#if loading}
 		<div class="flex min-h-64 items-center justify-center text-gray-600">Loading...</div>
-	{:else if summary.length === 0}
+	{:else if !statement}
 		<div class="flex min-h-64 items-center justify-center text-gray-600">
-			No income categories or baselines set for this period
+			No data available
 		</div>
 	{:else}
-		<table class="w-full">
-			<thead>
-				<tr
-					class="border-b border-gray-800 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-600"
-				>
-					<th class="px-3 py-2">Category</th>
-					<th class="px-3 py-2 text-right">Baseline</th>
-					<th class="px-3 py-2 text-right">Actual</th>
-					<th class="px-3 py-2 text-right">Variance</th>
-					<th class="px-3 py-2 text-right">%</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each summary as item}
-					<tr class="border-b border-gray-900 hover:bg-gray-900/50">
-						<td class="px-3 py-2.5 text-sm text-gray-300">{item.category}</td>
-						<td class="px-3 py-2.5 text-right text-sm tabular-nums text-gray-500">
-							{item.baseline !== null ? formatAmount(item.baseline) : '\u2014'}
-						</td>
-						<td class="px-3 py-2.5 text-right text-sm font-medium tabular-nums text-gray-300">
-							{formatAmount(item.actual)}
-						</td>
-						<td
-							class="px-3 py-2.5 text-right text-sm font-medium tabular-nums {varianceColor(item.variance)}"
-						>
-							{item.variance !== null ? formatAmount(item.variance) : '\u2014'}
-						</td>
-						<td
-							class="px-3 py-2.5 text-right text-sm tabular-nums {varianceColor(item.variance)}"
-						>
-							{item.variance_pct !== null ? `${item.variance_pct.toFixed(1)}%` : '\u2014'}
-						</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
+		<!-- Net income highlight -->
+		<div class="mb-6 rounded-lg border border-gray-800 bg-gray-900 px-4 py-3">
+			<span class="block text-[11px] font-semibold uppercase tracking-wide text-gray-600"
+				>Net Income</span
+			>
+			<span
+				class="text-2xl font-semibold tabular-nums {statement.net_income >= 0 ? 'text-emerald-400' : 'text-red-400'}"
+				>{formatAmount(statement.net_income)}</span
+			>
+		</div>
+
+		<!-- Revenue section -->
+		<div class="mb-6">
+			<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+				Revenue
+			</h3>
+			{#if statement.revenue.length === 0}
+				<p class="px-3 text-sm text-gray-600">No revenue this period</p>
+			{:else}
+				<table class="w-full">
+					<tbody>
+						{#each statement.revenue as item}
+							<tr class="border-b border-gray-900 hover:bg-gray-900/50">
+								<td class="px-3 py-2 text-sm text-gray-300">{item.name}</td>
+								<td
+									class="px-3 py-2 text-right text-sm font-medium tabular-nums text-emerald-400"
+								>
+									{formatAmount(item.balance)}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+					<tfoot>
+						<tr class="border-t border-gray-700">
+							<td class="px-3 py-2 text-sm font-semibold text-gray-300">Total Revenue</td
+							>
+							<td
+								class="px-3 py-2 text-right text-sm font-semibold tabular-nums text-emerald-400"
+							>
+								{formatAmount(statement.total_revenue)}
+							</td>
+						</tr>
+					</tfoot>
+				</table>
+			{/if}
+		</div>
+
+		<!-- Expenses section -->
+		<div class="mb-6">
+			<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+				Expenses
+			</h3>
+			{#if statement.expenses.length === 0}
+				<p class="px-3 text-sm text-gray-600">No expenses this period</p>
+			{:else}
+				<table class="w-full">
+					<tbody>
+						{#each statement.expenses as item}
+							<tr class="border-b border-gray-900 hover:bg-gray-900/50">
+								<td class="px-3 py-2 text-sm text-gray-300">{item.name}</td>
+								<td
+									class="px-3 py-2 text-right text-sm font-medium tabular-nums text-red-400"
+								>
+									{formatAmount(item.balance)}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+					<tfoot>
+						<tr class="border-t border-gray-700">
+							<td class="px-3 py-2 text-sm font-semibold text-gray-300"
+								>Total Expenses</td
+							>
+							<td
+								class="px-3 py-2 text-right text-sm font-semibold tabular-nums text-red-400"
+							>
+								{formatAmount(statement.total_expenses)}
+							</td>
+						</tr>
+					</tfoot>
+				</table>
+			{/if}
+		</div>
 	{/if}
 </div>

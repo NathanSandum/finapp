@@ -4,10 +4,9 @@
 	import IncomeView from '$lib/components/IncomeView.svelte';
 	import CashFlowView from '$lib/components/CashFlowView.svelte';
 	import BalanceSheetView from '$lib/components/BalanceSheetView.svelte';
-	import TransactionsView from '$lib/components/TransactionsView.svelte';
-	import ImportView from '$lib/components/ImportView.svelte';
+	import EntriesView from '$lib/components/EntriesView.svelte';
 
-	const tabs = ['Income', 'Cash Flow', 'Balance Sheet', 'Transactions', 'Import'] as const;
+	const tabs = ['Income', 'Cash Flow', 'Balance Sheet', 'Entries'] as const;
 	type Tab = (typeof tabs)[number];
 
 	let activeTab: Tab = $state('Income');
@@ -49,9 +48,9 @@
 		const wsData = await api.listWorkspaces();
 		if (wsData.workspaces.length === 0) {
 			const created = await api.createWorkspace('My Finances');
-			workspaceId = created.id;
+			workspaceId = created.workspace;
 		} else {
-			workspaceId = wsData.workspaces[0].id;
+			workspaceId = wsData.workspaces[0].workspace;
 		}
 	}
 </script>
@@ -96,10 +95,8 @@
 				<CashFlowView {workspaceId} />
 			{:else if activeTab === 'Balance Sheet'}
 				<BalanceSheetView {workspaceId} />
-			{:else if activeTab === 'Transactions'}
-				<TransactionsView {workspaceId} />
-			{:else if activeTab === 'Import'}
-				<ImportView {workspaceId} />
+			{:else if activeTab === 'Entries'}
+				<EntriesView {workspaceId} />
 			{/if}
 		</main>
 	</div>

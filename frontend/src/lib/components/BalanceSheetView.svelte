@@ -2,24 +2,29 @@
 	import * as api from '$lib/api.svelte';
 	import { onMount } from 'svelte';
 
-	type Account = { id: string; name: string; account_type: string; currency: string };
-	type AccountWithBalance = Account & { cleared_balance: number };
+	type AccountBalance = { account: string; name: string; balance: number };
+	type BalanceSheet = {
+		as_of_date: string;
+		assets: AccountBalance[];
+		liabilities: AccountBalance[];
+		equity: AccountBalance[];
+		total_assets: number;
+		total_liabilities: number;
+		total_equity: number;
+		net_income: number;
+		total_liabilities_and_equity: number;
+	};
 
 	let { workspaceId }: { workspaceId: string } = $props();
 
-	let accounts: AccountWithBalance[] = $state([]);
+	let sheet: BalanceSheet | null = $state(null);
 	let loading = $state(true);
+
+	const today = new Date().toISOString().slice(0, 10);
 
 	onMount(async () => {
 		try {
-			const data = await api.listAccounts(workspaceId);
-			const withBalances = await Promise.all(
-				data.accounts.map(async (acct: Account) => {
-					const bal = await api.getBalance(workspaceId, acct.id);
-					return { ...acct, cleared_balance: bal.cleared_balance };
-				})
-			);
-			accounts = withBalances;
+			sheet = await api.getBalanceSheet(workspaceId, today);
 		} catch {
 			// no data yet
 		} finally {
@@ -34,63 +39,92 @@
 		const sign = cents < 0 ? '-' : '';
 		return `${sign}$${dollars.toLocaleString()}.${String(remainder).padStart(2, '0')}`;
 	}
-
-	let totalBalance = $derived(accounts.reduce((sum, a) => sum + a.cleared_balance, 0));
 </script>
 
 <div>
 	<header class="mb-6 border-b border-gray-800 pb-4">
 		<h2 class="text-lg font-semibold text-gray-100">Balance Sheet</h2>
-		<div class="mt-1 flex items-baseline gap-2">
-			<span class="text-sm text-gray-600">Net worth</span>
-			<span
-				class="text-2xl font-semibold tabular-nums {totalBalance >= 0 ? 'text-emerald-400' : 'text-red-400'}"
-			>
-				{formatAmount(totalBalance)}
-			</span>
-		</div>
+		<span class="text-sm text-gray-600">As of {today}</span>
 	</header>
 
 	{#if loading}
 		<div class="flex min-h-64 items-center justify-center text-gray-600">Loading...</div>
-	{:else if accounts.length === 0}
+	{:else if !sheet}
 		<div class="flex min-h-64 items-center justify-center text-gray-600">
-			No accounts yet
+			No data available
 		</div>
 	{:else}
-		<table class="w-full">
-			<thead>
-				<tr
-					class="border-b border-gray-800 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-600"
+		<!-- Summary cards -->
+		<div class="mb-6 grid grid-cols-3 gap-4">
+			<div class="rounded-lg border border-gray-800 bg-gray-900 px-4 py-3">
+				<span class="block text-[11px] font-semibold uppercase tracking-wide text-gray-600"
+					>Total Assets</span
 				>
-					<th class="px-3 py-2">Account</th>
-					<th class="px-3 py-2">Type</th>
-					<th class="px-3 py-2 text-right">Cleared Balance</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each accounts as acct}
-					<tr class="border-b border-gray-900 hover:bg-gray-900/50">
-						<td class="px-3 py-2.5 text-sm font-medium text-gray-300">{acct.name}</td>
-						<td class="px-3 py-2.5 text-sm capitalize text-gray-500">{acct.account_type}</td>
-						<td
-							class="px-3 py-2.5 text-right text-sm font-medium tabular-nums {acct.cleared_balance >= 0 ? 'text-emerald-400' : 'text-red-400'}"
-						>
-							{formatAmount(acct.cleared_balance)}
-						</td>
-					</tr>
-				{/each}
-			</tbody>
-			<tfoot>
-				<tr class="border-t border-gray-700">
-					<td class="px-3 py-2.5 text-sm font-semibold text-gray-300" colspan="2">Total</td>
-					<td
-						class="px-3 py-2.5 text-right text-sm font-semibold tabular-nums {totalBalance >= 0 ? 'text-emerald-400' : 'text-red-400'}"
+				<span
+					class="text-xl font-semibold tabular-nums {sheet.total_assets >= 0 ? 'text-emerald-400' : 'text-red-400'}"
+					>{formatAmount(sheet.total_assets)}</span
+				>
+			</div>
+			<div class="rounded-lg border border-gray-800 bg-gray-900 px-4 py-3">
+				<span class="block text-[11px] font-semibold uppercase tracking-wide text-gray-600"
+					>Total Liabilities</span
+				>
+				<span class="text-xl font-semibold tabular-nums text-gray-300"
+					>{formatAmount(sheet.total_liabilities)}</span
+				>
+			</div>
+			<div class="rounded-lg border border-gray-800 bg-gray-900 px-4 py-3">
+				<span class="block text-[11px] font-semibold uppercase tracking-wide text-gray-600"
+					>Net Income</span
+				>
+				<span
+					class="text-xl font-semibold tabular-nums {sheet.net_income >= 0 ? 'text-emerald-400' : 'text-red-400'}"
+					>{formatAmount(sheet.net_income)}</span
+				>
+			</div>
+		</div>
+
+		{#each [{ title: 'Assets', items: sheet.assets, total: sheet.total_assets }, { title: 'Liabilities', items: sheet.liabilities, total: sheet.total_liabilities }, { title: 'Equity', items: sheet.equity, total: sheet.total_equity }] as section}
+			{#if section.items.length > 0}
+				<div class="mb-6">
+					<h3
+						class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-600"
 					>
-						{formatAmount(totalBalance)}
-					</td>
-				</tr>
-			</tfoot>
-		</table>
+						{section.title}
+					</h3>
+					<table class="w-full">
+						<tbody>
+							{#each section.items as item}
+								<tr class="border-b border-gray-900 hover:bg-gray-900/50">
+									<td class="px-3 py-2 text-sm text-gray-300">{item.name}</td>
+									<td
+										class="px-3 py-2 text-right text-sm font-medium tabular-nums {item.balance >= 0 ? 'text-emerald-400' : 'text-red-400'}"
+									>
+										{formatAmount(item.balance)}
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+						<tfoot>
+							<tr class="border-t border-gray-700">
+								<td class="px-3 py-2 text-sm font-semibold text-gray-300"
+									>Total {section.title}</td
+								>
+								<td
+									class="px-3 py-2 text-right text-sm font-semibold tabular-nums text-gray-300"
+								>
+									{formatAmount(section.total)}
+								</td>
+							</tr>
+						</tfoot>
+					</table>
+				</div>
+			{/if}
+		{/each}
+
+		<!-- Accounting equation -->
+		<div class="rounded-lg border border-gray-800 bg-gray-900/50 px-4 py-3 text-sm text-gray-500">
+			Assets ({formatAmount(sheet.total_assets)}) = Liabilities + Equity + Net Income ({formatAmount(sheet.total_liabilities_and_equity)})
+		</div>
 	{/if}
 </div>
