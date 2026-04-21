@@ -8,8 +8,8 @@ User ──< WorkspaceUser >── Workspace
               │                 ├──< Account (tree via parent_id)
               │                 │       └── AccountType: asset|liability|equity|revenue|expense
               │                 │
-              │                 └──< Transaction ──< Posting >── Account
-              │                                     (amount in cents, zero-sum per transaction)
+              │                 └──< Entry ──< Posting >── Account
+              │                               (amount in cents, zero-sum per entry)
          MembershipEvent (append-only log)
 ```
 
@@ -17,7 +17,7 @@ User ──< WorkspaceUser >── Workspace
 
 Every entity has a `FooRef` newtype wrapping `String` (UUID v4 as text). Derived via `DieselNewType`. Used for type-safe foreign keys and path parameters.
 
-- `UserRef`, `WorkspaceRef`, `AccountRef`, `TransactionRef`, `PostingRef`
+- `UserRef`, `WorkspaceRef`, `AccountRef`, `EntryRef`, `PostingRef`
 - Each entity has `as_ref() -> &FooRef` and `from_ref(ref, conn) -> Result<Option<Foo>>`
 - Connection parameter is always last
 
@@ -91,31 +91,32 @@ Permission checks read from projection. At-least-one-owner invariant enforced by
 
 `DieselError` auto-converts: `UniqueViolation` → Conflict, `NotFound` → NotFound, else → Internal.
 
-## Transactions & Postings (Double-Entry)
+## Entries & Postings (Double-Entry)
 
-Every transaction has 2+ postings that sum to zero. Amounts in integer cents (i32).
+Every entry has 2+ postings that sum to zero. Amounts in integer cents (i32).
 
-### Transaction
+### Entry
 - Fields: id, workspace, date (TEXT "YYYY-MM-DD"), description, cleared (bool), deleted_at, timestamps
-- `postings(conn)` — all postings for this transaction
-- `for_account(account_ref, conn)` — transactions with posting to this account, excluding soft-deleted
-- `for_account_tree(account, conn)` — same but includes descendant accounts
-- `for_workspace(workspace_ref, conn)` — all workspace transactions
+- `postings(conn)` — all postings for this entry
+- Query methods live on owning types:
+  - `AccountRef::entries(conn)` — entries with posting to this account, excluding soft-deleted
+  - `Account::entries_with_descendants(conn)` — same but includes descendant accounts
+  - `WorkspaceRef::entries(conn)` — all workspace entries
 
 ### Posting
-- Fields: id, transaction (TransactionRef), account (AccountRef), amount (i32 cents), note, timestamps
-- No independent CRUD — created atomically with transaction
+- Fields: id, entry (EntryRef), account (AccountRef), amount (i32 cents), note, timestamps
+- No independent CRUD — created atomically with entry
 
-### NewTransaction Builder
-- `NewTransaction::new(workspace, date, description, postings: Vec<PostingInput>)`
+### NewEntry Builder
+- `NewEntry::new(workspace, date, description, postings: Vec<PostingInput>)`
 - `.cleared(bool)` chainable
 - `insert(conn)` validates: min 2 postings, sum == 0, no zero amounts. Atomic insert.
 - `PostingInput::new(account, amount)` with `.note(str)` chainable
 
 ### Balance Methods (on Account)
-- `balance(conn) -> i64` — sum of postings for this account on cleared, non-deleted transactions
+- `balance(conn) -> i64` — sum of postings for this account on cleared, non-deleted entries
 - `balance_with_descendants(conn) -> i64` — includes all descendant account postings
-- `balance_as_of(date, conn) -> i64` — filtered by transaction date <= date
+- `balance_as_of(date, conn) -> i64` — filtered by entry date <= date
 - Return i64 (not i32) to handle overflow from summing many postings
 
 ### Sign Convention
@@ -123,7 +124,7 @@ Positive postings = debits, negative = credits. Revenue/liability accounts have 
 
 ## Soft Deletes
 
-Entities with `deleted_at: Option<NaiveDateTime>`. All queries filter `deleted_at.is_null()`. Account soft-delete rejects if active children exist OR if account has postings on non-deleted transactions.
+Entities with `deleted_at: Option<NaiveDateTime>`. All queries filter `deleted_at.is_null()`. Account soft-delete rejects if active children exist OR if account has postings on non-deleted entries.
 
 ## Insert Pattern
 

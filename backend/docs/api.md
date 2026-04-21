@@ -79,11 +79,11 @@ Requires Editor role.
 
 ### DELETE /workspaces/{workspace}/accounts/{account}
 Requires Editor role. Returns `{ "status": "ok" }`.
-Error 409 if account has active children.
+Error 409 if account has active children or active postings.
 
 ### GET /workspaces/{workspace}/accounts/{account}/balance
 ```json
 // Response 200
-{ "account": "uuid", "cleared_balance": 0 }
+{ "account": "uuid", "cleared_balance": 1200 }
 ```
-STUB — always returns 0. Real balance computation comes in Wave 2.
+Returns sum of postings on cleared, non-deleted entries for this account.
