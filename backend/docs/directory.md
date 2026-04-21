@@ -11,7 +11,7 @@ backend/
     auth.rs                         # Axum extractors: AuthUser (token→user), WorkspaceMember (token→user+workspace+role)
     permissions.rs                  # Role-based permission checks (Action × Resource matrix)
     test_helpers.rs                 # setup_test_db() — in-memory SQLite + migrations, MIGRATIONS constant
-    domain.rs                       # Module declarations: account, entry, session, user, workspace
+    domain.rs                       # Module declarations: account, baseline, entry, report, session, user, workspace
     routes.rs                       # Module declarations: accounts, auth, workspaces
     domain/
       user.rs                       # User, UserRef, NewUser (argon2 hashing), email lookup, password verify
@@ -22,10 +22,16 @@ backend/
       account.rs                    # Account, AccountRef, AccountType enum (Asset/Liability/Equity/Revenue/Expense)
                                     # NewAccount (root or child builder), create_default_tree()
                                     # Hierarchy: full_name(), ancestors(), children(), descendants(), soft_delete()
-                                    # Balance: balance(), balance_with_descendants(), balance_as_of()
+                                    # Balance: balance(), balance_with_descendants(), balance_as_of(),
+                                    #   balance_as_of_with_descendants(), balance_between(), balance_between_with_descendants()
       entry.rs                      # EntryRef, PostingRef, Entry, Posting, NewEntry builder
                                     # Zero-sum validation, PostingInput, query methods on owning types
                                     # AccountRef::entries(), Account::entries_with_descendants(), WorkspaceRef::entries()
+      report.rs                     # BalanceSheet (as_of), IncomeStatement (for_period), AccountBalance
+                                    # Reports aggregate account balances with per-account detail + totals
+      baseline.rs                   # BaselineRef, PeriodType (Monthly), Baseline, NewBaseline builder
+                                    # Baseline::variance() computes actual - budget for period
+                                    # AccountRef::baselines(), WorkspaceRef::baselines()
     routes/
       auth.rs                       # POST /auth/register, /auth/login, /auth/logout
       workspaces.rs                 # POST/GET /workspaces, GET /workspaces/:id, DELETE .../members/:user
@@ -38,12 +44,13 @@ backend/
     00000000000005_categories/      # categories table (DROPPED in migration 10)
     00000000000006_accounts/        # accounts table (RECREATED in migration 10)
     00000000000007_transactions/    # transactions table (RENAMED to entries in migration 12)
-    00000000000008_baselines/       # baselines table (DROPPED in migration 10)
+    00000000000008_baselines/       # baselines table (DROPPED in migration 10, RECREATED in migration 13)
     00000000000009_sessions/        # sessions table
     00000000000010_double_entry/    # Double-entry rewrite: drop categories/line_items/baselines,
                                     # recreate accounts (hierarchical) + transactions (slim)
     00000000000011_postings/        # Postings table (entry_id, account_id, amount, note) + indexes
     00000000000012_rename_.../      # Rename transactions→entries, transaction_id→entry_id
+    00000000000013_baselines/       # Baselines table (account_id, period_type, period_start, amount)
   tests/
     api.rs                          # Integration tests — in-memory DB, axum oneshot requests
                                     # Covers: auth, workspaces, accounts (hierarchy, defaults, CRUD, balance)

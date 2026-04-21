@@ -8,9 +8,18 @@ Last updated: 2026-04-20
 |------|--------|--------|
 | 1 — Account Hierarchy | Merged to main | interface-rework |
 | 2 — Entries & Postings | Merged to main | wave-2-postings |
-| 3 — Reports & Baselines | Not started | — |
+| 3 — Reports & Baselines | Complete | wave-3-reports |
 | 4 — API Routes (rewrite) | Not started | — |
 | 5 — Frontend Updates | Not started | — |
+
+## What Wave 3 Did
+
+- Added 3 new balance methods to Account: `balance_as_of_with_descendants`, `balance_between`, `balance_between_with_descendants`
+- Created `domain/report.rs`: BalanceSheet (as_of date) and IncomeStatement (date range) with per-account detail + totals
+- Created migration `00000000000013_baselines`: baselines table with account_id, period_type, period_start, amount
+- Created `domain/baseline.rs`: BaselineRef, PeriodType (Monthly), Baseline with variance computation, NewBaseline builder
+- Sign convention handled correctly: L/E negated in balance sheet equation, revenue negated for income statement display
+- 132 tests total (113 unit + 19 integration), all pass
 
 ## What Wave 2 Did
 
@@ -22,7 +31,6 @@ Last updated: 2026-04-20
 - Updated `Account::soft_delete()` to block deletion when account has postings on active entries
 - Balance route now returns real computed balance (was stub returning 0)
 - Deleted dead `routes/transactions.rs` (old pre-double-entry code, was not declared in routes.rs)
-- 107 tests total (88 unit + 19 integration), all pass
 
 ## What Wave 1 Did
 
@@ -34,14 +42,13 @@ Last updated: 2026-04-20
 
 ## What's Compiling and Tested
 
-- `cargo test` — 19 integration tests + 88 unit tests pass (107 total)
+- `cargo test` — 19 integration tests + 113 unit tests pass (132 total)
 - `cargo build` — clean (1 dead_code warning: `WorkspaceMember.user`)
 - Schema, domain models, auth, permissions, routes all consistent
 
-## Next: Wave 3 — Reports & Baselines
+## Next: Wave 4 — API Routes
 
-From `context/plans/build-double-entry.md`:
-
-1. **T3.1** — Balance sheet computation (assets, liabilities, equity, net income)
-2. **T3.2** — Income statement computation (revenue and expenses for period)
-3. **T3.3** — Baselines table rewrite (point to accounts instead of categories), variance computation
+Rewrite all API routes to use the new domain model:
+1. Entry CRUD routes (create, list, delete entries with postings)
+2. Report routes (balance sheet, income statement)
+3. Baseline CRUD routes (create, list, delete baselines, variance endpoint)
