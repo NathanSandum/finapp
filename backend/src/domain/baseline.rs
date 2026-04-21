@@ -75,7 +75,7 @@ impl std::fmt::Display for BaselineRef {
 
 // ── Baseline ────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Queryable, Selectable)]
+#[derive(Debug, serde::Serialize, Queryable, Selectable)]
 #[diesel(table_name = baselines)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Baseline {
@@ -102,6 +102,13 @@ impl Baseline {
             .first(conn)
             .optional()
             .map_err(|err| AppError::Internal(format!("baseline lookup failed: {err}")))
+    }
+
+    pub fn delete(&self, conn: &mut SqliteConnection) -> Result<(), AppError> {
+        diesel::delete(baselines::table.find(&self.id))
+            .execute(conn)
+            .map_err(|err| AppError::Internal(format!("baseline delete failed: {err}")))?;
+        Ok(())
     }
 
     /// Variance = actual spending - baseline amount.

@@ -35,7 +35,7 @@ impl std::fmt::Display for PostingRef {
 
 // ── Entry ───────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Queryable, Selectable)]
+#[derive(Debug, serde::Serialize, Queryable, Selectable)]
 #[diesel(table_name = entries)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Entry {
@@ -144,7 +144,7 @@ impl WorkspaceRef {
 
 // ── Posting ─────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Queryable, Selectable)]
+#[derive(Debug, serde::Serialize, Queryable, Selectable)]
 #[diesel(table_name = postings)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Posting {

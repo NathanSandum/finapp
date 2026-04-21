@@ -501,6 +501,444 @@ async fn cross_workspace_account_access_denied() {
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
 
+// ── Entry tests ─────────────────────────────────────────────────────────────
+
+/// Helper: find account ID by name from accounts list
+async fn find_account_id(app: &Router, workspace_id: &str, token: &str, name: &str) -> String {
+    let (_, body) = get(
+        app,
+        &format!("/workspaces/{workspace_id}/accounts"),
+        token,
+    )
+    .await;
+    let accounts = body["accounts"].as_array().unwrap();
+    accounts
+        .iter()
+        .find(|a| a["name"] == name)
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+/// Helper: create a simple 2-posting entry via API
+async fn create_entry(
+    app: &Router,
+    workspace_id: &str,
+    token: &str,
+    from_account: &str,
+    to_account: &str,
+    amount: i32,
+    date: &str,
+    description: &str,
+) -> (StatusCode, Value) {
+    post(
+        app,
+        &format!("/workspaces/{workspace_id}/entries"),
+        Some(token),
+        json!({
+            "date": date,
+            "description": description,
+            "cleared": true,
+            "postings": [
+                { "account_id": from_account, "amount": -amount },
+                { "account_id": to_account, "amount": amount },
+            ]
+        }),
+    )
+    .await
+}
+
+#[tokio::test]
+async fn create_entry_succeeds() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+
+    let (status, body) = create_entry(
+        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CREATED, "create entry failed: {body}");
+    assert_eq!(body["date"], "2026-01-15");
+    assert_eq!(body["description"], "Lunch");
+    assert!(body["cleared"].as_bool().unwrap());
+    let postings = body["postings"].as_array().unwrap();
+    assert_eq!(postings.len(), 2);
+}
+
+#[tokio::test]
+async fn create_entry_non_zero_sum_rejected() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+
+    let (status, _) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries"),
+        Some(&token),
+        json!({
+            "date": "2026-01-15",
+            "description": "Bad",
+            "postings": [
+                { "account_id": chequing, "amount": -1200 },
+                { "account_id": food, "amount": 1000 },
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn list_entries_returns_all_with_postings() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let rent = find_account_id(&app, &workspace_id, &token, "Rent").await;
+
+    create_entry(&app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch").await;
+    create_entry(&app, &workspace_id, &token, &chequing, &rent, 150000, "2026-01-16", "Rent").await;
+
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries"),
+        &token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    let entries = body["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 2);
+    // Each entry has postings
+    for entry in entries {
+        assert!(!entry["postings"].as_array().unwrap().is_empty());
+    }
+}
+
+#[tokio::test]
+async fn get_single_entry() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+
+    let (_, created) = create_entry(
+        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+    )
+    .await;
+    let entry_id = created["id"].as_str().unwrap();
+
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries/{entry_id}"),
+        &token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["description"], "Lunch");
+    assert_eq!(body["postings"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn delete_entry_soft_deletes() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+
+    let (_, created) = create_entry(
+        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+    )
+    .await;
+    let entry_id = created["id"].as_str().unwrap();
+
+    let (status, _) = delete(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries/{entry_id}"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // List should exclude deleted entry
+    let (_, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries"),
+        &token,
+    )
+    .await;
+    assert!(body["entries"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn cross_workspace_entry_denied() {
+    let app = app();
+    let (_, _, workspace_id) = setup_workspace(&app).await;
+    let (outsider_token, _) = register(&app, "outsider@example.com").await;
+
+    let (status, _) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries"),
+        &outsider_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+// ── Report tests ────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn balance_sheet_empty_workspace() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/reports/balance-sheet?as_of=2026-12-31"),
+        &token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["total_assets"], 0);
+    assert_eq!(body["total_liabilities"], 0);
+    assert_eq!(body["net_income"], 0);
+}
+
+#[tokio::test]
+async fn balance_sheet_with_entries() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let employment = find_account_id(&app, &workspace_id, &token, "Employment").await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+
+    create_entry(&app, &workspace_id, &token, &employment, &chequing, 500000, "2026-01-01", "Salary").await;
+    create_entry(&app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-05", "Lunch").await;
+
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/reports/balance-sheet?as_of=2026-01-31"),
+        &token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["total_assets"], 498800);
+    assert_eq!(body["net_income"], 498800);
+    assert_eq!(body["total_assets"], body["total_liabilities_and_equity"]);
+}
+
+#[tokio::test]
+async fn income_statement_for_period() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let employment = find_account_id(&app, &workspace_id, &token, "Employment").await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+
+    create_entry(&app, &workspace_id, &token, &employment, &chequing, 500000, "2026-01-01", "Salary").await;
+    create_entry(&app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-05", "Lunch").await;
+
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/reports/income-statement?start_date=2026-01-01&end_date=2026-01-31"),
+        &token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["total_revenue"], 500000);
+    assert_eq!(body["total_expenses"], 1200);
+    assert_eq!(body["net_income"], 498800);
+}
+
+#[tokio::test]
+async fn balance_sheet_missing_date_rejected() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+
+    let (status, _) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/reports/balance-sheet"),
+        &token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn income_statement_missing_dates_rejected() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+
+    let (status, _) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/reports/income-statement"),
+        &token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+// ── Baseline tests ──────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn create_baseline_succeeds() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+
+    let (status, body) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/baselines"),
+        Some(&token),
+        json!({
+            "account_id": food,
+            "period_start": "2026-01-01",
+            "amount": 50000,
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CREATED, "create baseline failed: {body}");
+    assert_eq!(body["amount"], 50000);
+    assert_eq!(body["period_start"], "2026-01-01");
+}
+
+#[tokio::test]
+async fn create_duplicate_baseline_rejected() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+
+    post(
+        &app,
+        &format!("/workspaces/{workspace_id}/baselines"),
+        Some(&token),
+        json!({ "account_id": food, "period_start": "2026-01-01", "amount": 50000 }),
+    )
+    .await;
+
+    let (status, _) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/baselines"),
+        Some(&token),
+        json!({ "account_id": food, "period_start": "2026-01-01", "amount": 60000 }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn list_baselines() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let rent = find_account_id(&app, &workspace_id, &token, "Rent").await;
+
+    post(
+        &app,
+        &format!("/workspaces/{workspace_id}/baselines"),
+        Some(&token),
+        json!({ "account_id": food, "period_start": "2026-01-01", "amount": 50000 }),
+    )
+    .await;
+    post(
+        &app,
+        &format!("/workspaces/{workspace_id}/baselines"),
+        Some(&token),
+        json!({ "account_id": rent, "period_start": "2026-01-01", "amount": 150000 }),
+    )
+    .await;
+
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/baselines"),
+        &token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["baselines"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn delete_baseline() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+
+    let (_, created) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/baselines"),
+        Some(&token),
+        json!({ "account_id": food, "period_start": "2026-01-01", "amount": 50000 }),
+    )
+    .await;
+    let baseline_id = created["id"].as_str().unwrap();
+
+    let (status, _) = delete(
+        &app,
+        &format!("/workspaces/{workspace_id}/baselines/{baseline_id}"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (_, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/baselines"),
+        &token,
+    )
+    .await;
+    assert!(body["baselines"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn baseline_variance_endpoint() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+
+    // Create baseline: $500 food budget for January
+    let (_, created) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/baselines"),
+        Some(&token),
+        json!({ "account_id": food, "period_start": "2026-01-01", "amount": 50000 }),
+    )
+    .await;
+    let baseline_id = created["id"].as_str().unwrap();
+
+    // Spend $75 on food
+    create_entry(&app, &workspace_id, &token, &chequing, &food, 7500, "2026-01-15", "Groceries").await;
+
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/baselines/{baseline_id}/variance"),
+        &token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    // Variance = actual (7500) - budget (50000) = -42500 (under budget)
+    assert_eq!(body["variance"], -42500);
+    assert_eq!(body["amount"], 50000);
+    assert_eq!(body["actual"], 7500);
+}
+
 // ── Auth edge cases ─────────────────────────────────────────────────────────
 
 #[tokio::test]

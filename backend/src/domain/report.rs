@@ -6,6 +6,7 @@ use crate::error::AppError;
 
 // ── AccountBalance ──────────────────────────────────────────────────────────
 
+#[derive(serde::Serialize)]
 pub struct AccountBalance {
     pub account: AccountRef,
     pub name: String,
@@ -14,6 +15,7 @@ pub struct AccountBalance {
 
 // ── BalanceSheet ────────────────────────────────────────────────────────────
 
+#[derive(serde::Serialize)]
 pub struct BalanceSheet {
     pub as_of_date: String,
     pub assets: Vec<AccountBalance>,
@@ -107,6 +109,7 @@ impl BalanceSheet {
 
 // ── IncomeStatement ────────────────────────────────────────────────────────
 
+#[derive(serde::Serialize)]
 pub struct IncomeStatement {
     pub start_date: String,
     pub end_date: String,
