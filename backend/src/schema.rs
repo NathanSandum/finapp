@@ -79,6 +79,19 @@ diesel::table! {
 }
 
 diesel::table! {
+    baselines (id) {
+        id -> Text,
+        workspace_id -> Text,
+        account_id -> Text,
+        period_type -> Text,
+        period_start -> Text,
+        amount -> Integer,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     sessions (id) {
         id -> Text,
         user_id -> Text,
@@ -94,8 +107,11 @@ diesel::joinable!(accounts -> workspaces (workspace_id));
 diesel::joinable!(entries -> workspaces (workspace_id));
 diesel::joinable!(postings -> entries (entry_id));
 diesel::joinable!(postings -> accounts (account_id));
+diesel::joinable!(baselines -> workspaces (workspace_id));
+diesel::joinable!(baselines -> accounts (account_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    baselines,
     workspace_members,
     workspaces,
     accounts,

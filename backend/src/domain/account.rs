@@ -261,6 +261,83 @@ impl Account {
 
         Ok(result.unwrap_or(0))
     }
+
+    /// Balance including descendants, filtered by entry date <= given date.
+    pub fn balance_as_of_with_descendants(
+        &self,
+        date: &str,
+        conn: &mut SqliteConnection,
+    ) -> Result<i64, AppError> {
+        let descendants = self.descendants(conn)?;
+        let mut account_ids: Vec<&AccountRef> = descendants.iter().map(|a| &a.id).collect();
+        account_ids.push(&self.id);
+
+        let result: Option<i64> = postings::table
+            .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
+            .filter(postings::account_id.eq_any(&account_ids))
+            .filter(entries::cleared.eq(true))
+            .filter(entries::deleted_at.is_null())
+            .filter(entries::date.le(date))
+            .select(diesel::dsl::sum(postings::amount))
+            .first(conn)
+            .map_err(|err| {
+                AppError::Internal(format!(
+                    "balance_as_of_with_descendants query failed: {err}"
+                ))
+            })?;
+
+        Ok(result.unwrap_or(0))
+    }
+
+    /// Balance for a date range (inclusive on both ends).
+    pub fn balance_between(
+        &self,
+        start_date: &str,
+        end_date: &str,
+        conn: &mut SqliteConnection,
+    ) -> Result<i64, AppError> {
+        let result: Option<i64> = postings::table
+            .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
+            .filter(postings::account_id.eq(&self.id))
+            .filter(entries::cleared.eq(true))
+            .filter(entries::deleted_at.is_null())
+            .filter(entries::date.ge(start_date))
+            .filter(entries::date.le(end_date))
+            .select(diesel::dsl::sum(postings::amount))
+            .first(conn)
+            .map_err(|err| AppError::Internal(format!("balance_between query failed: {err}")))?;
+
+        Ok(result.unwrap_or(0))
+    }
+
+    /// Balance for a date range, including all descendant accounts.
+    pub fn balance_between_with_descendants(
+        &self,
+        start_date: &str,
+        end_date: &str,
+        conn: &mut SqliteConnection,
+    ) -> Result<i64, AppError> {
+        let descendants = self.descendants(conn)?;
+        let mut account_ids: Vec<&AccountRef> = descendants.iter().map(|a| &a.id).collect();
+        account_ids.push(&self.id);
+
+        let result: Option<i64> = postings::table
+            .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
+            .filter(postings::account_id.eq_any(&account_ids))
+            .filter(entries::cleared.eq(true))
+            .filter(entries::deleted_at.is_null())
+            .filter(entries::date.ge(start_date))
+            .filter(entries::date.le(end_date))
+            .select(diesel::dsl::sum(postings::amount))
+            .first(conn)
+            .map_err(|err| {
+                AppError::Internal(format!(
+                    "balance_between_with_descendants query failed: {err}"
+                ))
+            })?;
+
+        Ok(result.unwrap_or(0))
+    }
 }
 
 impl WorkspaceRef {
@@ -907,5 +984,92 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
 
         assert_eq!(chequing.balance(&mut conn).unwrap(), 0);
+    }
+
+    // ── balance_between tests ──────────────────────────────────────
+
+    #[test]
+    fn balance_between_returns_sum_in_date_range() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        make_entry(&workspace, &chequing, &food, 1000, "2026-01-10", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 800, "2026-01-20", true, &mut conn);
+
+        // Range captures only middle entry
+        assert_eq!(food.balance_between("2026-01-11", "2026-01-19", &mut conn).unwrap(), 1200);
+    }
+
+    #[test]
+    fn balance_between_inclusive_boundaries() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+
+        assert_eq!(food.balance_between("2026-01-15", "2026-01-15", &mut conn).unwrap(), 1200);
+    }
+
+    #[test]
+    fn balance_between_returns_zero_for_empty_range() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+
+        assert_eq!(food.balance_between("2026-02-01", "2026-02-28", &mut conn).unwrap(), 0);
+    }
+
+    #[test]
+    fn balance_between_excludes_uncleared() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 800, "2026-01-16", false, &mut conn);
+
+        assert_eq!(food.balance_between("2026-01-01", "2026-01-31", &mut conn).unwrap(), 1200);
+    }
+
+    #[test]
+    fn balance_between_with_descendants_includes_children() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+        let expenses = find_account("Expenses", &workspace, &mut conn);
+
+        let cafes = NewAccount::child(&food, "Cafes").insert(&mut conn).unwrap();
+
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+        make_entry(&workspace, &chequing, &cafes, 500, "2026-01-16", true, &mut conn);
+
+        assert_eq!(
+            expenses.balance_between_with_descendants("2026-01-01", "2026-01-31", &mut conn).unwrap(),
+            1700
+        );
+    }
+
+    #[test]
+    fn balance_as_of_with_descendants_filters_by_date() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+        let assets = find_account("Assets", &workspace, &mut conn);
+
+        let cafes = NewAccount::child(&food, "Cafes").insert(&mut conn).unwrap();
+
+        // Entries at different dates on different accounts
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+        make_entry(&workspace, &chequing, &cafes, 500, "2026-02-10", true, &mut conn);
+
+        // As of Jan 31: chequing has -1200 (only first entry), assets tree = -1200
+        assert_eq!(assets.balance_as_of_with_descendants("2026-01-31", &mut conn).unwrap(), -1200);
+        // As of Feb 28: chequing has -1700, assets tree = -1700
+        assert_eq!(assets.balance_as_of_with_descendants("2026-02-28", &mut conn).unwrap(), -1700);
     }
 }

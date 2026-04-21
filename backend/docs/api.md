@@ -87,3 +87,7 @@ Error 409 if account has active children or active postings.
 { "account": "uuid", "cleared_balance": 1200 }
 ```
 Returns sum of postings on cleared, non-deleted entries for this account.
+
+## Planned Routes (Wave 4)
+
+Entry CRUD, report endpoints (balance sheet, income statement), baseline CRUD + variance.
