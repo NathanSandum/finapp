@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-04-20
+Last updated: 2026-04-21
 
 ## Double-Entry Rewrite Progress
 
@@ -9,8 +9,19 @@ Last updated: 2026-04-20
 | 1 — Account Hierarchy | Merged to main | interface-rework |
 | 2 — Entries & Postings | Merged to main | wave-2-postings |
 | 3 — Reports & Baselines | Merged to main | wave-3-reports |
-| 4 — API Routes | Complete | wave-4-routes |
-| 5 — Frontend Updates | Not started | — |
+| 4 — API Routes | Merged to main | wave-4-routes |
+| 5 — Frontend Updates | Complete | wave-5-frontend |
+
+## What Wave 5 Did
+
+- Rewrote `api.svelte.ts`: removed old endpoints (listTransactions, createTransaction, categories, import, baselineSummary), added new (entries CRUD, reports, baselines CRUD + variance)
+- Rewrote `BalanceSheetView.svelte`: uses `GET /reports/balance-sheet`, shows assets/liabilities/equity sections with totals
+- Created `EntriesView.svelte`: shows all workspace entries with postings, account name lookup, delete button
+- Deleted `TransactionsView.svelte` and `ImportView.svelte`
+- Rewrote `IncomeView.svelte`: uses `GET /reports/income-statement`, shows revenue/expense breakdown with net income
+- Rewrote `CashFlowView.svelte`: uses income statement with summary cards (revenue, expenses, net income)
+- Fixed workspace ID extraction (`created.workspace` not `created.id`)
+- `npm run check` and `npm run build` both pass clean
 
 ## What Wave 4 Did
 
@@ -51,8 +62,7 @@ Last updated: 2026-04-20
 
 - `cargo test` — 35 integration tests + 113 unit tests pass (148 total)
 - `cargo build` — clean (1 dead_code warning: `WorkspaceMember.user`)
+- `npm run check` — 0 errors, 0 warnings
+- `npm run build` — static build succeeds
 - Schema, domain models, auth, permissions, routes all consistent
-
-## Next: Wave 5 — Frontend Updates
-
-Update frontend to use new API routes for entries, reports, and baselines.
+- Frontend views use new API endpoints exclusively
