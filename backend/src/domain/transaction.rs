@@ -75,30 +75,44 @@ impl Transaction {
             .map_err(|err| AppError::Internal(format!("postings query failed: {err}")))
     }
 
+    pub fn soft_delete(&self, conn: &mut SqliteConnection) -> Result<(), AppError> {
+        let now = chrono::Utc::now().naive_utc();
+        diesel::update(transactions::table.find(&self.id))
+            .set(transactions::deleted_at.eq(Some(now)))
+            .execute(conn)
+            .map_err(|err| AppError::Internal(format!("transaction soft delete failed: {err}")))?;
+        Ok(())
+    }
+}
+
+// ── Query methods on owning types ────────────────────────────────────────────
+
+impl AccountRef {
     /// Transactions with any posting to this account, excluding soft-deleted, ordered by date desc.
-    pub fn for_account(
-        account: &AccountRef,
-        conn: &mut SqliteConnection,
-    ) -> Result<Vec<Transaction>, AppError> {
+    pub fn transactions(&self, conn: &mut SqliteConnection) -> Result<Vec<Transaction>, AppError> {
         transactions::table
             .inner_join(postings::table.on(postings::transaction_id.eq(transactions::id)))
-            .filter(postings::account_id.eq(account))
+            .filter(postings::account_id.eq(self))
             .filter(transactions::deleted_at.is_null())
             .select(Transaction::as_select())
             .distinct()
             .order(transactions::date.desc())
             .load(conn)
-            .map_err(|err| AppError::Internal(format!("for_account query failed: {err}")))
+            .map_err(|err| AppError::Internal(format!("account transactions query failed: {err}")))
     }
+}
 
+impl crate::domain::account::Account {
     /// Transactions with postings to this account or any of its descendants.
-    pub fn for_account_tree(
-        account: &crate::domain::account::Account,
+    /// Use case: viewing all activity under a parent account (e.g. all Expense transactions
+    /// when looking at the Expenses root, including Food, Rent, etc.).
+    pub fn transactions_with_descendants(
+        &self,
         conn: &mut SqliteConnection,
     ) -> Result<Vec<Transaction>, AppError> {
-        let descendants = account.descendants(conn)?;
+        let descendants = self.descendants(conn)?;
         let mut account_ids: Vec<&AccountRef> = descendants.iter().map(|a| &a.id).collect();
-        account_ids.push(&account.id);
+        account_ids.push(&self.id);
 
         transactions::table
             .inner_join(postings::table.on(postings::transaction_id.eq(transactions::id)))
@@ -108,29 +122,23 @@ impl Transaction {
             .distinct()
             .order(transactions::date.desc())
             .load(conn)
-            .map_err(|err| AppError::Internal(format!("for_account_tree query failed: {err}")))
+            .map_err(|err| {
+                AppError::Internal(format!("account tree transactions query failed: {err}"))
+            })
     }
+}
 
-    pub fn for_workspace(
-        workspace: &WorkspaceRef,
-        conn: &mut SqliteConnection,
-    ) -> Result<Vec<Transaction>, AppError> {
+impl WorkspaceRef {
+    pub fn transactions(&self, conn: &mut SqliteConnection) -> Result<Vec<Transaction>, AppError> {
         transactions::table
-            .filter(transactions::workspace_id.eq(workspace))
+            .filter(transactions::workspace_id.eq(self))
             .filter(transactions::deleted_at.is_null())
             .select(Transaction::as_select())
             .order(transactions::date.desc())
             .load(conn)
-            .map_err(|err| AppError::Internal(format!("for_workspace query failed: {err}")))
-    }
-
-    pub fn soft_delete(&self, conn: &mut SqliteConnection) -> Result<(), AppError> {
-        let now = chrono::Utc::now().naive_utc();
-        diesel::update(transactions::table.find(&self.id))
-            .set(transactions::deleted_at.eq(Some(now)))
-            .execute(conn)
-            .map_err(|err| AppError::Internal(format!("transaction soft delete failed: {err}")))?;
-        Ok(())
+            .map_err(|err| {
+                AppError::Internal(format!("workspace transactions query failed: {err}"))
+            })
     }
 }
 
@@ -206,7 +214,7 @@ struct NewTransactionRow {
 struct NewPostingRow {
     id: String,
     #[diesel(column_name = transaction_id)]
-    transaction: String,
+    transaction: TransactionRef,
     #[diesel(column_name = account_id)]
     account: AccountRef,
     amount: i32,
@@ -274,11 +282,10 @@ impl NewTransaction {
 
         conn.transaction::<_, AppError, _>(|conn| {
             let now = chrono::Utc::now().naive_utc();
-            let transaction_id = Uuid::new_v4().to_string();
 
             let transaction = diesel::insert_into(transactions::table)
                 .values(NewTransactionRow {
-                    id: transaction_id.clone(),
+                    id: Uuid::new_v4().to_string(),
                     workspace: self.workspace,
                     date: self.date,
                     description: self.description,
@@ -293,7 +300,7 @@ impl NewTransaction {
                 diesel::insert_into(postings::table)
                     .values(NewPostingRow {
                         id: Uuid::new_v4().to_string(),
-                        transaction: transaction_id.clone(),
+                        transaction: transaction.id.clone(),
                         account: input.account,
                         amount: input.amount,
                         note: input.note.unwrap_or_default(),
@@ -513,12 +520,12 @@ mod tests {
         .unwrap();
 
         // Food account should see only 1 transaction
-        let food_transactions = Transaction::for_account(&food.id, &mut conn).unwrap();
+        let food_transactions = food.id.transactions(&mut conn).unwrap();
         assert_eq!(food_transactions.len(), 1);
         assert_eq!(food_transactions[0].description, "Groceries");
 
         // Chequing should see both
-        let chequing_transactions = Transaction::for_account(&chequing.id, &mut conn).unwrap();
+        let chequing_transactions = chequing.id.transactions(&mut conn).unwrap();
         assert_eq!(chequing_transactions.len(), 2);
     }
 
@@ -532,7 +539,7 @@ mod tests {
 
         transaction.soft_delete(&mut conn).unwrap();
 
-        let transactions = Transaction::for_account(&food.id, &mut conn).unwrap();
+        let transactions = food.id.transactions(&mut conn).unwrap();
         assert!(transactions.is_empty());
     }
 
@@ -601,7 +608,7 @@ mod tests {
         .insert(&mut conn)
         .unwrap();
 
-        let all = Transaction::for_workspace(workspace.as_ref(), &mut conn).unwrap();
+        let all = workspace.as_ref().transactions(&mut conn).unwrap();
         assert_eq!(all.len(), 2);
     }
 
@@ -633,11 +640,11 @@ mod tests {
         .unwrap();
 
         // for_account_tree on Expenses should find both (Food and Cafes are descendants)
-        let transactions = Transaction::for_account_tree(&expenses, &mut conn).unwrap();
+        let transactions = expenses.transactions_with_descendants(&mut conn).unwrap();
         assert_eq!(transactions.len(), 2);
 
         // for_account on Expenses directly should find none (no posting directly to Expenses)
-        let direct = Transaction::for_account(&expenses.id, &mut conn).unwrap();
+        let direct = expenses.id.transactions(&mut conn).unwrap();
         assert!(direct.is_empty());
     }
 }
