@@ -48,8 +48,37 @@ pub fn build_router(pool: DbPool) -> Router {
             "/workspaces/{workspace}/accounts/{account}/balance",
             get(routes::accounts::balance),
         )
-        // TODO: Wave 3 — entry routes, baseline routes
-        // TODO: Wave 4 — report routes, import
+        // Entries
+        .route(
+            "/workspaces/{workspace}/entries",
+            get(routes::entries::list).post(routes::entries::create),
+        )
+        .route(
+            "/workspaces/{workspace}/entries/{entry}",
+            get(routes::entries::get).delete(routes::entries::delete),
+        )
+        // Reports
+        .route(
+            "/workspaces/{workspace}/reports/balance-sheet",
+            get(routes::reports::balance_sheet),
+        )
+        .route(
+            "/workspaces/{workspace}/reports/income-statement",
+            get(routes::reports::income_statement),
+        )
+        // Baselines
+        .route(
+            "/workspaces/{workspace}/baselines",
+            get(routes::baselines::list).post(routes::baselines::create),
+        )
+        .route(
+            "/workspaces/{workspace}/baselines/{baseline}",
+            delete(routes::baselines::delete),
+        )
+        .route(
+            "/workspaces/{workspace}/baselines/{baseline}/variance",
+            get(routes::baselines::variance),
+        )
         .layer(Extension(pool))
         .layer(CorsLayer::permissive())
 }

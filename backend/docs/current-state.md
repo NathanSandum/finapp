@@ -8,9 +8,18 @@ Last updated: 2026-04-20
 |------|--------|--------|
 | 1 — Account Hierarchy | Merged to main | interface-rework |
 | 2 — Entries & Postings | Merged to main | wave-2-postings |
-| 3 — Reports & Baselines | Complete | wave-3-reports |
-| 4 — API Routes (rewrite) | Not started | — |
+| 3 — Reports & Baselines | Merged to main | wave-3-reports |
+| 4 — API Routes | Complete | wave-4-routes |
 | 5 — Frontend Updates | Not started | — |
+
+## What Wave 4 Did
+
+- Created `routes/entries.rs`: POST (create with postings), GET list, GET single, DELETE (soft-delete)
+- Created `routes/reports.rs`: GET balance-sheet (query param `as_of`), GET income-statement (query params `start_date`, `end_date`)
+- Created `routes/baselines.rs`: POST create, GET list, DELETE (hard-delete), GET variance
+- Added `Serialize` derives to domain types: Entry, Posting, BalanceSheet, IncomeStatement, AccountBalance, Baseline
+- Added `Baseline::delete()` for hard-delete
+- 16 new integration tests (35 total), 148 tests total, all pass
 
 ## What Wave 3 Did
 
@@ -19,7 +28,6 @@ Last updated: 2026-04-20
 - Created migration `00000000000013_baselines`: baselines table with account_id, period_type, period_start, amount
 - Created `domain/baseline.rs`: BaselineRef, PeriodType (Monthly), Baseline with variance computation, NewBaseline builder
 - Sign convention handled correctly: L/E negated in balance sheet equation, revenue negated for income statement display
-- 132 tests total (113 unit + 19 integration), all pass
 
 ## What Wave 2 Did
 
@@ -30,7 +38,6 @@ Last updated: 2026-04-20
 - Added balance methods to Account: `balance()`, `balance_with_descendants()`, `balance_as_of()`
 - Updated `Account::soft_delete()` to block deletion when account has postings on active entries
 - Balance route now returns real computed balance (was stub returning 0)
-- Deleted dead `routes/transactions.rs` (old pre-double-entry code, was not declared in routes.rs)
 
 ## What Wave 1 Did
 
@@ -42,13 +49,10 @@ Last updated: 2026-04-20
 
 ## What's Compiling and Tested
 
-- `cargo test` — 19 integration tests + 113 unit tests pass (132 total)
+- `cargo test` — 35 integration tests + 113 unit tests pass (148 total)
 - `cargo build` — clean (1 dead_code warning: `WorkspaceMember.user`)
 - Schema, domain models, auth, permissions, routes all consistent
 
-## Next: Wave 4 — API Routes
+## Next: Wave 5 — Frontend Updates
 
-Rewrite all API routes to use the new domain model:
-1. Entry CRUD routes (create, list, delete entries with postings)
-2. Report routes (balance sheet, income statement)
-3. Baseline CRUD routes (create, list, delete baselines, variance endpoint)
+Update frontend to use new API routes for entries, reports, and baselines.

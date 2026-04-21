@@ -12,7 +12,7 @@ backend/
     permissions.rs                  # Role-based permission checks (Action × Resource matrix)
     test_helpers.rs                 # setup_test_db() — in-memory SQLite + migrations, MIGRATIONS constant
     domain.rs                       # Module declarations: account, baseline, entry, report, session, user, workspace
-    routes.rs                       # Module declarations: accounts, auth, workspaces
+    routes.rs                       # Module declarations: accounts, auth, baselines, entries, reports, workspaces
     domain/
       user.rs                       # User, UserRef, NewUser (argon2 hashing), email lookup, password verify
       session.rs                    # Session (SHA-256 token hash), NewSession, validate/invalidate, 1-week expiry
@@ -36,6 +36,9 @@ backend/
       auth.rs                       # POST /auth/register, /auth/login, /auth/logout
       workspaces.rs                 # POST/GET /workspaces, GET /workspaces/:id, DELETE .../members/:user
       accounts.rs                   # GET/POST /workspaces/:id/accounts, DELETE .../accounts/:id, GET .../balance
+      entries.rs                    # POST/GET /workspaces/:id/entries, GET/DELETE .../entries/:id
+      reports.rs                    # GET .../reports/balance-sheet, GET .../reports/income-statement
+      baselines.rs                  # POST/GET /workspaces/:id/baselines, DELETE .../baselines/:id, GET .../variance
   migrations/
     00000000000001_initial/         # Empty placeholder
     00000000000002_users/           # users table
@@ -53,5 +56,5 @@ backend/
     00000000000013_baselines/       # Baselines table (account_id, period_type, period_start, amount)
   tests/
     api.rs                          # Integration tests — in-memory DB, axum oneshot requests
-                                    # Covers: auth, workspaces, accounts (hierarchy, defaults, CRUD, balance)
+                                    # Covers: auth, workspaces, accounts, entries, reports, baselines
 ```

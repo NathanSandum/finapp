@@ -88,6 +88,83 @@ Error 409 if account has active children or active postings.
 ```
 Returns sum of postings on cleared, non-deleted entries for this account.
 
-## Planned Routes (Wave 4)
+## Entry Routes (token + workspace membership required)
 
-Entry CRUD, report endpoints (balance sheet, income statement), baseline CRUD + variance.
+### POST /workspaces/{workspace}/entries
+Requires Editor role.
+```json
+// Request
+{
+  "date": "YYYY-MM-DD",
+  "description": "str",
+  "cleared": false,
+  "postings": [
+    { "account_id": "uuid", "amount": -1200, "note": "optional" },
+    { "account_id": "uuid", "amount": 1200 }
+  ]
+}
+// Response 201
+{ "id": "uuid", "date": "str", "description": "str", "cleared": false, "postings": [...] }
+// Error 422: non-zero sum, fewer than 2 postings, zero amount
+```
+
+### GET /workspaces/{workspace}/entries
+```json
+// Response 200
+{ "entries": [{ "id": "uuid", "date": "str", "description": "str", "cleared": bool, "postings": [...] }] }
+```
+Returns all non-deleted entries with their postings. Ordered by date descending.
+
+### GET /workspaces/{workspace}/entries/{entry}
+```json
+// Response 200
+{ "id": "uuid", "date": "str", "description": "str", "cleared": bool, "postings": [{ "id": "uuid", "account_id": "uuid", "amount": int, "note": "str" }] }
+// Error 404: entry not found or wrong workspace
+```
+
+### DELETE /workspaces/{workspace}/entries/{entry}
+Requires Editor role. Soft-deletes entry. Returns `{ "status": "ok" }`.
+
+## Report Routes (token + workspace membership required)
+
+### GET /workspaces/{workspace}/reports/balance-sheet?as_of=YYYY-MM-DD
+```json
+// Response 200
+{ "as_of_date": "str", "assets": [...], "liabilities": [...], "equity": [...], "total_assets": int, "total_liabilities": int, "total_equity": int, "net_income": int, "total_liabilities_and_equity": int }
+// Error 422: missing as_of parameter
+```
+Per-account detail arrays contain `{ "account": "uuid", "name": "str", "balance": int }`.
+
+### GET /workspaces/{workspace}/reports/income-statement?start_date=...&end_date=...
+```json
+// Response 200
+{ "start_date": "str", "end_date": "str", "revenue": [...], "expenses": [...], "total_revenue": int, "total_expenses": int, "net_income": int }
+// Error 422: missing start_date or end_date
+```
+
+## Baseline Routes (token + workspace membership required)
+
+### POST /workspaces/{workspace}/baselines
+Requires Editor role.
+```json
+// Request
+{ "account_id": "uuid", "period_start": "YYYY-MM-DD", "amount": 50000 }
+// Response 201: full baseline object
+// Error 409: duplicate (same account + period_start)
+```
+
+### GET /workspaces/{workspace}/baselines
+```json
+// Response 200
+{ "baselines": [{ "id": "uuid", "account": "uuid", "period_type": "monthly", "period_start": "str", "amount": int, ... }] }
+```
+
+### DELETE /workspaces/{workspace}/baselines/{baseline}
+Requires Editor role. Hard-deletes baseline. Returns `{ "status": "ok" }`.
+
+### GET /workspaces/{workspace}/baselines/{baseline}/variance
+```json
+// Response 200
+{ "baseline": "uuid", "amount": 50000, "actual": 7500, "variance": -42500 }
+```
+Positive variance = over budget. Actual includes descendant account postings within period.
