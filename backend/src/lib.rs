@@ -57,6 +57,10 @@ pub fn build_router(pool: DbPool) -> Router {
             get(routes::entries::list).post(routes::entries::create),
         )
         .route(
+            "/workspaces/{workspace}/entries/merge",
+            post(routes::entries::merge),
+        )
+        .route(
             "/workspaces/{workspace}/entries/{entry}",
             get(routes::entries::get)
                 .put(routes::entries::update)

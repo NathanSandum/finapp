@@ -185,6 +185,66 @@ pub async fn delete(
     Ok(Json(json!({ "status": "ok" })))
 }
 
+#[derive(Deserialize)]
+pub struct MergeEntriesRequest {
+    source_entry_ids: Vec<EntryRef>,
+    date: String,
+    description: String,
+    #[serde(default)]
+    cleared: bool,
+    postings: Vec<CreatePostingRequest>,
+}
+
+pub async fn merge(
+    Extension(pool): Extension<DbPool>,
+    member: WorkspaceMember,
+    Json(body): Json<MergeEntriesRequest>,
+) -> Result<(axum::http::StatusCode, Json<Value>), AppError> {
+    member.require_role(&Role::Editor)?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+
+    let mut source_entries = Vec::with_capacity(body.source_entry_ids.len());
+    for entry_ref in &body.source_entry_ids {
+        let entry =
+            Entry::from_ref(entry_ref, &mut conn)?.ok_or(AppError::NotFound("entry".into()))?;
+        if entry.workspace != member.workspace {
+            return Err(AppError::NotFound("entry".into()));
+        }
+        source_entries.push(entry);
+    }
+
+    let posting_inputs: Vec<PostingInput> = body
+        .postings
+        .into_iter()
+        .map(|p| {
+            let mut input = PostingInput::new(p.account_id, p.amount);
+            if let Some(note) = p.note {
+                input = input.note(&note);
+            }
+            input
+        })
+        .collect();
+
+    let entry = Entry::merge(
+        &source_entries,
+        &member.workspace,
+        &body.date,
+        &body.description,
+        body.cleared,
+        posting_inputs,
+        &mut conn,
+    )?;
+
+    let postings = entry.postings(&mut conn)?;
+
+    Ok((
+        axum::http::StatusCode::CREATED,
+        Json(entry_to_json(&entry, &postings)),
+    ))
+}
+
 pub fn entry_to_json(
     entry: &Entry,
     postings: &[crate::domain::entry::Posting],
