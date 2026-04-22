@@ -58,7 +58,7 @@
 		</tr>
 	</thead>
 	<tbody>
-		{#each sections as section}
+		{#each sections as section, sectionIndex}
 			<!-- Section title row -->
 			<tr
 				class="cursor-pointer select-none"
@@ -119,13 +119,15 @@
 				</tr>
 			{/if}
 
-			<!-- Blank separator row -->
-			<tr>
-				<td class="border border-gray-700 py-1"></td>
-				{#each periods as _}
+			<!-- Blank separator row (skip after last section when no bottom line) -->
+			{#if sectionIndex < sections.length - 1 || bottomLine}
+				<tr>
 					<td class="border border-gray-700 py-1"></td>
-				{/each}
-			</tr>
+					{#each periods as _}
+						<td class="border border-gray-700 py-1"></td>
+					{/each}
+				</tr>
+			{/if}
 		{/each}
 
 		<!-- Bottom line -->
