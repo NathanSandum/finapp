@@ -140,6 +140,25 @@ impl WorkspaceRef {
                 AppError::Internal(format!("workspace entries query failed: {err}"))
             })
     }
+
+    pub fn entries_between(
+        &self,
+        start_date: &str,
+        end_date: &str,
+        conn: &mut SqliteConnection,
+    ) -> Result<Vec<Entry>, AppError> {
+        entries::table
+            .filter(entries::workspace_id.eq(self))
+            .filter(entries::deleted_at.is_null())
+            .filter(entries::date.ge(start_date))
+            .filter(entries::date.le(end_date))
+            .select(Entry::as_select())
+            .order(entries::date.desc())
+            .load(conn)
+            .map_err(|err| {
+                AppError::Internal(format!("workspace entries query failed: {err}"))
+            })
+    }
 }
 
 // ── Posting ─────────────────────────────────────────────────────────────────

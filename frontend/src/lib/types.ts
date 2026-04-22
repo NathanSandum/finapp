@@ -59,3 +59,32 @@ export type BalanceSheet = {
 	net_income: number;
 	total_liabilities_and_equity: number;
 };
+
+// ── Multi-Period Reports ───────────────────────────────────────────────────
+
+export type MultiPeriodRow = {
+	account: string;
+	name: string;
+	balances: number[];
+};
+
+export type MultiPeriodIncomeStatement = {
+	periods: string[];
+	revenue: MultiPeriodRow[];
+	expenses: MultiPeriodRow[];
+	total_revenue: number[];
+	total_expenses: number[];
+	net_income: number[];
+};
+
+export type MultiPeriodBalanceSheet = {
+	periods: string[];
+	assets: MultiPeriodRow[];
+	liabilities: MultiPeriodRow[];
+	equity: MultiPeriodRow[];
+	total_assets: number[];
+	total_liabilities: number[];
+	total_equity: number[];
+	net_income: number[];
+	total_liabilities_and_equity: number[];
+};
