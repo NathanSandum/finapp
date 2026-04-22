@@ -8,7 +8,7 @@ pub mod test_helpers;
 
 use axum::{
     extract::Extension,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use diesel::r2d2::{self, ConnectionManager};
@@ -30,7 +30,10 @@ pub fn build_router(pool: DbPool) -> Router {
         .route("/auth/logout", post(routes::auth::logout))
         .route("/workspaces", post(routes::workspaces::create))
         .route("/workspaces", get(routes::workspaces::list))
-        .route("/workspaces/{workspace}", get(routes::workspaces::get))
+        .route(
+            "/workspaces/{workspace}",
+            get(routes::workspaces::get).put(routes::workspaces::update),
+        )
         .route(
             "/workspaces/{workspace}/members/{user}",
             delete(routes::workspaces::remove_member),
@@ -42,7 +45,7 @@ pub fn build_router(pool: DbPool) -> Router {
         )
         .route(
             "/workspaces/{workspace}/accounts/{account}",
-            delete(routes::accounts::delete),
+            put(routes::accounts::update).delete(routes::accounts::delete),
         )
         .route(
             "/workspaces/{workspace}/accounts/{account}/balance",
@@ -55,7 +58,9 @@ pub fn build_router(pool: DbPool) -> Router {
         )
         .route(
             "/workspaces/{workspace}/entries/{entry}",
-            get(routes::entries::get).delete(routes::entries::delete),
+            get(routes::entries::get)
+                .put(routes::entries::update)
+                .delete(routes::entries::delete),
         )
         // Reports (legacy query-param style)
         .route(

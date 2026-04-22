@@ -72,7 +72,6 @@ async fn post(app: &Router, uri: &str, token: Option<&str>, body: Value) -> (Sta
     send(app, Method::POST, uri, token, Some(body)).await
 }
 
-#[allow(dead_code)]
 async fn put(app: &Router, uri: &str, token: &str, body: Value) -> (StatusCode, Value) {
     send(app, Method::PUT, uri, Some(token), Some(body)).await
 }
@@ -1072,4 +1071,263 @@ async fn period_invalid_period_rejected() {
     .await;
 
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+// ── Update entry tests ─────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn update_entry_date() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+
+    let (_, created) = create_entry(
+        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+    )
+    .await;
+    let entry_id = created["id"].as_str().unwrap();
+
+    let (status, body) = put(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries/{entry_id}"),
+        &token,
+        json!({ "date": "2026-03-01" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "update entry failed: {body}");
+    assert_eq!(body["date"], "2026-03-01");
+    assert_eq!(body["description"], "Lunch");
+    assert!(body["cleared"].as_bool().unwrap());
+    assert_eq!(body["postings"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn update_entry_description() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+
+    let (_, created) = create_entry(
+        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+    )
+    .await;
+    let entry_id = created["id"].as_str().unwrap();
+
+    let (status, body) = put(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries/{entry_id}"),
+        &token,
+        json!({ "description": "Dinner" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "update entry failed: {body}");
+    assert_eq!(body["description"], "Dinner");
+    assert_eq!(body["date"], "2026-01-15");
+    assert_eq!(body["postings"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn update_entry_postings() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let rent = find_account_id(&app, &workspace_id, &token, "Rent").await;
+
+    let (_, created) = create_entry(
+        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+    )
+    .await;
+    let entry_id = created["id"].as_str().unwrap();
+
+    let (status, body) = put(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries/{entry_id}"),
+        &token,
+        json!({
+            "postings": [
+                { "account_id": chequing, "amount": -5000 },
+                { "account_id": rent, "amount": 5000 },
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "update entry failed: {body}");
+    let postings = body["postings"].as_array().unwrap();
+    assert_eq!(postings.len(), 2);
+
+    // Verify old postings replaced: should reference rent, not food
+    let account_ids: Vec<&str> = postings
+        .iter()
+        .map(|p| p["account_id"].as_str().unwrap())
+        .collect();
+    assert!(account_ids.contains(&rent.as_str()));
+    assert!(!account_ids.contains(&food.as_str()));
+}
+
+#[tokio::test]
+async fn update_entry_requires_editor() {
+    let pool = test_pool();
+    let app = backend::build_router(pool.clone());
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+
+    let (_, created) = create_entry(
+        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+    )
+    .await;
+    let entry_id = created["id"].as_str().unwrap();
+
+    // Register a second user and add them as a viewer directly via DB
+    let (viewer_token, _viewer_id) = register(&app, "viewer@example.com").await;
+    {
+        use diesel::prelude::*;
+        let mut connection = pool.get().unwrap();
+        let viewer_user_id: String = serde_json::from_value::<Value>(json!(_viewer_id))
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
+        diesel::sql_query(format!(
+            "INSERT INTO workspace_members (workspace_id, user_id, role, joined_at) VALUES ('{}', '{}', 'viewer', datetime('now'))",
+            workspace_id, viewer_user_id
+        ))
+        .execute(&mut connection)
+        .unwrap();
+    }
+
+    let (status, _) = put(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries/{entry_id}"),
+        &viewer_token,
+        json!({ "description": "Hacked" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn update_entry_not_found() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+
+    let fake_id = "00000000-0000-0000-0000-000000000000";
+    let (status, _) = put(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries/{fake_id}"),
+        &token,
+        json!({ "description": "Ghost" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+// ── Update account tests ───────────────────────────────────────────────────
+
+#[tokio::test]
+async fn update_account_rename() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing_id = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+
+    let (status, body) = put(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts/{chequing_id}"),
+        &token,
+        json!({ "name": "Main Chequing" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "rename failed: {body}");
+    assert_eq!(body["name"], "Main Chequing");
+    assert_eq!(body["id"], chequing_id.as_str());
+    assert_eq!(body["account_type"], "asset");
+}
+
+#[tokio::test]
+async fn update_account_reparent() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let food_id = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let expenses_id = find_account_id(&app, &workspace_id, &token, "Expenses").await;
+
+    // Create a sub-category under Expenses
+    let (_, created) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts"),
+        Some(&token),
+        json!({ "name": "Categories", "parent_id": expenses_id }),
+    )
+    .await;
+    let categories_id = created["id"].as_str().unwrap();
+
+    let (status, body) = put(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts/{food_id}"),
+        &token,
+        json!({ "parent_id": categories_id }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "reparent failed: {body}");
+    assert_eq!(body["parent_id"], categories_id);
+    assert_eq!(body["id"], food_id.as_str());
+}
+
+#[tokio::test]
+async fn update_account_rename_requires_editor() {
+    let pool = test_pool();
+    let app = backend::build_router(pool.clone());
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing_id = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+
+    // Register a viewer
+    let (viewer_token, viewer_id) = register(&app, "viewer@example.com").await;
+    {
+        use diesel::prelude::*;
+        let mut connection = pool.get().unwrap();
+        diesel::sql_query(format!(
+            "INSERT INTO workspace_members (workspace_id, user_id, role, joined_at) VALUES ('{}', '{}', 'viewer', datetime('now'))",
+            workspace_id, viewer_id
+        ))
+        .execute(&mut connection)
+        .unwrap();
+    }
+
+    let (status, _) = put(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts/{chequing_id}"),
+        &viewer_token,
+        json!({ "name": "Hacked" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+// ── Workspace update tests ──────────────────────────────────────────────────
+
+#[tokio::test]
+async fn update_workspace_name() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+
+    let (status, body) = put(
+        &app,
+        &format!("/workspaces/{workspace_id}"),
+        &token,
+        json!({ "name": "Renamed Finances" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "update workspace failed: {body}");
+    assert_eq!(body["name"], "Renamed Finances");
 }

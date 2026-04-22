@@ -175,6 +175,83 @@ impl Account {
         Ok(result)
     }
 
+    pub fn rename(
+        &self,
+        new_name: &str,
+        conn: &mut SqliteConnection,
+    ) -> Result<Account, AppError> {
+        let now = chrono::Utc::now().naive_utc();
+        diesel::update(accounts::table.find(&self.id))
+            .set((
+                accounts::name.eq(new_name),
+                accounts::updated_at.eq(now),
+            ))
+            .execute(conn)?;
+
+        Account::from_ref(&self.id, conn)?
+            .ok_or_else(|| AppError::Internal("account disappeared after rename".to_string()))
+    }
+
+    pub fn reparent(
+        &self,
+        new_parent: &AccountRef,
+        conn: &mut SqliteConnection,
+    ) -> Result<Account, AppError> {
+        if self.is_root() {
+            return Err(AppError::Validation(vec![crate::error::FieldError {
+                field: "parent_id".into(),
+                message: "root accounts cannot be reparented".into(),
+            }]));
+        }
+
+        if *new_parent == self.id {
+            return Err(AppError::Validation(vec![crate::error::FieldError {
+                field: "parent_id".into(),
+                message: "cannot reparent account to itself".into(),
+            }]));
+        }
+
+        let parent = Account::from_ref(new_parent, conn)?
+            .ok_or(AppError::NotFound("parent account".into()))?;
+
+        if parent.workspace != self.workspace {
+            return Err(AppError::Validation(vec![crate::error::FieldError {
+                field: "parent_id".into(),
+                message: "new parent must be in the same workspace".into(),
+            }]));
+        }
+
+        if parent.account_type != self.account_type {
+            return Err(AppError::Validation(vec![crate::error::FieldError {
+                field: "parent_id".into(),
+                message: format!(
+                    "cannot reparent {} account under {} account",
+                    self.account_type.as_str(),
+                    parent.account_type.as_str()
+                ),
+            }]));
+        }
+
+        let descendants = self.descendants(conn)?;
+        if descendants.iter().any(|descendant| descendant.id == *new_parent) {
+            return Err(AppError::Validation(vec![crate::error::FieldError {
+                field: "parent_id".into(),
+                message: "cannot reparent account under its own descendant".into(),
+            }]));
+        }
+
+        let now = chrono::Utc::now().naive_utc();
+        diesel::update(accounts::table.find(&self.id))
+            .set((
+                accounts::parent_id.eq(Some(new_parent)),
+                accounts::updated_at.eq(now),
+            ))
+            .execute(conn)?;
+
+        Account::from_ref(&self.id, conn)?
+            .ok_or_else(|| AppError::Internal("account disappeared after reparent".to_string()))
+    }
+
     pub fn soft_delete(&self, conn: &mut SqliteConnection) -> Result<(), AppError> {
         // Prevent deleting accounts with active children
         let active_children_count: i64 = accounts::table
@@ -989,6 +1066,141 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
 
         assert_eq!(chequing.balance(&mut conn).unwrap(), 0);
+    }
+
+    // ── Rename tests ───────────────────────────────────────────────
+
+    #[test]
+    fn rename_succeeds() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+
+        let renamed = chequing.rename("Main Chequing", &mut conn).unwrap();
+
+        assert_eq!(renamed.name, "Main Chequing");
+        assert_eq!(renamed.id, chequing.id);
+    }
+
+    #[test]
+    fn rename_duplicate_under_same_parent_rejected() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+
+        // "Savings" is a sibling under Assets
+        let result = chequing.rename("Savings", &mut conn);
+
+        assert!(matches!(result, Err(AppError::Conflict(_))));
+    }
+
+    // ── Reparent tests ─────────────────────────────────────────────
+
+    #[test]
+    fn reparent_succeeds() {
+        let (mut conn, workspace) = setup();
+        let expenses = find_account("Expenses", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        // Create a sub-category under Expenses to move Food into
+        let categories = NewAccount::child(&expenses, "Categories")
+            .insert(&mut conn)
+            .unwrap();
+
+        let reparented = food.reparent(&categories.id, &mut conn).unwrap();
+
+        assert_eq!(reparented.parent_id, Some(categories.id.clone()));
+        assert_eq!(
+            reparented.full_name(&mut conn).unwrap(),
+            "Expenses:Categories:Food"
+        );
+    }
+
+    #[test]
+    fn reparent_cycle_rejected() {
+        let (mut conn, workspace) = setup();
+        let expenses = find_account("Expenses", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        // Try to reparent Expenses under Food (its own descendant)
+        let result = expenses.reparent(&food.id, &mut conn);
+
+        // Expenses is a root, so it should be rejected for that reason first
+        assert!(matches!(result, Err(AppError::Validation(_))));
+    }
+
+    #[test]
+    fn reparent_cycle_rejected_non_root() {
+        let (mut conn, workspace) = setup();
+        let food = find_account("Food", &workspace, &mut conn);
+
+        // Create a child of Food
+        let fast_food = NewAccount::child(&food, "Fast Food")
+            .insert(&mut conn)
+            .unwrap();
+
+        // Try to reparent Food under its own child
+        let result = food.reparent(&fast_food.id, &mut conn);
+
+        assert!(matches!(result, Err(AppError::Validation(_))));
+    }
+
+    #[test]
+    fn reparent_cross_type_rejected() {
+        let (mut conn, workspace) = setup();
+        let food = find_account("Food", &workspace, &mut conn);
+        let assets = find_account("Assets", &workspace, &mut conn);
+
+        // Try to move an Expense account under Assets
+        let result = food.reparent(&assets.id, &mut conn);
+
+        assert!(matches!(result, Err(AppError::Validation(_))));
+    }
+
+    #[test]
+    fn reparent_root_account_rejected() {
+        let (mut conn, workspace) = setup();
+        let expenses = find_account("Expenses", &workspace, &mut conn);
+        let revenue = find_account("Revenue", &workspace, &mut conn);
+
+        // Try to reparent "Expenses" root
+        let result = expenses.reparent(&revenue.id, &mut conn);
+
+        assert!(matches!(result, Err(AppError::Validation(_))));
+    }
+
+    #[test]
+    fn reparent_to_self_rejected() {
+        let (mut conn, workspace) = setup();
+        let food = find_account("Food", &workspace, &mut conn);
+
+        let result = food.reparent(&food.id, &mut conn);
+
+        assert!(matches!(result, Err(AppError::Validation(_))));
+    }
+
+    #[test]
+    fn reparent_cross_workspace_rejected() {
+        let mut conn = setup_test_db();
+        let user_a = NewUser::new("a@example.com", "A", "password")
+            .unwrap()
+            .insert(&mut conn)
+            .unwrap();
+        let user_b = NewUser::new("b@example.com", "B", "password")
+            .unwrap()
+            .insert(&mut conn)
+            .unwrap();
+        let workspace_a = NewWorkspace::new("WS A", user_a.as_ref().clone())
+            .insert(&mut conn)
+            .unwrap();
+        let workspace_b = NewWorkspace::new("WS B", user_b.as_ref().clone())
+            .insert(&mut conn)
+            .unwrap();
+
+        let food_a = find_account("Food", &workspace_a, &mut conn);
+        let expenses_b = find_account("Expenses", &workspace_b, &mut conn);
+
+        let result = food_a.reparent(&expenses_b.id, &mut conn);
+
+        assert!(matches!(result, Err(AppError::Validation(_))));
     }
 
     // ── balance_between tests ──────────────────────────────────────

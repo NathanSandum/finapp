@@ -75,6 +75,65 @@ impl Entry {
             .map_err(|err| AppError::Internal(format!("postings query failed: {err}")))
     }
 
+    pub fn update(
+        &self,
+        changes: UpdateEntry,
+        conn: &mut SqliteConnection,
+    ) -> Result<Entry, AppError> {
+        if let Some(ref posting_inputs) = changes.postings {
+            validate_postings(posting_inputs)?;
+        }
+
+        conn.transaction::<_, AppError, _>(|conn| {
+            let now = chrono::Utc::now().naive_utc();
+
+            if let Some(ref date) = changes.date {
+                diesel::update(entries::table.find(&self.id))
+                    .set(entries::date.eq(date))
+                    .execute(conn)?;
+            }
+            if let Some(ref description) = changes.description {
+                diesel::update(entries::table.find(&self.id))
+                    .set(entries::description.eq(description))
+                    .execute(conn)?;
+            }
+            if let Some(cleared) = changes.cleared {
+                diesel::update(entries::table.find(&self.id))
+                    .set(entries::cleared.eq(cleared))
+                    .execute(conn)?;
+            }
+
+            if let Some(posting_inputs) = changes.postings {
+                diesel::delete(postings::table.filter(postings::entry_id.eq(&self.id)))
+                    .execute(conn)?;
+
+                for input in posting_inputs {
+                    diesel::insert_into(postings::table)
+                        .values(NewPostingRow {
+                            id: Uuid::new_v4().to_string(),
+                            entry: self.id.clone(),
+                            account: input.account,
+                            amount: input.amount,
+                            note: input.note.unwrap_or_default(),
+                            created_at: now,
+                            updated_at: now,
+                        })
+                        .execute(conn)?;
+                }
+            }
+
+            diesel::update(entries::table.find(&self.id))
+                .set(entries::updated_at.eq(now))
+                .execute(conn)?;
+
+            entries::table
+                .find(&self.id)
+                .select(Entry::as_select())
+                .first(conn)
+                .map_err(|err| AppError::Internal(format!("entry refresh failed: {err}")))
+        })
+    }
+
     pub fn soft_delete(&self, conn: &mut SqliteConnection) -> Result<(), AppError> {
         let now = chrono::Utc::now().naive_utc();
         diesel::update(entries::table.find(&self.id))
@@ -200,6 +259,41 @@ pub struct PostingInput {
     pub note: Option<String>,
 }
 
+fn validate_postings(posting_inputs: &[PostingInput]) -> Result<(), AppError> {
+    if posting_inputs.len() < 2 {
+        return Err(AppError::Validation(vec![crate::error::FieldError {
+            field: "postings".into(),
+            message: "entry must have at least 2 postings".into(),
+        }]));
+    }
+
+    for input in posting_inputs {
+        if input.amount == 0 {
+            return Err(AppError::Validation(vec![crate::error::FieldError {
+                field: "postings".into(),
+                message: "posting amount cannot be zero".into(),
+            }]));
+        }
+    }
+
+    let sum: i64 = posting_inputs.iter().map(|p| p.amount as i64).sum();
+    if sum != 0 {
+        return Err(AppError::Validation(vec![crate::error::FieldError {
+            field: "postings".into(),
+            message: format!("postings must sum to zero, got {sum}"),
+        }]));
+    }
+
+    Ok(())
+}
+
+pub struct UpdateEntry {
+    pub date: Option<String>,
+    pub description: Option<String>,
+    pub cleared: Option<bool>,
+    pub postings: Option<Vec<PostingInput>>,
+}
+
 impl PostingInput {
     pub fn new(account: AccountRef, amount: i32) -> Self {
         PostingInput {
@@ -272,32 +366,7 @@ impl NewEntry {
     }
 
     pub fn insert(self, conn: &mut SqliteConnection) -> Result<Entry, AppError> {
-        // Validate: at least 2 postings
-        if self.posting_inputs.len() < 2 {
-            return Err(AppError::Validation(vec![crate::error::FieldError {
-                field: "postings".into(),
-                message: "entry must have at least 2 postings".into(),
-            }]));
-        }
-
-        // Validate: no zero amounts
-        for input in &self.posting_inputs {
-            if input.amount == 0 {
-                return Err(AppError::Validation(vec![crate::error::FieldError {
-                    field: "postings".into(),
-                    message: "posting amount cannot be zero".into(),
-                }]));
-            }
-        }
-
-        // Validate: sum to zero
-        let sum: i64 = self.posting_inputs.iter().map(|p| p.amount as i64).sum();
-        if sum != 0 {
-            return Err(AppError::Validation(vec![crate::error::FieldError {
-                field: "postings".into(),
-                message: format!("postings must sum to zero, got {sum}"),
-            }]));
-        }
+        validate_postings(&self.posting_inputs)?;
 
         conn.transaction::<_, AppError, _>(|conn| {
             let now = chrono::Utc::now().naive_utc();
@@ -629,6 +698,229 @@ mod tests {
 
         let all = workspace.as_ref().entries(&mut conn).unwrap();
         assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn update_date_only() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        let entry = simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+        let original_postings = entry.postings(&mut conn).unwrap();
+
+        let updated = entry
+            .update(
+                UpdateEntry {
+                    date: Some("2026-02-20".to_string()),
+                    description: None,
+                    cleared: None,
+                    postings: None,
+                },
+                &mut conn,
+            )
+            .unwrap();
+
+        assert_eq!(updated.date, "2026-02-20");
+        assert_eq!(updated.description, "Groceries");
+        assert!(updated.cleared);
+
+        let postings_after = updated.postings(&mut conn).unwrap();
+        assert_eq!(postings_after.len(), original_postings.len());
+        for (before, after) in original_postings.iter().zip(postings_after.iter()) {
+            assert_eq!(before.id, after.id);
+        }
+    }
+
+    #[test]
+    fn update_description_only() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        let entry = simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+
+        let updated = entry
+            .update(
+                UpdateEntry {
+                    date: None,
+                    description: Some("Updated description".to_string()),
+                    cleared: None,
+                    postings: None,
+                },
+                &mut conn,
+            )
+            .unwrap();
+
+        assert_eq!(updated.description, "Updated description");
+        assert_eq!(updated.date, "2026-01-15");
+    }
+
+    #[test]
+    fn update_cleared_flag() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        let entry = simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+        assert!(entry.cleared);
+
+        let updated = entry
+            .update(
+                UpdateEntry {
+                    date: None,
+                    description: None,
+                    cleared: Some(false),
+                    postings: None,
+                },
+                &mut conn,
+            )
+            .unwrap();
+
+        assert!(!updated.cleared);
+    }
+
+    #[test]
+    fn update_replaces_postings() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+        let rent = find_account("Rent", &workspace, &mut conn);
+
+        let entry = simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+        let old_postings = entry.postings(&mut conn).unwrap();
+
+        let updated = entry
+            .update(
+                UpdateEntry {
+                    date: None,
+                    description: None,
+                    cleared: None,
+                    postings: Some(vec![
+                        PostingInput::new(chequing.id.clone(), -5000),
+                        PostingInput::new(rent.id.clone(), 5000),
+                    ]),
+                },
+                &mut conn,
+            )
+            .unwrap();
+
+        let new_postings = updated.postings(&mut conn).unwrap();
+        assert_eq!(new_postings.len(), 2);
+
+        // Old posting IDs should be gone
+        for old in &old_postings {
+            assert!(
+                !new_postings.iter().any(|p| p.id == old.id),
+                "old posting should have been deleted"
+            );
+        }
+
+        // New postings should reference rent, not food
+        let accounts: Vec<&AccountRef> = new_postings.iter().map(|p| &p.account).collect();
+        assert!(accounts.contains(&&rent.id));
+        assert!(!accounts.contains(&&food.id));
+    }
+
+    #[test]
+    fn update_postings_non_zero_sum_rejected() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        let entry = simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+
+        let error = entry
+            .update(
+                UpdateEntry {
+                    date: None,
+                    description: None,
+                    cleared: None,
+                    postings: Some(vec![
+                        PostingInput::new(chequing.id.clone(), -1200),
+                        PostingInput::new(food.id.clone(), 1000),
+                    ]),
+                },
+                &mut conn,
+            )
+            .expect_err("non-zero sum should fail");
+
+        assert!(matches!(error, AppError::Validation(_)));
+    }
+
+    #[test]
+    fn update_postings_fewer_than_two_rejected() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        let entry = simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+
+        let error = entry
+            .update(
+                UpdateEntry {
+                    date: None,
+                    description: None,
+                    cleared: None,
+                    postings: Some(vec![PostingInput::new(chequing.id.clone(), 100)]),
+                },
+                &mut conn,
+            )
+            .expect_err("single posting should fail");
+
+        assert!(matches!(error, AppError::Validation(_)));
+    }
+
+    #[test]
+    fn update_postings_zero_amount_rejected() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        let entry = simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+
+        let error = entry
+            .update(
+                UpdateEntry {
+                    date: None,
+                    description: None,
+                    cleared: None,
+                    postings: Some(vec![
+                        PostingInput::new(chequing.id.clone(), 0),
+                        PostingInput::new(food.id.clone(), 0),
+                    ]),
+                },
+                &mut conn,
+            )
+            .expect_err("zero amount should fail");
+
+        assert!(matches!(error, AppError::Validation(_)));
+    }
+
+    #[test]
+    fn update_no_changes() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        let entry = simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+
+        let updated = entry
+            .update(
+                UpdateEntry {
+                    date: None,
+                    description: None,
+                    cleared: None,
+                    postings: None,
+                },
+                &mut conn,
+            )
+            .unwrap();
+
+        assert_eq!(updated.date, entry.date);
+        assert_eq!(updated.description, entry.description);
+        assert_eq!(updated.cleared, entry.cleared);
+        assert!(updated.updated_at >= entry.updated_at);
     }
 
     #[test]

@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 
 use crate::auth::WorkspaceMember;
 use crate::domain::account::AccountRef;
-use crate::domain::entry::{Entry, EntryRef, NewEntry, PostingInput};
+use crate::domain::entry::{Entry, EntryRef, NewEntry, PostingInput, UpdateEntry};
 use crate::domain::workspace::{Role, WorkspaceRef};
 use crate::error::AppError;
 use crate::DbPool;
@@ -109,6 +109,58 @@ pub async fn get(
     let postings = entry.postings(&mut conn)?;
 
     Ok(Json(entry_to_json(&entry, &postings)))
+}
+
+#[derive(Deserialize)]
+pub struct UpdateEntryRequest {
+    date: Option<String>,
+    description: Option<String>,
+    cleared: Option<bool>,
+    postings: Option<Vec<CreatePostingRequest>>,
+}
+
+pub async fn update(
+    Extension(pool): Extension<DbPool>,
+    member: WorkspaceMember,
+    Path(path): Path<EntryPath>,
+    Json(body): Json<UpdateEntryRequest>,
+) -> Result<Json<Value>, AppError> {
+    member.require_role(&Role::Editor)?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+
+    let entry =
+        Entry::from_ref(&path.entry, &mut conn)?.ok_or(AppError::NotFound("entry".into()))?;
+
+    if entry.workspace != member.workspace {
+        return Err(AppError::NotFound("entry".into()));
+    }
+
+    let posting_inputs = body.postings.map(|postings| {
+        postings
+            .into_iter()
+            .map(|p| {
+                let mut input = PostingInput::new(p.account_id, p.amount);
+                if let Some(note) = p.note {
+                    input = input.note(&note);
+                }
+                input
+            })
+            .collect()
+    });
+
+    let changes = UpdateEntry {
+        date: body.date,
+        description: body.description,
+        cleared: body.cleared,
+        postings: posting_inputs,
+    };
+
+    let updated = entry.update(changes, &mut conn)?;
+    let postings = updated.postings(&mut conn)?;
+
+    Ok(Json(entry_to_json(&updated, &postings)))
 }
 
 pub async fn delete(
