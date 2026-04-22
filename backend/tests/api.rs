@@ -1313,6 +1313,93 @@ async fn update_account_rename_requires_editor() {
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
 
+// ── Merge entries tests ────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn merge_entries_succeeds() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let savings = find_account_id(&app, &workspace_id, &token, "Savings").await;
+
+    let (_, entry_one) = create_entry(
+        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+    )
+    .await;
+    let (_, entry_two) = create_entry(
+        &app, &workspace_id, &token, &chequing, &savings, 5000, "2026-01-16", "Savings",
+    )
+    .await;
+
+    let entry_one_id = entry_one["id"].as_str().unwrap();
+    let entry_two_id = entry_two["id"].as_str().unwrap();
+
+    let (status, body) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries/merge"),
+        Some(&token),
+        json!({
+            "source_entry_ids": [entry_one_id, entry_two_id],
+            "date": "2026-01-15",
+            "description": "Merged transfer",
+            "cleared": true,
+            "postings": [
+                { "account_id": chequing, "amount": -6200 },
+                { "account_id": savings, "amount": 6200 },
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CREATED, "merge failed: {body}");
+    assert_eq!(body["description"], "Merged transfer");
+    assert_eq!(body["postings"].as_array().unwrap().len(), 2);
+
+    // Verify originals are gone from list
+    let (_, list_body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries"),
+        &token,
+    )
+    .await;
+    let entries = list_body["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["description"], "Merged transfer");
+}
+
+#[tokio::test]
+async fn merge_entries_non_zero_sum_rejected() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+
+    let (_, entry_one) = create_entry(
+        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+    )
+    .await;
+    let entry_one_id = entry_one["id"].as_str().unwrap();
+
+    let (status, _) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries/merge"),
+        Some(&token),
+        json!({
+            "source_entry_ids": [entry_one_id],
+            "date": "2026-01-15",
+            "description": "Bad merge",
+            "postings": [
+                { "account_id": chequing, "amount": -1200 },
+                { "account_id": food, "amount": 1000 },
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 // ── Workspace update tests ──────────────────────────────────────────────────
 
 #[tokio::test]

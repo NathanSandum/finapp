@@ -8,7 +8,7 @@
 
 	import BalanceSheetView from '$lib/components/BalanceSheetView.svelte';
 	import EntriesView from '$lib/components/EntriesView.svelte';
-	import ImportView from '$lib/components/ImportView.svelte';
+	import SettingsView from '$lib/components/SettingsView.svelte';
 
 	type View = 'Income Statement' | 'Balance Sheet' | 'Cash Flow' | 'Entries' | 'Settings';
 
@@ -17,6 +17,7 @@
 	let workspaceId = $state('');
 	let loading = $state(true);
 	let error = $state('');
+	let entryActions: { openNewForm: () => void } | null = $state(null);
 
 	onMount(async () => {
 		try {
@@ -77,9 +78,19 @@
 			<!-- Top bar -->
 			<div class="flex shrink-0 items-center justify-between border-b border-gray-800 px-4 py-2">
 				<h2 class="text-sm font-medium text-gray-200">{activeView}</h2>
-				{#if activeView !== 'Settings'}
-					<QuarterSelector bind:quarter />
-				{/if}
+				<div class="flex items-center gap-2">
+					{#if activeView === 'Entries'}
+						<button
+							class="inline-flex h-6 w-6 items-center justify-center rounded text-lg text-gray-400 hover:bg-gray-800 hover:text-blue-400"
+							onclick={() => entryActions?.openNewForm()}
+						>
+							+
+						</button>
+					{/if}
+					{#if activeView !== 'Settings'}
+						<QuarterSelector bind:quarter />
+					{/if}
+				</div>
 			</div>
 
 			<!-- Content -->
@@ -93,9 +104,9 @@
 				{:else if activeView === 'Balance Sheet'}
 					<BalanceSheetView {workspaceId} {quarter} />
 				{:else if activeView === 'Entries'}
-					<EntriesView {workspaceId} {quarter} />
+					<EntriesView {workspaceId} {quarter} onregister={(actions) => (entryActions = actions)} />
 				{:else if activeView === 'Settings'}
-					<ImportView {workspaceId} />
+					<SettingsView {workspaceId} />
 				{/if}
 			</main>
 		</div>

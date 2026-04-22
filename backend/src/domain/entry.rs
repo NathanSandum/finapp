@@ -134,6 +134,51 @@ impl Entry {
         })
     }
 
+    pub fn merge(
+        source_entries: &[Entry],
+        workspace: &WorkspaceRef,
+        date: &str,
+        description: &str,
+        cleared: bool,
+        posting_inputs: Vec<PostingInput>,
+        conn: &mut SqliteConnection,
+    ) -> Result<Entry, AppError> {
+        if source_entries.is_empty() {
+            return Err(AppError::Validation(vec![crate::error::FieldError {
+                field: "source_entry_ids".into(),
+                message: "must provide at least one source entry".into(),
+            }]));
+        }
+
+        for entry in source_entries {
+            if entry.workspace != *workspace {
+                return Err(AppError::Validation(vec![crate::error::FieldError {
+                    field: "source_entry_ids".into(),
+                    message: "all source entries must belong to the same workspace".into(),
+                }]));
+            }
+        }
+
+        validate_postings(&posting_inputs)?;
+
+        conn.transaction::<_, AppError, _>(|conn| {
+            for entry in source_entries {
+                entry.soft_delete(conn)?;
+            }
+
+            let new_entry = NewEntry::new(
+                workspace.clone(),
+                date,
+                description,
+                posting_inputs,
+            )
+            .cleared(cleared)
+            .insert(conn)?;
+
+            Ok(new_entry)
+        })
+    }
+
     pub fn soft_delete(&self, conn: &mut SqliteConnection) -> Result<(), AppError> {
         let now = chrono::Utc::now().naive_utc();
         diesel::update(entries::table.find(&self.id))
@@ -921,6 +966,148 @@ mod tests {
         assert_eq!(updated.description, entry.description);
         assert_eq!(updated.cleared, entry.cleared);
         assert!(updated.updated_at >= entry.updated_at);
+    }
+
+    #[test]
+    fn merge_two_entries_into_one() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+        let savings = find_account("Savings", &workspace, &mut conn);
+
+        let entry_one = simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+        let entry_two = NewEntry::new(
+            workspace.as_ref().clone(),
+            "2026-01-16",
+            "ATM withdrawal",
+            vec![
+                PostingInput::new(chequing.id.clone(), -5000),
+                PostingInput::new(savings.id.clone(), 5000),
+            ],
+        )
+        .insert(&mut conn)
+        .unwrap();
+
+        let merged = Entry::merge(
+            &[entry_one, entry_two],
+            workspace.as_ref(),
+            "2026-01-15",
+            "Transfer to savings",
+            true,
+            vec![
+                PostingInput::new(chequing.id.clone(), -6200),
+                PostingInput::new(savings.id.clone(), 6200),
+            ],
+            &mut conn,
+        )
+        .unwrap();
+
+        assert_eq!(merged.description, "Transfer to savings");
+        assert_eq!(merged.date, "2026-01-15");
+        assert!(merged.cleared);
+
+        let postings = merged.postings(&mut conn).unwrap();
+        assert_eq!(postings.len(), 2);
+        let sum: i64 = postings.iter().map(|p| p.amount as i64).sum();
+        assert_eq!(sum, 0);
+
+        // Originals should be soft-deleted (excluded from workspace entries)
+        let all_entries = workspace.as_ref().entries(&mut conn).unwrap();
+        assert_eq!(all_entries.len(), 1);
+        assert_eq!(all_entries[0].id, merged.id);
+    }
+
+    #[test]
+    fn merge_rejects_non_zero_sum_postings() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        let entry = simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+
+        let error = Entry::merge(
+            &[entry],
+            workspace.as_ref(),
+            "2026-01-15",
+            "Bad merge",
+            false,
+            vec![
+                PostingInput::new(chequing.id.clone(), -1200),
+                PostingInput::new(food.id.clone(), 1000),
+            ],
+            &mut conn,
+        )
+        .expect_err("non-zero sum should fail");
+
+        assert!(matches!(error, AppError::Validation(_)));
+    }
+
+    #[test]
+    fn merge_rejects_empty_sources() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        let error = Entry::merge(
+            &[],
+            workspace.as_ref(),
+            "2026-01-15",
+            "Empty merge",
+            false,
+            vec![
+                PostingInput::new(chequing.id.clone(), -1200),
+                PostingInput::new(food.id.clone(), 1200),
+            ],
+            &mut conn,
+        )
+        .expect_err("empty sources should fail");
+
+        assert!(matches!(error, AppError::Validation(_)));
+    }
+
+    #[test]
+    fn merge_cross_workspace_rejected() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        let entry = simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+
+        // Create a second workspace
+        let user_two = NewUser::new("bob@example.com", "Bob", "password")
+            .unwrap()
+            .insert(&mut conn)
+            .unwrap();
+        let workspace_two = NewWorkspace::new("Other Finances", user_two.as_ref().clone())
+            .insert(&mut conn)
+            .unwrap();
+        let other_chequing = find_account("Chequing", &workspace_two, &mut conn);
+        let other_food = find_account("Food", &workspace_two, &mut conn);
+
+        let other_entry = simple_expense(
+            &workspace_two,
+            &other_chequing,
+            &other_food,
+            500,
+            "2026-01-15",
+            &mut conn,
+        );
+
+        let error = Entry::merge(
+            &[entry, other_entry],
+            workspace.as_ref(),
+            "2026-01-15",
+            "Cross workspace",
+            false,
+            vec![
+                PostingInput::new(chequing.id.clone(), -1700),
+                PostingInput::new(food.id.clone(), 1700),
+            ],
+            &mut conn,
+        )
+        .expect_err("cross-workspace should fail");
+
+        assert!(matches!(error, AppError::Validation(_)));
     }
 
     #[test]
