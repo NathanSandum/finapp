@@ -30,61 +30,83 @@
 	}
 </script>
 
-<table class="w-full border-collapse text-xs">
+<table class="w-full border-collapse font-mono text-xs">
+	<!-- Column headers -->
 	<thead>
-		<tr class="border-b border-gray-800">
-			<th class="w-48 py-1.5 pl-3 pr-2 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-600">
-				Account
-			</th>
+		<tr>
+			<th
+				class="border border-gray-700 bg-gray-900 px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400"
+			></th>
 			{#each periods as period}
-				<th class="px-2 py-1.5 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-600">
+				<th
+					class="border border-gray-700 bg-gray-900 px-2 py-1.5 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-400"
+				>
 					{period}
 				</th>
 			{/each}
 		</tr>
 	</thead>
 	<tbody>
-		{#each sections as section, sectionIndex}
-			<!-- Section header -->
+		{#each sections as section}
+			<!-- Section title row -->
 			<tr>
-				<td
-					colspan={periods.length + 1}
-					class="pt-3 pb-1 pl-3 text-[10px] font-semibold uppercase tracking-wider text-gray-500"
-					class:pt-4={sectionIndex > 0}
-				>
+				<td class="border border-gray-700 bg-gray-800/50 px-2 py-1 font-bold text-gray-200">
 					{section.title}
 				</td>
+				{#each periods as _}
+					<td class="border border-gray-700 bg-gray-800/50"></td>
+				{/each}
 			</tr>
 
 			<!-- Account rows -->
 			{#each section.rows as row}
-				<tr class="hover:bg-gray-900/50">
-					<td class="py-1 pl-6 pr-2 text-gray-300">{row.name}</td>
+				<tr>
+					<td class="border border-gray-700 py-1 pl-4 pr-2 text-gray-300">
+						{row.name}
+					</td>
 					{#each row.balances as balance}
-						<td class="px-2 py-1 text-right font-medium tabular-nums {amountColor(balance)}">
+						<td
+							class="border border-gray-700 px-2 py-1 text-right tabular-nums {amountColor(balance)}"
+						>
 							{formatAmount(balance)}
 						</td>
 					{/each}
 				</tr>
 			{/each}
 
-			<!-- Section total -->
-			<tr class="border-t border-gray-800">
-				<td class="py-1.5 pl-3 pr-2 font-semibold text-gray-200">Total {section.title}</td>
+			<!-- Section total row -->
+			<tr>
+				<td class="border border-gray-700 bg-gray-800/30 px-2 py-1 font-bold text-gray-200">
+					Total {section.title}
+				</td>
 				{#each section.totals as total}
-					<td class="px-2 py-1.5 text-right font-semibold tabular-nums {amountColor(total)}">
+					<td
+						class="border border-gray-700 bg-gray-800/30 px-2 py-1 text-right font-bold tabular-nums {amountColor(total)}"
+					>
 						{formatAmount(total)}
 					</td>
+				{/each}
+			</tr>
+
+			<!-- Blank separator row -->
+			<tr>
+				<td class="border border-gray-700 py-1"></td>
+				{#each periods as _}
+					<td class="border border-gray-700 py-1"></td>
 				{/each}
 			</tr>
 		{/each}
 
 		<!-- Bottom line -->
 		{#if bottomLine}
-			<tr class="border-t-2 border-gray-700">
-				<td class="py-2 pl-3 pr-2 font-bold text-gray-100">{bottomLine.label}</td>
+			<tr>
+				<td class="border-2 border-gray-600 bg-gray-800 px-2 py-1.5 font-bold text-gray-100">
+					{bottomLine.label}
+				</td>
 				{#each bottomLine.values as value}
-					<td class="px-2 py-2 text-right font-bold tabular-nums {amountColor(value)}">
+					<td
+						class="border-2 border-gray-600 bg-gray-800 px-2 py-1.5 text-right font-bold tabular-nums {amountColor(value)}"
+					>
 						{formatAmount(value)}
 					</td>
 				{/each}
