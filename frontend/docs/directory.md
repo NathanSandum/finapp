@@ -33,10 +33,14 @@ frontend/
 │           ├── ImportDoneStep.svelte   # Step 5: success count + error list
 │           ├── AccountSelect.svelte   # Reusable account dropdown with "create new" option
 │           ├── FundingSelect.svelte   # Reusable funding account dropdown
-│           ├── IncomeView.svelte      # Income statement for current month
-│           ├── CashFlowView.svelte    # Cash flow — combined revenue/expense table
-│           ├── BalanceSheetView.svelte # Balance sheet — assets/liabilities/equity sections
-│           └── EntriesView.svelte     # Transaction ledger with delete
+│           ├── ReportShell.svelte     # Shared loading/empty state wrapper for report views
+│           ├── ReportTable.svelte     # Spreadsheet grid for multi-period reports
+│           ├── Sidebar.svelte         # Fixed sidebar nav with 3 groups
+│           ├── QuarterSelector.svelte # Quarter navigation (prev/next)
+│           ├── IncomeStatementView.svelte # Income statement — multi-period spreadsheet
+│           ├── CashFlowView.svelte    # Cash flow — multi-period spreadsheet
+│           ├── BalanceSheetView.svelte # Balance sheet — multi-period spreadsheet
+│           └── EntriesView.svelte     # Period-filtered entry ledger — spreadsheet grid
 ├── static/
 │   └── robots.txt
 ├── svelte.config.js                   # SvelteKit config — static adapter, Svelte 5 runes
@@ -57,9 +61,11 @@ frontend/
 | import.test.ts | 401 | Tests for import.ts |
 | api.svelte.ts | ~200 | Low — thin fetch wrapper |
 | types.ts | ~65 | Low — shared type definitions |
-| IncomeView.svelte | ~130 | Low |
-| BalanceSheetView.svelte | ~115 | Low |
-| CashFlowView.svelte | ~115 | Low |
-| EntriesView.svelte | ~100 | Low |
+| ReportShell.svelte | ~20 | Low — loading/empty wrapper |
+| ReportTable.svelte | ~115 | Low — spreadsheet grid |
+| IncomeStatementView.svelte | ~45 | Low |
+| BalanceSheetView.svelte | ~50 | Low |
+| CashFlowView.svelte | ~45 | Low |
+| EntriesView.svelte | ~115 | Low — period-filtered ledger grid |
 | login/+page.svelte | 112 | Low |
 | +page.svelte | 106 | Low |

@@ -17,10 +17,6 @@ Only `import.ts` has tests (401 lines, good coverage). No component tests exist.
 - `EntriesView.svelte` — delete confirmation, empty state
 - `login/+page.svelte` — mode toggle, error display
 
-### TODO: Extract report view loading/empty shell
-
-`IncomeView` and `CashFlowView` share identical loading/empty state markup patterns. Period calculation is now shared via `$lib/period.ts` and `formatAmount` via `$lib/format.ts`, but the loading/empty conditional blocks are still duplicated. Consider a `ReportShell.svelte` wrapper with slots for content.
-
 ## Low Priority
 
 ### TODO: Decouple auth from root page
