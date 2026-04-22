@@ -242,7 +242,7 @@
 	}
 </script>
 
-<div>
+<div class="p-4">
 	<header class="mb-6 border-b border-gray-800 pb-4">
 		<h2 class="text-lg font-semibold text-gray-100">Import CSV</h2>
 	</header>

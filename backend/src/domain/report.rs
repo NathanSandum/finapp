@@ -98,6 +98,9 @@ impl BalanceSheet {
         for child in &children {
             let raw_balance = child.balance_as_of_with_descendants(date, conn)?;
             let balance = if negate { -raw_balance } else { raw_balance };
+            if balance == 0 {
+                continue;
+            }
             result.push(AccountBalance {
                 account: child.id.clone(),
                 name: child.name.clone(),
@@ -182,6 +185,9 @@ impl IncomeStatement {
             let raw_balance =
                 child.balance_between_with_descendants(start_date, end_date, conn)?;
             let balance = if negate { -raw_balance } else { raw_balance };
+            if balance == 0 {
+                continue;
+            }
             result.push(AccountBalance {
                 account: child.id.clone(),
                 name: child.name.clone(),
@@ -485,5 +491,55 @@ mod tests {
         assert_eq!(food_expense.balance, 1700);
 
         assert_eq!(statement.total_expenses, 1700);
+    }
+
+    #[test]
+    fn balance_sheet_excludes_zero_balance_accounts() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let employment = find_account("Employment", &workspace, &mut conn);
+
+        // Only Chequing gets a balance; Savings, TFSA, RRSP stay at zero
+        make_entry(&workspace, &employment, &chequing, 500000, "2026-01-01", &mut conn);
+
+        let sheet = BalanceSheet::as_of(workspace.as_ref(), "2026-01-31", &mut conn).unwrap();
+
+        // Should contain Chequing
+        assert!(sheet.assets.iter().any(|a| a.name == "Chequing"));
+        // Should NOT contain zero-balance accounts
+        assert!(!sheet.assets.iter().any(|a| a.name == "Savings"));
+        assert!(!sheet.assets.iter().any(|a| a.name == "TFSA"));
+        assert!(!sheet.assets.iter().any(|a| a.name == "RRSP"));
+        // Totals still correct
+        assert_eq!(sheet.total_assets, 500000);
+    }
+
+    #[test]
+    fn income_statement_excludes_zero_balance_accounts() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let employment = find_account("Employment", &workspace, &mut conn);
+        let food = find_account("Food", &workspace, &mut conn);
+
+        make_entry(&workspace, &employment, &chequing, 500000, "2026-01-01", &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-05", &mut conn);
+
+        let statement = IncomeStatement::for_period(
+            workspace.as_ref(),
+            "2026-01-01",
+            "2026-01-31",
+            &mut conn,
+        )
+        .unwrap();
+
+        // Revenue should only contain Employment
+        assert_eq!(statement.revenue.len(), 1);
+        assert_eq!(statement.revenue[0].name, "Employment");
+        // Expenses should only contain Food (not Rent, Groceries, etc.)
+        assert_eq!(statement.expenses.len(), 1);
+        assert_eq!(statement.expenses[0].name, "Food");
+        // Totals still correct
+        assert_eq!(statement.total_revenue, 500000);
+        assert_eq!(statement.total_expenses, 1200);
     }
 }

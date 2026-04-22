@@ -16,7 +16,7 @@
 		api
 			.getMultiPeriodIncomeStatement(workspaceId, quarter)
 			.then((data) => (statement = data))
-			.catch(() => {})
+			.catch((error) => console.error('IncomeStatementView fetch failed:', error))
 			.finally(() => (loading = false));
 	});
 </script>

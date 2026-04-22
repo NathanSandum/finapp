@@ -16,7 +16,7 @@
 		api
 			.getMultiPeriodBalanceSheet(workspaceId, quarter)
 			.then((data) => (sheet = data))
-			.catch(() => {})
+			.catch((error) => console.error('BalanceSheetView fetch failed:', error))
 			.finally(() => (loading = false));
 	});
 </script>
@@ -42,10 +42,6 @@
 					totals: sheet.total_equity
 				}
 			]}
-			bottomLine={{
-				label: 'Liabilities + Equity + Net Income',
-				values: sheet.total_liabilities_and_equity
-			}}
 		/>
 	{/if}
 </ReportShell>
