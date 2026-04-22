@@ -1,11 +1,8 @@
-// ── Types ────────────────────────────────────────────────────────────────────
+import type { Account, PostingInput } from '$lib/types';
 
-export type Account = {
-	id: string;
-	name: string;
-	account_type: string;
-	parent_id: string | null;
-};
+export type { Account };
+
+// ── Import-specific Types ───────────────────────────────────────────────────
 
 export type MappingType =
 	| 'skip'
@@ -25,8 +22,6 @@ export type ColumnMapping = {
 };
 
 export type DateRow = { date: string; cells: string[] };
-
-export type PostingInput = { account_id: string; amount: number; note?: string };
 
 export type EntryInput = {
 	date: string;
@@ -87,13 +82,7 @@ export function parseDollars(value: string): number {
 	return Math.round(amount * 100);
 }
 
-export function formatAmount(cents: number): string {
-	const abs = Math.abs(cents);
-	const dollars = Math.floor(abs / 100);
-	const remainder = abs % 100;
-	const sign = cents < 0 ? '-' : '';
-	return `${sign}$${dollars.toLocaleString()}.${String(remainder).padStart(2, '0')}`;
-}
+export { formatAmount } from '$lib/format';
 
 // ── CSV File Parsing ─────────────────────────────────────────────────────────
 

@@ -1,23 +1,8 @@
 <script lang="ts">
 	import * as api from '$lib/api.svelte';
+	import { formatAmount } from '$lib/format';
+	import type { Account, Entry } from '$lib/types';
 	import { onMount } from 'svelte';
-
-	type Posting = {
-		id: string;
-		account_id: string;
-		amount: number;
-		note: string;
-	};
-
-	type Entry = {
-		id: string;
-		date: string;
-		description: string;
-		cleared: boolean;
-		postings: Posting[];
-	};
-
-	type Account = { id: string; name: string; account_type: string };
 
 	let { workspaceId }: { workspaceId: string } = $props();
 
@@ -44,14 +29,6 @@
 			loading = false;
 		}
 	});
-
-	function formatAmount(cents: number): string {
-		const abs = Math.abs(cents);
-		const dollars = Math.floor(abs / 100);
-		const remainder = abs % 100;
-		const sign = cents < 0 ? '-' : '';
-		return `${sign}$${dollars.toLocaleString()}.${String(remainder).padStart(2, '0')}`;
-	}
 
 	async function handleDelete(entry: Entry) {
 		try {

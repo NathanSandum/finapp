@@ -1,27 +1,16 @@
 <script lang="ts">
 	import * as api from '$lib/api.svelte';
+	import { formatAmount } from '$lib/format';
+	import { currentMonthPeriod } from '$lib/period';
+	import type { AccountBalance, IncomeStatement } from '$lib/types';
 	import { onMount } from 'svelte';
-
-	type AccountBalance = { account: string; name: string; balance: number };
-	type IncomeStatement = {
-		start_date: string;
-		end_date: string;
-		revenue: AccountBalance[];
-		expenses: AccountBalance[];
-		total_revenue: number;
-		total_expenses: number;
-		net_income: number;
-	};
 
 	let { workspaceId }: { workspaceId: string } = $props();
 
 	let statement: IncomeStatement | null = $state(null);
 	let loading = $state(true);
 
-	const now = new Date();
-	const periodStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-	const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-	const periodEnd = `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+	const { periodStart, periodEnd } = currentMonthPeriod();
 
 	onMount(async () => {
 		try {
@@ -32,14 +21,6 @@
 			loading = false;
 		}
 	});
-
-	function formatAmount(cents: number): string {
-		const abs = Math.abs(cents);
-		const dollars = Math.floor(abs / 100);
-		const remainder = abs % 100;
-		const sign = cents < 0 ? '-' : '';
-		return `${sign}$${dollars.toLocaleString()}.${String(remainder).padStart(2, '0')}`;
-	}
 
 	// Combine revenue + expense items for table
 	let allItems = $derived.by(() => {

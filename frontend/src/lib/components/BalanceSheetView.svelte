@@ -1,19 +1,8 @@
 <script lang="ts">
 	import * as api from '$lib/api.svelte';
+	import { formatAmount } from '$lib/format';
+	import type { BalanceSheet } from '$lib/types';
 	import { onMount } from 'svelte';
-
-	type AccountBalance = { account: string; name: string; balance: number };
-	type BalanceSheet = {
-		as_of_date: string;
-		assets: AccountBalance[];
-		liabilities: AccountBalance[];
-		equity: AccountBalance[];
-		total_assets: number;
-		total_liabilities: number;
-		total_equity: number;
-		net_income: number;
-		total_liabilities_and_equity: number;
-	};
 
 	let { workspaceId }: { workspaceId: string } = $props();
 
@@ -31,14 +20,6 @@
 			loading = false;
 		}
 	});
-
-	function formatAmount(cents: number): string {
-		const abs = Math.abs(cents);
-		const dollars = Math.floor(abs / 100);
-		const remainder = abs % 100;
-		const sign = cents < 0 ? '-' : '';
-		return `${sign}$${dollars.toLocaleString()}.${String(remainder).padStart(2, '0')}`;
-	}
 </script>
 
 <div>

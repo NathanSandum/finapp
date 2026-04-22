@@ -97,13 +97,9 @@ export async function getBalance(workspace: string, account: string) {
 	return res.json();
 }
 
-// ── Entries ─────────────────────────────────────────────────────────────────
+import type { PostingInput } from '$lib/types';
 
-export type PostingInput = {
-	account_id: string;
-	amount: number;
-	note?: string;
-};
+// ── Entries ─────────────────────────────────────────────────────────────────
 
 export async function listEntries(workspace: string) {
 	const res = await request('GET', `/workspaces/${workspace}/entries`);
