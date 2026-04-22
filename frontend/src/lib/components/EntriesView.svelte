@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as api from '$lib/api.svelte';
+	import EntryForm from '$lib/components/EntryForm.svelte';
 	import { formatAmount } from '$lib/format';
 	import type { Quarter } from '$lib/period';
 	import { quarterMonths, quarterPeriodLabel } from '$lib/period';
@@ -10,6 +11,7 @@
 	let entries: Entry[] = $state([]);
 	let accounts: Account[] = $state([]);
 	let loading = $state(true);
+	let formEntry: Entry | null | 'new' = $state(null);
 
 	let accountNames = $derived(
 		Object.fromEntries(accounts.map((account) => [account.id, account.name]))
@@ -74,13 +76,48 @@
 			// backend will return error if not authorized
 		}
 	}
+
+	function handleFormSave(savedEntry: Entry) {
+		if (formEntry === 'new') {
+			entries = [savedEntry, ...entries];
+		} else {
+			entries = entries.map((existing) =>
+				existing.id === savedEntry.id ? savedEntry : existing
+			);
+		}
+		formEntry = null;
+	}
+
+	function handleFormCancel() {
+		formEntry = null;
+	}
 </script>
 
 {#if loading}
 	<div class="flex min-h-64 items-center justify-center text-gray-600">Loading...</div>
-{:else if entries.length === 0}
-	<div class="flex min-h-64 items-center justify-center text-gray-600">No entries</div>
 {:else}
+	<div class="mb-2 flex justify-end">
+		<button
+			class="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-500"
+			onclick={() => (formEntry = 'new')}
+		>
+			New Entry
+		</button>
+	</div>
+
+	{#if formEntry !== null}
+		<EntryForm
+			{workspaceId}
+			{accounts}
+			entry={formEntry === 'new' ? null : formEntry}
+			onsave={handleFormSave}
+			oncancel={handleFormCancel}
+		/>
+	{/if}
+
+	{#if entries.length === 0}
+		<div class="flex min-h-64 items-center justify-center text-gray-600">No entries</div>
+	{:else}
 	<table class="w-full border-collapse font-mono text-xs">
 		<thead>
 			<tr>
@@ -192,6 +229,12 @@
 											rowspan={entry.postings.length}
 										>
 											<button
+												class="mr-1 text-[10px] text-gray-600 hover:text-blue-400"
+												onclick={() => (formEntry = entry)}
+											>
+												&#9998;
+											</button>
+											<button
 												class="text-[10px] text-gray-600 hover:text-red-400"
 												onclick={() => handleDelete(entry)}
 											>
@@ -207,4 +250,5 @@
 			{/each}
 		</tbody>
 	</table>
+	{/if}
 {/if}
