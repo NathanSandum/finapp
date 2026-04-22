@@ -27,7 +27,7 @@
 				entries = entryData.entries;
 				accounts = accountData.accounts;
 			})
-			.catch(() => {})
+			.catch((error) => console.error('EntriesView fetch failed:', error))
 			.finally(() => (loading = false));
 	});
 

@@ -16,7 +16,7 @@
 		api
 			.getMultiPeriodBalanceSheet(workspaceId, quarter)
 			.then((data) => (sheet = data))
-			.catch(() => {})
+			.catch((error) => console.error('BalanceSheetView fetch failed:', error))
 			.finally(() => (loading = false));
 	});
 </script>
