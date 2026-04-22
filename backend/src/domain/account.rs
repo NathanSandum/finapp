@@ -470,7 +470,7 @@ pub fn create_default_tree(
     let assets = NewAccount::root(workspace.clone(), "Assets", AccountType::Asset).insert(conn)?;
     let liabilities =
         NewAccount::root(workspace.clone(), "Liabilities", AccountType::Liability).insert(conn)?;
-    let _equity =
+    let equity =
         NewAccount::root(workspace.clone(), "Equity", AccountType::Equity).insert(conn)?;
     let revenue =
         NewAccount::root(workspace.clone(), "Revenue", AccountType::Revenue).insert(conn)?;
@@ -497,6 +497,9 @@ pub fn create_default_tree(
     NewAccount::child(&expenses, "Transit").insert(conn)?;
     NewAccount::child(&expenses, "Utilities").insert(conn)?;
     NewAccount::child(&expenses, "Entertainment").insert(conn)?;
+
+    // Equity sub-accounts
+    NewAccount::child(&equity, "Opening Balances").insert(conn)?;
 
     Ok(())
 }
@@ -544,8 +547,8 @@ mod tests {
         assert_eq!(roots.len(), 5);
 
         let all = workspace.as_ref().accounts(&mut conn).unwrap();
-        // 5 roots + 4 asset + 1 liability + 1 revenue + 7 expense = 18
-        assert_eq!(all.len(), 18);
+        // 5 roots + 4 asset + 1 liability + 1 revenue + 7 expense + 1 equity = 19
+        assert_eq!(all.len(), 19);
 
         let chequing = all.iter().find(|a| a.name == "Chequing").unwrap();
         assert_eq!(chequing.account_type, AccountType::Asset);
@@ -780,11 +783,13 @@ mod tests {
     fn soft_delete_with_all_deleted_children_succeeds() {
         let (mut conn, workspace) = setup();
         let equity = find_account("Equity", &workspace, &mut conn);
+        let opening_balances = find_account("Opening Balances", &workspace, &mut conn);
 
-        // Equity has no default children, so delete should succeed
+        // Delete the child first, then parent should succeed
+        opening_balances.soft_delete(&mut conn).unwrap();
         equity
             .soft_delete(&mut conn)
-            .expect("delete with no children should succeed");
+            .expect("delete with all children deleted should succeed");
     }
 
     #[test]

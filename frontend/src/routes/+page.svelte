@@ -5,8 +5,9 @@
 	import CashFlowView from '$lib/components/CashFlowView.svelte';
 	import BalanceSheetView from '$lib/components/BalanceSheetView.svelte';
 	import EntriesView from '$lib/components/EntriesView.svelte';
+	import ImportView from '$lib/components/ImportView.svelte';
 
-	const tabs = ['Income', 'Cash Flow', 'Balance Sheet', 'Entries'] as const;
+	const tabs = ['Income', 'Cash Flow', 'Balance Sheet', 'Entries', 'Import'] as const;
 	type Tab = (typeof tabs)[number];
 
 	let activeTab: Tab = $state('Income');
@@ -97,6 +98,8 @@
 				<BalanceSheetView {workspaceId} />
 			{:else if activeTab === 'Entries'}
 				<EntriesView {workspaceId} />
+			{:else if activeTab === 'Import'}
+				<ImportView {workspaceId} />
 			{/if}
 		</main>
 	</div>

@@ -242,8 +242,8 @@ async fn workspace_has_default_accounts() {
     assert_eq!(status, StatusCode::OK);
 
     let accounts = body["accounts"].as_array().unwrap();
-    // 5 roots + 4 asset children + 1 liability child + 1 revenue child + 7 expense children = 18
-    assert_eq!(accounts.len(), 18);
+    // 5 roots + 4 asset + 1 liability + 1 revenue + 7 expense + 1 equity = 19
+    assert_eq!(accounts.len(), 19);
 
     // Check root accounts exist
     let root_names: Vec<&str> = accounts
