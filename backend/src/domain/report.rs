@@ -52,15 +52,15 @@ impl BalanceSheet {
             match root.account_type {
                 AccountType::Asset => {
                     total_assets = root_balance;
-                    assets_detail = Self::children_balances(root, date, conn)?;
+                    assets_detail = Self::children_balances(root, date, false, conn)?;
                 }
                 AccountType::Liability => {
-                    total_liabilities = root_balance;
-                    liabilities_detail = Self::children_balances(root, date, conn)?;
+                    total_liabilities = -root_balance;
+                    liabilities_detail = Self::children_balances(root, date, true, conn)?;
                 }
                 AccountType::Equity => {
-                    total_equity = root_balance;
-                    equity_detail = Self::children_balances(root, date, conn)?;
+                    total_equity = -root_balance;
+                    equity_detail = Self::children_balances(root, date, true, conn)?;
                 }
                 AccountType::Revenue => {
                     revenue_total = root_balance;
@@ -72,8 +72,7 @@ impl BalanceSheet {
         }
 
         let net_income = -(revenue_total + expense_total);
-        // L and E are credit-normal (negative in ledger), negate for display equation
-        let total_liabilities_and_equity = -total_liabilities - total_equity + net_income;
+        let total_liabilities_and_equity = total_liabilities + total_equity + net_income;
 
         Ok(BalanceSheet {
             as_of_date: date.to_string(),
@@ -91,12 +90,14 @@ impl BalanceSheet {
     fn children_balances(
         root: &Account,
         date: &str,
+        negate: bool,
         conn: &mut SqliteConnection,
     ) -> Result<Vec<AccountBalance>, AppError> {
         let children = root.children(conn)?;
         let mut result = Vec::with_capacity(children.len());
         for child in &children {
-            let balance = child.balance_as_of_with_descendants(date, conn)?;
+            let raw_balance = child.balance_as_of_with_descendants(date, conn)?;
+            let balance = if negate { -raw_balance } else { raw_balance };
             result.push(AccountBalance {
                 account: child.id.clone(),
                 name: child.name.clone(),
@@ -140,13 +141,13 @@ impl IncomeStatement {
                     revenue_balance =
                         root.balance_between_with_descendants(start_date, end_date, conn)?;
                     revenue_detail =
-                        Self::children_balances(root, start_date, end_date, conn)?;
+                        Self::children_balances(root, start_date, end_date, true, conn)?;
                 }
                 AccountType::Expense => {
                     expense_balance =
                         root.balance_between_with_descendants(start_date, end_date, conn)?;
                     expense_detail =
-                        Self::children_balances(root, start_date, end_date, conn)?;
+                        Self::children_balances(root, start_date, end_date, false, conn)?;
                 }
                 _ => {}
             }
@@ -172,13 +173,15 @@ impl IncomeStatement {
         root: &Account,
         start_date: &str,
         end_date: &str,
+        negate: bool,
         conn: &mut SqliteConnection,
     ) -> Result<Vec<AccountBalance>, AppError> {
         let children = root.children(conn)?;
         let mut result = Vec::with_capacity(children.len());
         for child in &children {
-            let balance =
+            let raw_balance =
                 child.balance_between_with_descendants(start_date, end_date, conn)?;
+            let balance = if negate { -raw_balance } else { raw_balance };
             result.push(AccountBalance {
                 account: child.id.clone(),
                 name: child.name.clone(),
@@ -331,11 +334,36 @@ mod tests {
 
         let sheet = BalanceSheet::as_of(workspace.as_ref(), "2026-01-31", &mut conn).unwrap();
 
+        // Liabilities display-positive (credit card owes 50.00)
+        assert_eq!(sheet.total_liabilities, 5000);
+        let cc_balance = sheet.liabilities.iter().find(|a| a.name == "Credit Card").unwrap();
+        assert_eq!(cc_balance.balance, 5000);
+
         assert_eq!(
             sheet.total_assets, sheet.total_liabilities_and_equity,
             "A={} != L+E+NI={}",
             sheet.total_assets, sheet.total_liabilities_and_equity
         );
+    }
+
+    #[test]
+    fn income_statement_revenue_detail_display_positive() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let employment = find_account("Employment", &workspace, &mut conn);
+
+        make_entry(&workspace, &employment, &chequing, 500000, "2026-01-01", &mut conn);
+
+        let statement = IncomeStatement::for_period(
+            workspace.as_ref(),
+            "2026-01-01",
+            "2026-01-31",
+            &mut conn,
+        )
+        .unwrap();
+
+        let employment_revenue = statement.revenue.iter().find(|a| a.name == "Employment").unwrap();
+        assert_eq!(employment_revenue.balance, 500000, "Revenue detail should be display-positive");
     }
 
     // ── Income Statement tests ─────────────────────────────────────
