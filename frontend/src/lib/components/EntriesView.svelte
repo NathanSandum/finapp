@@ -20,6 +20,9 @@
 	let accounts: Account[] = $state([]);
 	let loading = $state(true);
 	let formEntry: Entry | null | 'new' = $state(null);
+	let selectMode: boolean = $state(false);
+	let selectedEntries: Set<string> = $state(new Set());
+	let mergeSourceEntryIds: string[] | null = $state(null);
 
 	let accountNames = $derived(
 		Object.fromEntries(accounts.map((account) => [account.id, account.name]))
@@ -60,6 +63,53 @@
 		collapsedMonths = new Set(collapsedMonths);
 	}
 
+	function toggleSelectMode() {
+		selectMode = !selectMode;
+		selectedEntries = new Set();
+	}
+
+	function toggleEntrySelection(entryId: string) {
+		if (selectedEntries.has(entryId)) {
+			selectedEntries.delete(entryId);
+		} else {
+			selectedEntries.add(entryId);
+		}
+		selectedEntries = new Set(selectedEntries);
+	}
+
+	function startMerge() {
+		const selected = entries.filter((entry) => selectedEntries.has(entry.id));
+		if (selected.length < 2) return;
+
+		const dates = selected.map((entry) => entry.date).sort();
+		const earliestDate = dates[0];
+		const firstDescription = selected[0].description || 'Transfer';
+		const allPostings = selected.flatMap((entry) =>
+			entry.postings.map((posting) => ({
+				account_id: posting.account_id,
+				amount: posting.amount
+			}))
+		);
+
+		mergeSourceEntryIds = selected.map((entry) => entry.id);
+
+		formEntry = {
+			id: '',
+			date: earliestDate,
+			description: firstDescription,
+			cleared: false,
+			postings: allPostings.map((posting, index) => ({
+				id: String(index),
+				account_id: posting.account_id,
+				amount: posting.amount,
+				note: ''
+			}))
+		};
+
+		selectMode = false;
+		selectedEntries = new Set();
+	}
+
 	$effect(() => {
 		loading = true;
 		entries = [];
@@ -90,7 +140,12 @@
 	});
 
 	function handleFormSave(savedEntry: Entry) {
-		if (formEntry === 'new') {
+		if (mergeSourceEntryIds && mergeSourceEntryIds.length > 0) {
+			const sourceIds = new Set(mergeSourceEntryIds);
+			entries = entries.filter((existing) => !sourceIds.has(existing.id));
+			entries = [savedEntry, ...entries];
+			mergeSourceEntryIds = null;
+		} else if (formEntry === 'new') {
 			entries = [savedEntry, ...entries];
 		} else {
 			entries = entries.map((existing) =>
@@ -102,6 +157,7 @@
 
 	function handleFormCancel() {
 		formEntry = null;
+		mergeSourceEntryIds = null;
 	}
 </script>
 
@@ -113,9 +169,26 @@
 			{workspaceId}
 			{accounts}
 			entry={formEntry === 'new' ? null : formEntry}
+			sourceEntryIds={mergeSourceEntryIds}
 			onsave={handleFormSave}
 			oncancel={handleFormCancel}
 		/>
+	{/if}
+
+	{#if selectMode && selectedEntries.size > 0}
+		<div class="mb-2 flex items-center gap-3 rounded border border-gray-700 bg-gray-900 px-3 py-2">
+			<span class="text-xs text-gray-400">
+				{selectedEntries.size} {selectedEntries.size === 1 ? 'entry' : 'entries'} selected
+			</span>
+			{#if selectedEntries.size >= 2}
+				<button
+					class="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-500"
+					onclick={startMerge}
+				>
+					Merge
+				</button>
+			{/if}
+		</div>
 	{/if}
 
 	{#if entries.length === 0}
@@ -155,8 +228,15 @@
 					Status
 				</th>
 				<th
-					class="w-8 border border-gray-700 bg-gray-900 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400"
-				></th>
+					class="w-8 border border-gray-700 bg-gray-900 px-2 py-1.5 text-center text-[10px] font-semibold uppercase tracking-wider text-gray-400"
+				>
+					<button
+						class="text-[10px] hover:text-gray-200 {selectMode ? 'text-blue-400' : 'text-gray-500'}"
+						onclick={toggleSelectMode}
+					>
+						{selectMode ? 'Cancel' : 'Select'}
+					</button>
+				</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -184,7 +264,7 @@
 					{#if !collapsedMonths.has(group.label)}
 						{#each group.entries as entry}
 							{#each entry.postings as posting, index}
-								<tr>
+								<tr class={selectedEntries.has(entry.id) ? 'bg-blue-950/30' : ''}>
 									{#if index === 0}
 										<td
 											class="border border-gray-700 px-2 py-1 tabular-nums text-gray-400"
@@ -231,18 +311,27 @@
 											class="border border-gray-700 px-2 py-1 text-center"
 											rowspan={entry.postings.length}
 										>
-											<button
-												class="mr-0.5 inline-flex h-6 w-6 items-center justify-center rounded text-xs text-gray-600 hover:bg-gray-800 hover:text-blue-400"
-												onclick={() => (formEntry = entry)}
-											>
-												&#9998;
-											</button>
-											<button
-												class="inline-flex h-6 w-6 items-center justify-center rounded text-xs text-gray-600 hover:bg-gray-800 hover:text-red-400"
-												onclick={() => handleDelete(entry)}
-											>
-												&#10005;
-											</button>
+											{#if selectMode}
+												<input
+													type="checkbox"
+													checked={selectedEntries.has(entry.id)}
+													onchange={() => toggleEntrySelection(entry.id)}
+													class="rounded"
+												/>
+											{:else}
+												<button
+													class="mr-0.5 inline-flex h-6 w-6 items-center justify-center rounded text-xs text-gray-600 hover:bg-gray-800 hover:text-blue-400"
+													onclick={() => (formEntry = entry)}
+												>
+													&#9998;
+												</button>
+												<button
+													class="inline-flex h-6 w-6 items-center justify-center rounded text-xs text-gray-600 hover:bg-gray-800 hover:text-red-400"
+													onclick={() => handleDelete(entry)}
+												>
+													&#10005;
+												</button>
+											{/if}
 										</td>
 									{/if}
 								</tr>

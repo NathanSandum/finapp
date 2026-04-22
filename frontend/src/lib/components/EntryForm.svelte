@@ -6,12 +6,14 @@
 		workspaceId,
 		accounts,
 		entry = null,
+		sourceEntryIds = null,
 		onsave,
 		oncancel
 	}: {
 		workspaceId: string;
 		accounts: Account[];
 		entry: Entry | null;
+		sourceEntryIds?: string[] | null;
 		onsave: (entry: Entry) => void;
 		oncancel: () => void;
 	} = $props();
@@ -108,7 +110,9 @@
 		saving = true;
 		try {
 			let result: Entry;
-			if (entry) {
+			if (sourceEntryIds && sourceEntryIds.length > 0) {
+				result = await api.mergeEntries(workspaceId, sourceEntryIds, date, description, postingInputs, cleared);
+			} else if (entry) {
 				result = await api.updateEntry(workspaceId, entry.id, {
 					date,
 					description,
@@ -130,7 +134,7 @@
 
 <div class="mb-4 rounded border border-gray-700 bg-gray-900 p-4">
 	<h3 class="mb-3 text-sm font-semibold text-gray-200">
-		{entry ? 'Edit Entry' : 'New Entry'}
+		{sourceEntryIds ? 'Merge Entries' : entry ? 'Edit Entry' : 'New Entry'}
 	</h3>
 
 	{#if error}
@@ -228,7 +232,7 @@
 			disabled={saving || !isBalanced}
 			onclick={handleSubmit}
 		>
-			{saving ? 'Saving...' : entry ? 'Update' : 'Create'}
+			{saving ? 'Saving...' : sourceEntryIds ? 'Merge' : entry ? 'Update' : 'Create'}
 		</button>
 		<button
 			type="button"

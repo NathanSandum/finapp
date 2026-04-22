@@ -182,6 +182,25 @@ export async function updateEntry(
 	return res.json();
 }
 
+export async function mergeEntries(
+	workspace: string,
+	sourceEntryIds: string[],
+	date: string,
+	description: string,
+	postings: PostingInput[],
+	cleared: boolean = false
+) {
+	const res = await request('POST', `/workspaces/${workspace}/entries/merge`, {
+		source_entry_ids: sourceEntryIds,
+		date,
+		description,
+		cleared,
+		postings
+	});
+	if (!res.ok) throw await res.json();
+	return res.json();
+}
+
 // ── Reports ─────────────────────────────────────────────────────────────────
 
 export async function getBalanceSheet(workspace: string, asOf: string) {
