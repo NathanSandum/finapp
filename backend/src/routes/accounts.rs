@@ -126,6 +126,47 @@ pub async fn delete(
     Ok(Json(json!({ "status": "ok" })))
 }
 
+#[derive(Deserialize)]
+pub struct UpdateAccountRequest {
+    name: Option<String>,
+    parent_id: Option<AccountRef>,
+}
+
+pub async fn update(
+    Extension(pool): Extension<DbPool>,
+    member: WorkspaceMember,
+    Path(path): Path<AccountPath>,
+    Json(body): Json<UpdateAccountRequest>,
+) -> Result<Json<Value>, AppError> {
+    member.require_role(&Role::Editor)?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+
+    let mut account =
+        Account::from_ref(&path.account, &mut conn)?.ok_or(AppError::NotFound("account".into()))?;
+
+    if account.workspace != member.workspace {
+        return Err(AppError::NotFound("account".into()));
+    }
+
+    if let Some(ref new_name) = body.name {
+        account = account.rename(new_name, &mut conn)?;
+    }
+
+    if let Some(ref new_parent_id) = body.parent_id {
+        account = account.reparent(new_parent_id, &mut conn)?;
+    }
+
+    Ok(Json(json!({
+        "id": account.id,
+        "parent_id": account.parent_id,
+        "name": account.name,
+        "account_type": account.account_type,
+        "currency": account.currency,
+    })))
+}
+
 pub async fn balance(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,

@@ -42,7 +42,7 @@ pub fn build_router(pool: DbPool) -> Router {
         )
         .route(
             "/workspaces/{workspace}/accounts/{account}",
-            delete(routes::accounts::delete),
+            put(routes::accounts::update).delete(routes::accounts::delete),
         )
         .route(
             "/workspaces/{workspace}/accounts/{account}/balance",

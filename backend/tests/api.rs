@@ -1229,3 +1229,86 @@ async fn update_entry_not_found() {
 
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+// ── Update account tests ───────────────────────────────────────────────────
+
+#[tokio::test]
+async fn update_account_rename() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing_id = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+
+    let (status, body) = put(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts/{chequing_id}"),
+        &token,
+        json!({ "name": "Main Chequing" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "rename failed: {body}");
+    assert_eq!(body["name"], "Main Chequing");
+    assert_eq!(body["id"], chequing_id.as_str());
+    assert_eq!(body["account_type"], "asset");
+}
+
+#[tokio::test]
+async fn update_account_reparent() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let food_id = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let expenses_id = find_account_id(&app, &workspace_id, &token, "Expenses").await;
+
+    // Create a sub-category under Expenses
+    let (_, created) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts"),
+        Some(&token),
+        json!({ "name": "Categories", "parent_id": expenses_id }),
+    )
+    .await;
+    let categories_id = created["id"].as_str().unwrap();
+
+    let (status, body) = put(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts/{food_id}"),
+        &token,
+        json!({ "parent_id": categories_id }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "reparent failed: {body}");
+    assert_eq!(body["parent_id"], categories_id);
+    assert_eq!(body["id"], food_id.as_str());
+}
+
+#[tokio::test]
+async fn update_account_rename_requires_editor() {
+    let pool = test_pool();
+    let app = backend::build_router(pool.clone());
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing_id = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+
+    // Register a viewer
+    let (viewer_token, viewer_id) = register(&app, "viewer@example.com").await;
+    {
+        use diesel::prelude::*;
+        let mut connection = pool.get().unwrap();
+        diesel::sql_query(format!(
+            "INSERT INTO workspace_members (workspace_id, user_id, role, joined_at) VALUES ('{}', '{}', 'viewer', datetime('now'))",
+            workspace_id, viewer_id
+        ))
+        .execute(&mut connection)
+        .unwrap();
+    }
+
+    let (status, _) = put(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts/{chequing_id}"),
+        &viewer_token,
+        json!({ "name": "Hacked" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
