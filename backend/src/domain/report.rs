@@ -98,6 +98,9 @@ impl BalanceSheet {
         for child in &children {
             let raw_balance = child.balance_as_of_with_descendants(date, conn)?;
             let balance = if negate { -raw_balance } else { raw_balance };
+            if balance == 0 {
+                continue;
+            }
             result.push(AccountBalance {
                 account: child.id.clone(),
                 name: child.name.clone(),
@@ -182,6 +185,9 @@ impl IncomeStatement {
             let raw_balance =
                 child.balance_between_with_descendants(start_date, end_date, conn)?;
             let balance = if negate { -raw_balance } else { raw_balance };
+            if balance == 0 {
+                continue;
+            }
             result.push(AccountBalance {
                 account: child.id.clone(),
                 name: child.name.clone(),
