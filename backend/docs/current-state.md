@@ -10,7 +10,13 @@ Last updated: 2026-04-21
 | 2 — Entries & Postings | Merged to main | wave-2-postings |
 | 3 — Reports & Baselines | Merged to main | wave-3-reports |
 | 4 — API Routes | Merged to main | wave-4-routes |
-| 5 — Frontend Updates | Complete | wave-5-frontend |
+| 5 — Frontend Updates | Merged to main | wave-5-frontend |
+| 6 — Opening Balances + CSV Import | Complete | wave-6-import |
+
+## What Wave 6 Did
+
+- Added Opening Balances equity sub-account to the default account tree (created on workspace creation)
+- Frontend CSV import with configurable column→account mapping (`ImportView.svelte`)
 
 ## What Wave 5 Did
 

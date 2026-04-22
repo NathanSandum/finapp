@@ -54,11 +54,11 @@ Accounts form a tree rooted at five types. `parent_id` is nullable — NULL mean
 ```
 Assets: Chequing, Savings, TFSA, RRSP
 Liabilities: Credit Card
-Equity: (no children)
+Equity: Opening Balances
 Revenue: Employment
 Expenses: Food, Rent, Groceries, Dining, Transit, Utilities, Entertainment
 ```
-Total: 5 roots + 13 children = 18 accounts
+Total: 5 roots + 14 children = 19 accounts
 
 ### Traversal Methods (all take `&mut SqliteConnection` last)
 - `full_name()` — colon-delimited path: "Expenses:Food:Cafes"
