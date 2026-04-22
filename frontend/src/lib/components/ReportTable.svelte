@@ -70,19 +70,9 @@
 					>
 					{section.title}
 				</td>
-				{#if collapsedSections.has(section.title)}
-					{#each section.totals as total}
-						<td
-							class="border border-gray-700 bg-gray-800/50 px-2 py-1 text-right font-bold tabular-nums {amountColor(total)}"
-						>
-							{formatAmount(total)}
-						</td>
-					{/each}
-				{:else}
-					{#each periods as _}
-						<td class="border border-gray-700 bg-gray-800/50"></td>
-					{/each}
-				{/if}
+				{#each periods as _}
+					<td class="border border-gray-700 bg-gray-800/50"></td>
+				{/each}
 			</tr>
 
 			{#if !collapsedSections.has(section.title)}
@@ -101,23 +91,23 @@
 						{/each}
 					</tr>
 				{/each}
-
-				<!-- Section total row -->
-				<tr>
-					<td
-						class="border border-gray-700 bg-gray-800/30 px-2 py-1 font-bold text-gray-200"
-					>
-						Total {section.title}
-					</td>
-					{#each section.totals as total}
-						<td
-							class="border border-gray-700 bg-gray-800/30 px-2 py-1 text-right font-bold tabular-nums {amountColor(total)}"
-						>
-							{formatAmount(total)}
-						</td>
-					{/each}
-				</tr>
 			{/if}
+
+			<!-- Section total row (always visible) -->
+			<tr>
+				<td
+					class="border border-gray-700 bg-gray-800/30 px-2 py-1 font-bold text-gray-200"
+				>
+					Total {section.title}
+				</td>
+				{#each section.totals as total}
+					<td
+						class="border border-gray-700 bg-gray-800/30 px-2 py-1 text-right font-bold tabular-nums {amountColor(total)}"
+					>
+						{formatAmount(total)}
+					</td>
+				{/each}
+			</tr>
 
 			<!-- Blank separator row (skip after last section when no bottom line) -->
 			{#if sectionIndex < sections.length - 1 || bottomLine}
