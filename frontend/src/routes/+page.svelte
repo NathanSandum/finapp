@@ -4,7 +4,7 @@
 	import { currentQuarter, type Quarter } from '$lib/period';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import QuarterSelector from '$lib/components/QuarterSelector.svelte';
-	import IncomeView from '$lib/components/IncomeView.svelte';
+	import IncomeStatementView from '$lib/components/IncomeStatementView.svelte';
 	import CashFlowView from '$lib/components/CashFlowView.svelte';
 	import BalanceSheetView from '$lib/components/BalanceSheetView.svelte';
 	import EntriesView from '$lib/components/EntriesView.svelte';
@@ -85,11 +85,11 @@
 			<!-- Content -->
 			<main class="flex-1 overflow-auto p-4">
 				{#if activeView === 'Income Statement'}
-					<IncomeView {workspaceId} />
+					<IncomeStatementView {workspaceId} {quarter} />
 				{:else if activeView === 'Cash Flow'}
-					<CashFlowView {workspaceId} />
+					<CashFlowView {workspaceId} {quarter} />
 				{:else if activeView === 'Balance Sheet'}
-					<BalanceSheetView {workspaceId} />
+					<BalanceSheetView {workspaceId} {quarter} />
 				{:else if activeView === 'Entries'}
 					<EntriesView {workspaceId} />
 				{:else if activeView === 'Settings'}
