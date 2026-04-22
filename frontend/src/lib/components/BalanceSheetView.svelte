@@ -42,10 +42,6 @@
 					totals: sheet.total_equity
 				}
 			]}
-			bottomLine={{
-				label: 'Liabilities + Equity + Net Income',
-				values: sheet.total_liabilities_and_equity
-			}}
 		/>
 	{/if}
 </ReportShell>
