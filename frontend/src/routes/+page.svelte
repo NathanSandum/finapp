@@ -83,7 +83,7 @@
 			</div>
 
 			<!-- Content -->
-			<main class="flex-1 overflow-auto p-4">
+			<main class="flex-1 overflow-auto">
 				{#if activeView === 'Income Statement'}
 					<IncomeStatementView {workspaceId} {quarter} />
 				{:else if activeView === 'Cash Flow'}
