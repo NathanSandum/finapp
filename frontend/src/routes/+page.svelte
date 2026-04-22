@@ -1,16 +1,19 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import * as api from '$lib/api.svelte';
+	import { currentQuarter, type Quarter } from '$lib/period';
+	import Sidebar from '$lib/components/Sidebar.svelte';
+	import QuarterSelector from '$lib/components/QuarterSelector.svelte';
 	import IncomeView from '$lib/components/IncomeView.svelte';
 	import CashFlowView from '$lib/components/CashFlowView.svelte';
 	import BalanceSheetView from '$lib/components/BalanceSheetView.svelte';
 	import EntriesView from '$lib/components/EntriesView.svelte';
 	import ImportView from '$lib/components/ImportView.svelte';
 
-	const tabs = ['Income', 'Cash Flow', 'Balance Sheet', 'Entries', 'Import'] as const;
-	type Tab = (typeof tabs)[number];
+	type View = 'Income Statement' | 'Balance Sheet' | 'Cash Flow' | 'Entries' | 'Settings';
 
-	let activeTab: Tab = $state('Income');
+	let activeView: View = $state('Income Statement');
+	let quarter: Quarter = $state(currentQuarter());
 	let workspaceId = $state('');
 	let loading = $state(true);
 	let error = $state('');
@@ -57,50 +60,42 @@
 </script>
 
 {#if loading}
-	<div class="flex min-h-screen items-center justify-center bg-gray-950 text-gray-500">
+	<div class="flex h-screen items-center justify-center bg-gray-950 text-gray-500">
 		Loading...
 	</div>
 {:else if error}
-	<div class="flex min-h-screen items-center justify-center bg-gray-950">
+	<div class="flex h-screen items-center justify-center bg-gray-950">
 		<div class="rounded-xl border border-red-900 bg-red-950/50 px-6 py-4 text-sm text-red-400">
 			{error}
 		</div>
 	</div>
 {:else}
-	<div class="flex min-h-screen bg-gray-950">
-		<!-- Tab sidebar -->
-		<aside class="flex w-52 shrink-0 flex-col border-r border-gray-800 bg-gray-900">
-			<div class="border-b border-gray-800 px-5 py-4">
-				<h1 class="text-base font-semibold text-gray-100">FinApp</h1>
+	<div class="flex h-screen overflow-hidden bg-gray-950">
+		<Sidebar bind:activeView />
+
+		<div class="flex flex-1 flex-col overflow-hidden">
+			<!-- Top bar -->
+			<div class="flex shrink-0 items-center justify-between border-b border-gray-800 px-4 py-2">
+				<h2 class="text-sm font-medium text-gray-200">{activeView}</h2>
+				{#if activeView !== 'Entries' && activeView !== 'Settings'}
+					<QuarterSelector bind:quarter />
+				{/if}
 			</div>
 
-			<nav class="flex flex-col py-2">
-				{#each tabs as tab}
-					<button
-						class="px-5 py-2.5 text-left text-sm transition-colors {activeTab === tab
-							? 'border-r-2 border-blue-500 bg-blue-950/30 font-medium text-white'
-							: 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-300'}"
-						onclick={() => (activeTab = tab)}
-					>
-						{tab}
-					</button>
-				{/each}
-			</nav>
-		</aside>
-
-		<!-- Main content -->
-		<main class="flex-1 overflow-x-auto p-6">
-			{#if activeTab === 'Income'}
-				<IncomeView {workspaceId} />
-			{:else if activeTab === 'Cash Flow'}
-				<CashFlowView {workspaceId} />
-			{:else if activeTab === 'Balance Sheet'}
-				<BalanceSheetView {workspaceId} />
-			{:else if activeTab === 'Entries'}
-				<EntriesView {workspaceId} />
-			{:else if activeTab === 'Import'}
-				<ImportView {workspaceId} />
-			{/if}
-		</main>
+			<!-- Content -->
+			<main class="flex-1 overflow-auto p-4">
+				{#if activeView === 'Income Statement'}
+					<IncomeView {workspaceId} />
+				{:else if activeView === 'Cash Flow'}
+					<CashFlowView {workspaceId} />
+				{:else if activeView === 'Balance Sheet'}
+					<BalanceSheetView {workspaceId} />
+				{:else if activeView === 'Entries'}
+					<EntriesView {workspaceId} />
+				{:else if activeView === 'Settings'}
+					<ImportView {workspaceId} />
+				{/if}
+			</main>
+		</div>
 	</div>
 {/if}
