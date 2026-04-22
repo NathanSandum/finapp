@@ -133,7 +133,7 @@ pub async fn delete(
     Ok(Json(json!({ "status": "ok" })))
 }
 
-fn entry_to_json(
+pub fn entry_to_json(
     entry: &Entry,
     postings: &[crate::domain::entry::Posting],
 ) -> Value {

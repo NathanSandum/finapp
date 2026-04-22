@@ -979,3 +979,97 @@ async fn owner_can_leave_if_not_last_owner() {
         "last owner removal should fail: {body}"
     );
 }
+
+// ── Period-based report tests ──────────────────────────────────────────────
+
+#[tokio::test]
+async fn period_income_statement_jan() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let employment = find_account_id(&app, &workspace_id, &token, "Employment").await;
+    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+
+    create_entry(&app, &workspace_id, &token, &employment, &chequing, 500000, "2026-01-01", "Salary").await;
+    create_entry(&app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-05", "Lunch").await;
+
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/2026/Jan/income-statement"),
+        &token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["total_revenue"], 500000);
+    assert_eq!(body["total_expenses"], 1200);
+    assert_eq!(body["net_income"], 498800);
+}
+
+#[tokio::test]
+async fn period_balance_sheet_q1() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let employment = find_account_id(&app, &workspace_id, &token, "Employment").await;
+
+    create_entry(&app, &workspace_id, &token, &employment, &chequing, 500000, "2026-01-15", "Salary").await;
+    create_entry(&app, &workspace_id, &token, &employment, &chequing, 300000, "2026-03-15", "Salary").await;
+
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/2026/Q1/balance-sheet"),
+        &token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    // Q1 balance sheet = as of Mar 31, both entries included
+    assert_eq!(body["total_assets"], 800000);
+}
+
+#[tokio::test]
+async fn period_entries_filtered_by_date() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let employment = find_account_id(&app, &workspace_id, &token, "Employment").await;
+
+    create_entry(&app, &workspace_id, &token, &employment, &chequing, 500000, "2026-01-15", "Jan Salary").await;
+    create_entry(&app, &workspace_id, &token, &employment, &chequing, 300000, "2026-02-15", "Feb Salary").await;
+
+    // Jan only
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/2026/Jan/entries"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["entries"].as_array().unwrap().len(), 1);
+
+    // Q1 gets both
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/2026/Q1/entries"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["entries"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn period_invalid_period_rejected() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+
+    let (status, _) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/2026/Foo/income-statement"),
+        &token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}

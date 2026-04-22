@@ -57,7 +57,7 @@ pub fn build_router(pool: DbPool) -> Router {
             "/workspaces/{workspace}/entries/{entry}",
             get(routes::entries::get).delete(routes::entries::delete),
         )
-        // Reports
+        // Reports (legacy query-param style)
         .route(
             "/workspaces/{workspace}/reports/balance-sheet",
             get(routes::reports::balance_sheet),
@@ -65,6 +65,19 @@ pub fn build_router(pool: DbPool) -> Router {
         .route(
             "/workspaces/{workspace}/reports/income-statement",
             get(routes::reports::income_statement),
+        )
+        // Period-based reports
+        .route(
+            "/workspaces/{workspace}/{year}/{period}/income-statement",
+            get(routes::period_reports::income_statement),
+        )
+        .route(
+            "/workspaces/{workspace}/{year}/{period}/balance-sheet",
+            get(routes::period_reports::balance_sheet),
+        )
+        .route(
+            "/workspaces/{workspace}/{year}/{period}/entries",
+            get(routes::period_reports::entries),
         )
         // Baselines
         .route(
