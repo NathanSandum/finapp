@@ -133,12 +133,12 @@
 		<!-- Bottom line -->
 		{#if bottomLine}
 			<tr>
-				<td class="border-2 border-gray-600 bg-gray-800 px-2 py-1.5 font-bold text-gray-100">
+				<td class="border-2 border-gray-600 px-2 py-1.5 font-bold text-gray-100">
 					{bottomLine.label}
 				</td>
 				{#each bottomLine.values as value}
 					<td
-						class="border-2 border-gray-600 bg-gray-800 px-2 py-1.5 text-right font-bold tabular-nums {amountColor(value)}"
+						class="border-2 border-gray-600 px-2 py-1.5 text-right font-bold tabular-nums {amountColor(value)}"
 					>
 						{formatAmount(value)}
 					</td>
