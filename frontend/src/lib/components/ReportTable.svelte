@@ -23,6 +23,17 @@
 		bottomLine?: BottomLine;
 	} = $props();
 
+	let collapsedSections: Set<string> = $state(new Set());
+
+	function toggleSection(title: string) {
+		if (collapsedSections.has(title)) {
+			collapsedSections.delete(title);
+		} else {
+			collapsedSections.add(title);
+		}
+		collapsedSections = new Set(collapsedSections);
+	}
+
 	function amountColor(cents: number): string {
 		if (cents > 0) return 'text-emerald-400';
 		if (cents < 0) return 'text-red-400';
@@ -49,44 +60,64 @@
 	<tbody>
 		{#each sections as section}
 			<!-- Section title row -->
-			<tr>
+			<tr
+				class="cursor-pointer select-none"
+				onclick={() => toggleSection(section.title)}
+			>
 				<td class="border border-gray-700 bg-gray-800/50 px-2 py-1 font-bold text-gray-200">
+					<span class="inline-block w-3 text-[10px] text-gray-500"
+						>{collapsedSections.has(section.title) ? '▸' : '▾'}</span
+					>
 					{section.title}
 				</td>
-				{#each periods as _}
-					<td class="border border-gray-700 bg-gray-800/50"></td>
-				{/each}
+				{#if collapsedSections.has(section.title)}
+					{#each section.totals as total}
+						<td
+							class="border border-gray-700 bg-gray-800/50 px-2 py-1 text-right font-bold tabular-nums {amountColor(total)}"
+						>
+							{formatAmount(total)}
+						</td>
+					{/each}
+				{:else}
+					{#each periods as _}
+						<td class="border border-gray-700 bg-gray-800/50"></td>
+					{/each}
+				{/if}
 			</tr>
 
-			<!-- Account rows -->
-			{#each section.rows as row}
+			{#if !collapsedSections.has(section.title)}
+				<!-- Account rows -->
+				{#each section.rows as row}
+					<tr>
+						<td class="border border-gray-700 py-1 pl-6 pr-2 text-gray-300">
+							{row.name}
+						</td>
+						{#each row.balances as balance}
+							<td
+								class="border border-gray-700 px-2 py-1 text-right tabular-nums {amountColor(balance)}"
+							>
+								{formatAmount(balance)}
+							</td>
+						{/each}
+					</tr>
+				{/each}
+
+				<!-- Section total row -->
 				<tr>
-					<td class="border border-gray-700 py-1 pl-4 pr-2 text-gray-300">
-						{row.name}
+					<td
+						class="border border-gray-700 bg-gray-800/30 px-2 py-1 font-bold text-gray-200"
+					>
+						Total {section.title}
 					</td>
-					{#each row.balances as balance}
+					{#each section.totals as total}
 						<td
-							class="border border-gray-700 px-2 py-1 text-right tabular-nums {amountColor(balance)}"
+							class="border border-gray-700 bg-gray-800/30 px-2 py-1 text-right font-bold tabular-nums {amountColor(total)}"
 						>
-							{formatAmount(balance)}
+							{formatAmount(total)}
 						</td>
 					{/each}
 				</tr>
-			{/each}
-
-			<!-- Section total row -->
-			<tr>
-				<td class="border border-gray-700 bg-gray-800/30 px-2 py-1 font-bold text-gray-200">
-					Total {section.title}
-				</td>
-				{#each section.totals as total}
-					<td
-						class="border border-gray-700 bg-gray-800/30 px-2 py-1 text-right font-bold tabular-nums {amountColor(total)}"
-					>
-						{formatAmount(total)}
-					</td>
-				{/each}
-			</tr>
+			{/if}
 
 			<!-- Blank separator row -->
 			<tr>
