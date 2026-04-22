@@ -91,6 +91,26 @@ impl Workspace {
             .map_err(|err| AppError::Internal(format!("is_member query failed: {err}")))
     }
 
+    pub fn rename(
+        &self,
+        new_name: &str,
+        conn: &mut SqliteConnection,
+    ) -> Result<Workspace, AppError> {
+        let now = chrono::Utc::now().naive_utc();
+        diesel::update(workspaces::table.find(&self.id))
+            .set((
+                workspaces::name.eq(new_name),
+                workspaces::updated_at.eq(now),
+            ))
+            .execute(conn)?;
+
+        workspaces::table
+            .find(&self.id)
+            .select(Workspace::as_select())
+            .first(conn)
+            .map_err(|err| AppError::Internal(format!("workspace refresh failed: {err}")))
+    }
+
     pub fn remove_member(
         &self,
         user: &UserRef,

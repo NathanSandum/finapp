@@ -2,9 +2,9 @@ use axum::{extract::Extension, extract::Path, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::auth::AuthUser;
+use crate::auth::{AuthUser, WorkspaceMember};
 use crate::domain::user::{User, UserRef};
-use crate::domain::workspace::{NewWorkspace, Workspace, WorkspaceRef};
+use crate::domain::workspace::{NewWorkspace, Role, Workspace, WorkspaceRef};
 use crate::error::AppError;
 use crate::permissions;
 use crate::DbPool;
@@ -63,6 +63,36 @@ pub async fn get(
         "created_at": workspace.created_at.to_string(),
         "your_role": user.role.as_str(),
         "members": members,
+    })))
+}
+
+#[derive(Deserialize)]
+pub struct UpdateWorkspaceRequest {
+    name: Option<String>,
+}
+
+pub async fn update(
+    Extension(pool): Extension<DbPool>,
+    member: WorkspaceMember,
+    Json(body): Json<UpdateWorkspaceRequest>,
+) -> Result<Json<Value>, AppError> {
+    member.require_role(&Role::Owner)?;
+    let mut conn = pool
+        .get()
+        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+
+    let workspace =
+        Workspace::from_ref(&member.workspace, &mut conn)?.ok_or(AppError::NotFound("workspace".into()))?;
+
+    let workspace = if let Some(name) = body.name {
+        workspace.rename(&name, &mut conn)?
+    } else {
+        workspace
+    };
+
+    Ok(Json(json!({
+        "workspace": workspace.id,
+        "name": workspace.name,
     })))
 }
 

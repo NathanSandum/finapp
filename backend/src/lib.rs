@@ -30,7 +30,10 @@ pub fn build_router(pool: DbPool) -> Router {
         .route("/auth/logout", post(routes::auth::logout))
         .route("/workspaces", post(routes::workspaces::create))
         .route("/workspaces", get(routes::workspaces::list))
-        .route("/workspaces/{workspace}", get(routes::workspaces::get))
+        .route(
+            "/workspaces/{workspace}",
+            get(routes::workspaces::get).put(routes::workspaces::update),
+        )
         .route(
             "/workspaces/{workspace}/members/{user}",
             delete(routes::workspaces::remove_member),

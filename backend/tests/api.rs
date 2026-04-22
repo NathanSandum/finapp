@@ -1312,3 +1312,22 @@ async fn update_account_rename_requires_editor() {
 
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
+
+// ── Workspace update tests ──────────────────────────────────────────────────
+
+#[tokio::test]
+async fn update_workspace_name() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+
+    let (status, body) = put(
+        &app,
+        &format!("/workspaces/{workspace_id}"),
+        &token,
+        json!({ "name": "Renamed Finances" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "update workspace failed: {body}");
+    assert_eq!(body["name"], "Renamed Finances");
+}
