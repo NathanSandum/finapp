@@ -77,7 +77,7 @@
 			<!-- Top bar -->
 			<div class="flex shrink-0 items-center justify-between border-b border-gray-800 px-4 py-2">
 				<h2 class="text-sm font-medium text-gray-200">{activeView}</h2>
-				{#if activeView !== 'Entries' && activeView !== 'Settings'}
+				{#if activeView !== 'Settings'}
 					<QuarterSelector bind:quarter />
 				{/if}
 			</div>
@@ -91,7 +91,7 @@
 				{:else if activeView === 'Balance Sheet'}
 					<BalanceSheetView {workspaceId} {quarter} />
 				{:else if activeView === 'Entries'}
-					<EntriesView {workspaceId} />
+					<EntriesView {workspaceId} {quarter} />
 				{:else if activeView === 'Settings'}
 					<ImportView {workspaceId} />
 				{/if}
