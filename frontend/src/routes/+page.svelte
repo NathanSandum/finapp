@@ -8,7 +8,7 @@
 
 	import BalanceSheetView from '$lib/components/BalanceSheetView.svelte';
 	import EntriesView from '$lib/components/EntriesView.svelte';
-	import ImportView from '$lib/components/ImportView.svelte';
+	import SettingsView from '$lib/components/SettingsView.svelte';
 
 	type View = 'Income Statement' | 'Balance Sheet' | 'Cash Flow' | 'Entries' | 'Settings';
 
@@ -106,7 +106,7 @@
 				{:else if activeView === 'Entries'}
 					<EntriesView {workspaceId} {quarter} onregister={(actions) => (entryActions = actions)} />
 				{:else if activeView === 'Settings'}
-					<ImportView {workspaceId} />
+					<SettingsView {workspaceId} />
 				{/if}
 			</main>
 		</div>

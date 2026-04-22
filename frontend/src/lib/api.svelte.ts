@@ -68,6 +68,12 @@ export async function createWorkspace(name: string) {
 	return res.json();
 }
 
+export async function updateWorkspace(workspace: string, changes: { name?: string }) {
+	const res = await request('PUT', `/workspaces/${workspace}`, changes);
+	if (!res.ok) throw await res.json();
+	return res.json();
+}
+
 // ── Accounts ────────────────────────────────────────────────────────────────
 
 export async function listAccounts(workspace: string) {
@@ -93,6 +99,22 @@ export async function createAccount(
 
 export async function getBalance(workspace: string, account: string) {
 	const res = await request('GET', `/workspaces/${workspace}/accounts/${account}/balance`);
+	if (!res.ok) throw await res.json();
+	return res.json();
+}
+
+export async function updateAccount(
+	workspace: string,
+	account: string,
+	changes: { name?: string; parent_id?: string }
+) {
+	const res = await request('PUT', `/workspaces/${workspace}/accounts/${account}`, changes);
+	if (!res.ok) throw await res.json();
+	return res.json();
+}
+
+export async function deleteAccount(workspace: string, account: string) {
+	const res = await request('DELETE', `/workspaces/${workspace}/accounts/${account}`);
 	if (!res.ok) throw await res.json();
 	return res.json();
 }
