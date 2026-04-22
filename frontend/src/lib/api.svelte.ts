@@ -97,7 +97,16 @@ export async function getBalance(workspace: string, account: string) {
 	return res.json();
 }
 
-import type { PostingInput } from '$lib/types';
+import type {
+	PostingInput,
+	IncomeStatement,
+	BalanceSheet,
+	MultiPeriodIncomeStatement,
+	MultiPeriodBalanceSheet,
+	MultiPeriodRow
+} from '$lib/types';
+import type { Quarter } from '$lib/period';
+import { quarterMonths, quarterPeriodLabel } from '$lib/period';
 
 // ── Entries ─────────────────────────────────────────────────────────────────
 
@@ -158,6 +167,121 @@ export async function getIncomeStatement(
 	);
 	if (!res.ok) throw await res.json();
 	return res.json();
+}
+
+// ── Period-based Reports ───────────────────────────────────────────────
+
+export async function getPeriodIncomeStatement(
+	workspace: string,
+	year: number,
+	period: string
+): Promise<IncomeStatement> {
+	const res = await request('GET', `/workspaces/${workspace}/${year}/${period}/income-statement`);
+	if (!res.ok) throw await res.json();
+	return res.json();
+}
+
+export async function getPeriodBalanceSheet(
+	workspace: string,
+	year: number,
+	period: string
+): Promise<BalanceSheet> {
+	const res = await request('GET', `/workspaces/${workspace}/${year}/${period}/balance-sheet`);
+	if (!res.ok) throw await res.json();
+	return res.json();
+}
+
+export async function getPeriodEntries(workspace: string, year: number, period: string) {
+	const res = await request('GET', `/workspaces/${workspace}/${year}/${period}/entries`);
+	if (!res.ok) throw await res.json();
+	return res.json();
+}
+
+// ── Multi-Period Aggregation ───────────────────────────────────────────
+
+function pivotAccountBalances(
+	statements: { items: { account: string; name: string; balance: number }[] }[]
+): MultiPeriodRow[] {
+	const accountMap = new Map<string, { name: string; balances: number[] }>();
+
+	for (let i = 0; i < statements.length; i++) {
+		for (const item of statements[i].items) {
+			let row = accountMap.get(item.account);
+			if (!row) {
+				row = { name: item.name, balances: new Array(statements.length).fill(0) };
+				accountMap.set(item.account, row);
+			}
+			row.balances[i] = item.balance;
+		}
+	}
+
+	return Array.from(accountMap.entries()).map(([account, { name, balances }]) => ({
+		account,
+		name,
+		balances
+	}));
+}
+
+export async function getMultiPeriodIncomeStatement(
+	workspace: string,
+	quarter: Quarter
+): Promise<MultiPeriodIncomeStatement> {
+	const months = quarterMonths(quarter);
+	const periodLabel = quarterPeriodLabel(quarter);
+
+	const results = await Promise.all([
+		...months.map((month) => getPeriodIncomeStatement(workspace, quarter.year, month)),
+		getPeriodIncomeStatement(workspace, quarter.year, periodLabel)
+	]);
+
+	const periods = [...months, periodLabel];
+
+	const revenue = pivotAccountBalances(
+		results.map((r) => ({ items: r.revenue }))
+	);
+	const expenses = pivotAccountBalances(
+		results.map((r) => ({ items: r.expenses }))
+	);
+
+	return {
+		periods,
+		revenue,
+		expenses,
+		total_revenue: results.map((r) => r.total_revenue),
+		total_expenses: results.map((r) => r.total_expenses),
+		net_income: results.map((r) => r.net_income)
+	};
+}
+
+export async function getMultiPeriodBalanceSheet(
+	workspace: string,
+	quarter: Quarter
+): Promise<MultiPeriodBalanceSheet> {
+	const months = quarterMonths(quarter);
+	const periodLabel = quarterPeriodLabel(quarter);
+
+	const results = await Promise.all([
+		...months.map((month) => getPeriodBalanceSheet(workspace, quarter.year, month)),
+		getPeriodBalanceSheet(workspace, quarter.year, periodLabel)
+	]);
+
+	const periods = [...months, periodLabel];
+
+	const assets = pivotAccountBalances(results.map((r) => ({ items: r.assets })));
+	const liabilities = pivotAccountBalances(results.map((r) => ({ items: r.liabilities })));
+	const equity = pivotAccountBalances(results.map((r) => ({ items: r.equity })));
+
+	return {
+		periods,
+		assets,
+		liabilities,
+		equity,
+		total_assets: results.map((r) => r.total_assets),
+		total_liabilities: results.map((r) => r.total_liabilities),
+		total_equity: results.map((r) => r.total_equity),
+		net_income: results.map((r) => r.net_income),
+		total_liabilities_and_equity: results.map((r) => r.total_liabilities_and_equity)
+	};
 }
 
 // ── Baselines ───────────────────────────────────────────────────────────────
