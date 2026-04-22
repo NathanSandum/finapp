@@ -145,6 +145,21 @@ export async function deleteEntry(workspace: string, entry: string) {
 	return res.json();
 }
 
+export async function updateEntry(
+	workspace: string,
+	entry: string,
+	changes: {
+		date?: string;
+		description?: string;
+		cleared?: boolean;
+		postings?: PostingInput[];
+	}
+) {
+	const res = await request('PUT', `/workspaces/${workspace}/entries/${entry}`, changes);
+	if (!res.ok) throw await res.json();
+	return res.json();
+}
+
 // ── Reports ─────────────────────────────────────────────────────────────────
 
 export async function getBalanceSheet(workspace: string, asOf: string) {
