@@ -6,7 +6,15 @@
 	import { quarterMonths, quarterPeriodLabel } from '$lib/period';
 	import type { Account, Entry } from '$lib/types';
 
-	let { workspaceId, quarter }: { workspaceId: string; quarter: Quarter } = $props();
+	let {
+		workspaceId,
+		quarter,
+		onregister
+	}: {
+		workspaceId: string;
+		quarter: Quarter;
+		onregister?: (actions: { openNewForm: () => void }) => void;
+	} = $props();
 
 	let entries: Entry[] = $state([]);
 	let accounts: Account[] = $state([]);
@@ -77,6 +85,10 @@
 		}
 	}
 
+	$effect(() => {
+		onregister?.({ openNewForm: () => (formEntry = 'new') });
+	});
+
 	function handleFormSave(savedEntry: Entry) {
 		if (formEntry === 'new') {
 			entries = [savedEntry, ...entries];
@@ -96,15 +108,6 @@
 {#if loading}
 	<div class="flex min-h-64 items-center justify-center text-gray-600">Loading...</div>
 {:else}
-	<div class="mb-2 flex justify-end">
-		<button
-			class="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-500"
-			onclick={() => (formEntry = 'new')}
-		>
-			New Entry
-		</button>
-	</div>
-
 	{#if formEntry !== null}
 		<EntryForm
 			{workspaceId}
@@ -229,13 +232,13 @@
 											rowspan={entry.postings.length}
 										>
 											<button
-												class="mr-1 text-[10px] text-gray-600 hover:text-blue-400"
+												class="mr-0.5 inline-flex h-6 w-6 items-center justify-center rounded text-xs text-gray-600 hover:bg-gray-800 hover:text-blue-400"
 												onclick={() => (formEntry = entry)}
 											>
 												&#9998;
 											</button>
 											<button
-												class="text-[10px] text-gray-600 hover:text-red-400"
+												class="inline-flex h-6 w-6 items-center justify-center rounded text-xs text-gray-600 hover:bg-gray-800 hover:text-red-400"
 												onclick={() => handleDelete(entry)}
 											>
 												&#10005;

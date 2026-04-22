@@ -1,3 +1,20 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
+
+/* Thin scrollbars */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: theme(--color-gray-700) transparent;
+}
+*::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+*::-webkit-scrollbar-track {
+	background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+	background: theme(--color-gray-700);
+	border-radius: 3px;
+}
