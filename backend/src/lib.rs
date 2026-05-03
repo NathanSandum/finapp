@@ -1,10 +1,13 @@
 mod auth;
+pub mod config;
+pub mod database;
 pub mod domain;
 mod error;
 pub mod jsend;
 mod permissions;
 mod routes;
 mod schema;
+pub mod seed;
 pub mod test_helpers;
 
 use axum::{
@@ -15,7 +18,6 @@ use axum::{
 use diesel::r2d2::{self, ConnectionManager};
 use diesel::SqliteConnection;
 use serde_json::{json, Value};
-use tower_http::cors::CorsLayer;
 
 use crate::jsend::JSend;
 
@@ -25,7 +27,7 @@ async fn health() -> JSend<Value> {
     JSend::success(json!({ "service": "finapp" }))
 }
 
-pub fn build_router(pool: DbPool) -> Router {
+pub fn build_router(db: DbPool) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/auth/register", post(routes::auth::register))
@@ -104,6 +106,5 @@ pub fn build_router(pool: DbPool) -> Router {
             "/workspaces/{workspace}/baselines/{baseline}/variance",
             get(routes::baselines::variance),
         )
-        .layer(Extension(pool))
-        .layer(CorsLayer::permissive())
+        .layer(Extension(db))
 }

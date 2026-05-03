@@ -16,13 +16,13 @@ pub struct CreateWorkspaceRequest {
 }
 
 pub async fn create(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     AuthUser(user): AuthUser,
     Json(body): Json<CreateWorkspaceRequest>,
 ) -> Result<JSendResponse<Workspace>, AppError> {
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let workspace = NewWorkspace::new(&body.name, user.as_ref().clone()).insert(&mut conn)?;
 
@@ -33,12 +33,12 @@ pub async fn create(
 }
 
 pub async fn list(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     AuthUser(user): AuthUser,
 ) -> Result<JSend<Value>, AppError> {
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let workspaces = user.as_ref().workspaces(&mut conn)?;
     Ok(JSend::success(json!({ "workspaces": workspaces })))
@@ -47,11 +47,11 @@ pub async fn list(
 pub async fn get(
     Path(workspace): Path<WorkspaceRef>,
     AuthUser(user): AuthUser,
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
 ) -> Result<JSend<Value>, AppError> {
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let workspace = Workspace::from_ref(&workspace, &mut conn)?.ok_or(AppError::Forbidden)?;
 
@@ -76,14 +76,14 @@ pub struct UpdateWorkspaceRequest {
 }
 
 pub async fn update(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Json(body): Json<UpdateWorkspaceRequest>,
 ) -> Result<JSend<Value>, AppError> {
     member.require_role(&Role::Owner)?;
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let workspace = Workspace::from_ref(&member.workspace, &mut conn)?
         .ok_or(AppError::NotFound("workspace".into()))?;
@@ -109,11 +109,11 @@ pub struct RemoveMemberPath {
 pub async fn remove_member(
     Path(path): Path<RemoveMemberPath>,
     AuthUser(actor): AuthUser,
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
 ) -> Result<JSend<Value>, AppError> {
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let workspace = Workspace::from_ref(&path.workspace, &mut conn)?.ok_or(AppError::Forbidden)?;
 
