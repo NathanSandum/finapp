@@ -1,6 +1,7 @@
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 
 use crate::config::{Config, Mode};
+use crate::seed;
 use crate::DbPool;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
@@ -9,6 +10,7 @@ pub fn build(config: &Config) -> DbPool {
     let pool = config.database.connect();
     if config.mode == Mode::Dev {
         run_migrations(&pool);
+        seed::populate(&pool, config).expect("dev seed failed");
     }
     pool
 }

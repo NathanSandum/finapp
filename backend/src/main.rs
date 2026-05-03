@@ -1,5 +1,6 @@
-use backend::config::Config;
+use backend::config::{Config, Mode};
 use backend::database;
+use backend::seed;
 
 #[tokio::main]
 async fn main() {
@@ -17,5 +18,17 @@ async fn main() {
         "Backend running on http://{} (mode: {:?}, database: {})",
         bind, config.mode, config.database
     );
+
+    if config.mode == Mode::Dev {
+        if let Some(token) = config.dev_token.as_deref() {
+            println!();
+            println!("── Dev credentials ──────────────────────────────");
+            println!("  VITE_DEV_TOKEN     = {token}");
+            println!("  VITE_DEV_WORKSPACE = {}", seed::DEV_WORKSPACE_ID);
+            println!("  VITE_API_BASE      = http://{}", bind);
+            println!("─────────────────────────────────────────────────");
+        }
+    }
+
     axum::serve(listener, app).await.unwrap();
 }

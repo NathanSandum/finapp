@@ -7,6 +7,7 @@ pub mod jsend;
 mod permissions;
 mod routes;
 mod schema;
+pub mod seed;
 pub mod test_helpers;
 
 use axum::{
