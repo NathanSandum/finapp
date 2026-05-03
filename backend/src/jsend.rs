@@ -37,8 +37,10 @@ impl<T: Serialize> JSend<T> {
 }
 
 impl JSend {
-    pub fn fail(data: Value) -> Self {
-        JSend::Fail { data }
+    pub fn fail<D: Serialize>(data: D) -> Self {
+        JSend::Fail {
+            data: serde_json::to_value(data).expect("fail data must serialize"),
+        }
     }
 
     pub fn error(message: impl Into<String>) -> Self {
@@ -56,9 +58,9 @@ impl JSend {
         self
     }
 
-    pub fn with_data(mut self, data_value: Value) -> Self {
+    pub fn with_data<D: Serialize>(mut self, data_value: D) -> Self {
         if let JSend::Error { data, .. } = &mut self {
-            *data = Some(data_value);
+            *data = Some(serde_json::to_value(data_value).expect("error data must serialize"));
         }
         self
     }
@@ -169,7 +171,7 @@ mod tests {
 
     #[test]
     fn error_with_code_and_data() {
-        let envelope = JSend::error("db timeout")
+        let envelope: JSend = JSend::error("db timeout")
             .with_code(503)
             .with_data(json!({ "retry_after": 5 }));
         let value = serde_json::to_value(envelope).unwrap();

@@ -1,10 +1,11 @@
+use crate::jsend::{JSend, JSendResponse};
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use serde::Serialize;
+use serde_json::{Map, Value};
 
 #[derive(Debug)]
 pub enum AppError {
@@ -35,67 +36,60 @@ pub struct FieldError {
 }
 
 #[derive(Serialize)]
-struct ErrorBody {
+struct CodedFailure {
     code: &'static str,
     message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    fields: Option<Vec<FieldError>>,
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, body) = match self {
-            AppError::NotFound(msg) => (
+        match self {
+            AppError::NotFound(msg) => fail(
                 StatusCode::NOT_FOUND,
-                ErrorBody {
+                CodedFailure {
                     code: "not_found",
                     message: msg,
-                    fields: None,
                 },
             ),
-            AppError::Forbidden => (
+            AppError::Forbidden => fail(
                 StatusCode::FORBIDDEN,
-                ErrorBody {
+                CodedFailure {
                     code: "forbidden",
                     message: "insufficient permissions".into(),
-                    fields: None,
                 },
             ),
-            AppError::Unauthorized => (
+            AppError::Unauthorized => fail(
                 StatusCode::UNAUTHORIZED,
-                ErrorBody {
+                CodedFailure {
                     code: "unauthorized",
                     message: "authentication required".into(),
-                    fields: None,
                 },
             ),
-            AppError::Conflict(msg) => (
+            AppError::Conflict(msg) => fail(
                 StatusCode::CONFLICT,
-                ErrorBody {
+                CodedFailure {
                     code: "conflict",
                     message: msg,
-                    fields: None,
                 },
             ),
-            AppError::Validation(fields) => (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                ErrorBody {
-                    code: "validation_error",
-                    message: "validation failed".into(),
-                    fields: Some(fields),
-                },
-            ),
-            AppError::Internal(_) => (
+            AppError::Validation(fields) => {
+                let mut data = Map::new();
+                for FieldError { field, message } in fields {
+                    data.insert(field, Value::String(message));
+                }
+                fail(StatusCode::UNPROCESSABLE_ENTITY, Value::Object(data))
+            }
+            AppError::Internal(_) => JSendResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                ErrorBody {
-                    code: "internal_error",
-                    message: "an unexpected error occurred".into(),
-                    fields: None,
-                },
-            ),
-        };
-        (status, Json(body)).into_response()
+                JSend::error("an unexpected error occurred"),
+            )
+            .into_response(),
+        }
     }
+}
+
+fn fail<D: Serialize>(status: StatusCode, data: D) -> Response {
+    JSendResponse::new(status, JSend::fail(data)).into_response()
 }
 
 #[cfg(test)]
@@ -140,14 +134,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn response_has_code_and_message() {
+    async fn client_error_is_jsend_fail() {
         let body = body_json(AppError::NotFound("workspace".into())).await;
-        assert!(body.get("code").is_some(), "missing 'code' field");
-        assert!(body.get("message").is_some(), "missing 'message' field");
-        assert!(
-            body.get("fields").is_none(),
-            "unexpected 'fields' on non-validation error"
-        );
+        assert_eq!(body["status"], "fail");
+        assert_eq!(body["data"]["code"], "not_found");
+        assert_eq!(body["data"]["message"], "workspace");
+    }
+
+    #[tokio::test]
+    async fn server_error_is_jsend_error() {
+        let body = body_json(AppError::Internal("secret".into())).await;
+        assert_eq!(body["status"], "error");
+        assert!(body["message"].is_string());
     }
 
     #[tokio::test]
@@ -159,7 +157,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn validation_is_422_with_fields() {
+    async fn validation_is_422_with_field_map() {
         let err = AppError::Validation(vec![
             FieldError {
                 field: "email".into(),
@@ -174,10 +172,8 @@ mod tests {
         assert_eq!(resp.status().as_u16(), 422);
         let bytes = resp.into_body().collect().await.unwrap().to_bytes();
         let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(body["code"], "validation_error");
-        let fields = body["fields"].as_array().unwrap();
-        assert_eq!(fields.len(), 2);
-        assert_eq!(fields[0]["field"], "email");
-        assert_eq!(fields[1]["field"], "password");
+        assert_eq!(body["status"], "fail");
+        assert_eq!(body["data"]["email"], "is required");
+        assert_eq!(body["data"]["password"], "too short");
     }
 }
