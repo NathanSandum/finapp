@@ -1,6 +1,7 @@
 mod auth;
 pub mod domain;
 mod error;
+pub mod jsend;
 mod permissions;
 mod routes;
 mod schema;
