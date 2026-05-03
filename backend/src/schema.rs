@@ -59,7 +59,6 @@ diesel::table! {
         workspace_id -> Text,
         date -> Text,
         description -> Text,
-        cleared -> Bool,
         deleted_at -> Nullable<Timestamp>,
         created_at -> Timestamp,
         updated_at -> Timestamp,

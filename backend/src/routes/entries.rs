@@ -21,8 +21,6 @@ pub struct CreatePostingRequest {
 pub struct CreateEntryRequest {
     date: String,
     description: String,
-    #[serde(default)]
-    cleared: bool,
     postings: Vec<CreatePostingRequest>,
 }
 
@@ -48,7 +46,6 @@ pub async fn create(
         &body.description,
         posting_inputs,
     )
-    .cleared(body.cleared)
     .insert(&mut conn)?;
 
     let postings = entry.postings(&mut conn)?;
@@ -110,7 +107,6 @@ pub async fn get(
 pub struct UpdateEntryRequest {
     date: Option<String>,
     description: Option<String>,
-    cleared: Option<bool>,
     postings: Option<Vec<CreatePostingRequest>>,
 }
 
@@ -139,7 +135,6 @@ pub async fn update(
     let changes = UpdateEntry {
         date: body.date,
         description: body.description,
-        cleared: body.cleared,
         postings: posting_inputs,
     };
 
@@ -176,8 +171,6 @@ pub struct MergeEntriesRequest {
     source_entry_ids: Vec<EntryRef>,
     date: String,
     description: String,
-    #[serde(default)]
-    cleared: bool,
     postings: Vec<CreatePostingRequest>,
 }
 
@@ -212,7 +205,6 @@ pub async fn merge(
         &member.workspace,
         &body.date,
         &body.description,
-        body.cleared,
         posting_inputs,
         &mut conn,
     )?;
@@ -253,7 +245,6 @@ pub fn entry_to_json(
         "id": entry.id,
         "date": entry.date,
         "description": entry.description,
-        "cleared": entry.cleared,
         "postings": posting_items,
     })
 }

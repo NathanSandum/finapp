@@ -44,7 +44,6 @@ pub struct Entry {
     pub workspace: WorkspaceRef,
     pub date: String,
     pub description: String,
-    pub cleared: bool,
     pub deleted_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
@@ -97,11 +96,6 @@ impl Entry {
                     .set(entries::description.eq(description))
                     .execute(conn)?;
             }
-            if let Some(cleared) = changes.cleared {
-                diesel::update(entries::table.find(&self.id))
-                    .set(entries::cleared.eq(cleared))
-                    .execute(conn)?;
-            }
 
             if let Some(posting_inputs) = changes.postings {
                 diesel::delete(postings::table.filter(postings::entry_id.eq(&self.id)))
@@ -139,7 +133,6 @@ impl Entry {
         workspace: &WorkspaceRef,
         date: &str,
         description: &str,
-        cleared: bool,
         posting_inputs: Vec<PostingInput>,
         conn: &mut SqliteConnection,
     ) -> Result<Entry, AppError> {
@@ -172,7 +165,6 @@ impl Entry {
                 description,
                 posting_inputs,
             )
-            .cleared(cleared)
             .insert(conn)?;
 
             Ok(new_entry)
@@ -335,7 +327,6 @@ fn validate_postings(posting_inputs: &[PostingInput]) -> Result<(), AppError> {
 pub struct UpdateEntry {
     pub date: Option<String>,
     pub description: Option<String>,
-    pub cleared: Option<bool>,
     pub postings: Option<Vec<PostingInput>>,
 }
 
@@ -362,7 +353,6 @@ struct NewEntryRow {
     workspace: WorkspaceRef,
     date: String,
     description: String,
-    cleared: bool,
     created_at: NaiveDateTime,
     updated_at: NaiveDateTime,
 }
@@ -385,7 +375,6 @@ pub struct NewEntry {
     workspace: WorkspaceRef,
     date: String,
     description: String,
-    cleared: bool,
     posting_inputs: Vec<PostingInput>,
 }
 
@@ -400,14 +389,8 @@ impl NewEntry {
             workspace,
             date: date.to_string(),
             description: description.to_string(),
-            cleared: false,
             posting_inputs,
         }
-    }
-
-    pub fn cleared(mut self, cleared: bool) -> Self {
-        self.cleared = cleared;
-        self
     }
 
     pub fn insert(self, conn: &mut SqliteConnection) -> Result<Entry, AppError> {
@@ -422,7 +405,6 @@ impl NewEntry {
                     workspace: self.workspace,
                     date: self.date,
                     description: self.description,
-                    cleared: self.cleared,
                     created_at: now,
                     updated_at: now,
                 })
@@ -492,7 +474,6 @@ mod tests {
                 PostingInput::new(food.id.clone(), amount),
             ],
         )
-        .cleared(true)
         .insert(conn)
         .unwrap()
     }
@@ -517,7 +498,6 @@ mod tests {
 
         assert_eq!(entry.date, "2026-01-15");
         assert_eq!(entry.description, "Lunch");
-        assert!(!entry.cleared);
     }
 
     #[test]
@@ -648,7 +628,6 @@ mod tests {
                 PostingInput::new(rent.id.clone(), 150000),
             ],
         )
-        .cleared(true)
         .insert(&mut conn)
         .unwrap();
 
@@ -674,28 +653,6 @@ mod tests {
 
         let entries = food.id.entries(&mut conn).unwrap();
         assert!(entries.is_empty());
-    }
-
-    #[test]
-    fn cleared_flag_set_via_builder() {
-        let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
-        let food = find_account("Food", &workspace, &mut conn);
-
-        let entry = NewEntry::new(
-            workspace.as_ref().clone(),
-            "2026-01-15",
-            "Lunch",
-            vec![
-                PostingInput::new(chequing.id.clone(), -1200),
-                PostingInput::new(food.id.clone(), 1200),
-            ],
-        )
-        .cleared(true)
-        .insert(&mut conn)
-        .unwrap();
-
-        assert!(entry.cleared);
     }
 
     #[test]
@@ -759,7 +716,6 @@ mod tests {
                 UpdateEntry {
                     date: Some("2026-02-20".to_string()),
                     description: None,
-                    cleared: None,
                     postings: None,
                 },
                 &mut conn,
@@ -768,7 +724,6 @@ mod tests {
 
         assert_eq!(updated.date, "2026-02-20");
         assert_eq!(updated.description, "Groceries");
-        assert!(updated.cleared);
 
         let postings_after = updated.postings(&mut conn).unwrap();
         assert_eq!(postings_after.len(), original_postings.len());
@@ -790,7 +745,6 @@ mod tests {
                 UpdateEntry {
                     date: None,
                     description: Some("Updated description".to_string()),
-                    cleared: None,
                     postings: None,
                 },
                 &mut conn,
@@ -799,30 +753,6 @@ mod tests {
 
         assert_eq!(updated.description, "Updated description");
         assert_eq!(updated.date, "2026-01-15");
-    }
-
-    #[test]
-    fn update_cleared_flag() {
-        let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
-        let food = find_account("Food", &workspace, &mut conn);
-
-        let entry = simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
-        assert!(entry.cleared);
-
-        let updated = entry
-            .update(
-                UpdateEntry {
-                    date: None,
-                    description: None,
-                    cleared: Some(false),
-                    postings: None,
-                },
-                &mut conn,
-            )
-            .unwrap();
-
-        assert!(!updated.cleared);
     }
 
     #[test]
@@ -840,7 +770,6 @@ mod tests {
                 UpdateEntry {
                     date: None,
                     description: None,
-                    cleared: None,
                     postings: Some(vec![
                         PostingInput::new(chequing.id.clone(), -5000),
                         PostingInput::new(rent.id.clone(), 5000),
@@ -880,7 +809,6 @@ mod tests {
                 UpdateEntry {
                     date: None,
                     description: None,
-                    cleared: None,
                     postings: Some(vec![
                         PostingInput::new(chequing.id.clone(), -1200),
                         PostingInput::new(food.id.clone(), 1000),
@@ -906,7 +834,6 @@ mod tests {
                 UpdateEntry {
                     date: None,
                     description: None,
-                    cleared: None,
                     postings: Some(vec![PostingInput::new(chequing.id.clone(), 100)]),
                 },
                 &mut conn,
@@ -929,7 +856,6 @@ mod tests {
                 UpdateEntry {
                     date: None,
                     description: None,
-                    cleared: None,
                     postings: Some(vec![
                         PostingInput::new(chequing.id.clone(), 0),
                         PostingInput::new(food.id.clone(), 0),
@@ -955,7 +881,6 @@ mod tests {
                 UpdateEntry {
                     date: None,
                     description: None,
-                    cleared: None,
                     postings: None,
                 },
                 &mut conn,
@@ -964,7 +889,6 @@ mod tests {
 
         assert_eq!(updated.date, entry.date);
         assert_eq!(updated.description, entry.description);
-        assert_eq!(updated.cleared, entry.cleared);
         assert!(updated.updated_at >= entry.updated_at);
     }
 
@@ -993,7 +917,6 @@ mod tests {
             workspace.as_ref(),
             "2026-01-15",
             "Transfer to savings",
-            true,
             vec![
                 PostingInput::new(chequing.id.clone(), -6200),
                 PostingInput::new(savings.id.clone(), 6200),
@@ -1004,7 +927,6 @@ mod tests {
 
         assert_eq!(merged.description, "Transfer to savings");
         assert_eq!(merged.date, "2026-01-15");
-        assert!(merged.cleared);
 
         let postings = merged.postings(&mut conn).unwrap();
         assert_eq!(postings.len(), 2);
@@ -1030,7 +952,6 @@ mod tests {
             workspace.as_ref(),
             "2026-01-15",
             "Bad merge",
-            false,
             vec![
                 PostingInput::new(chequing.id.clone(), -1200),
                 PostingInput::new(food.id.clone(), 1000),
@@ -1053,7 +974,6 @@ mod tests {
             workspace.as_ref(),
             "2026-01-15",
             "Empty merge",
-            false,
             vec![
                 PostingInput::new(chequing.id.clone(), -1200),
                 PostingInput::new(food.id.clone(), 1200),
@@ -1098,7 +1018,6 @@ mod tests {
             workspace.as_ref(),
             "2026-01-15",
             "Cross workspace",
-            false,
             vec![
                 PostingInput::new(chequing.id.clone(), -1700),
                 PostingInput::new(food.id.clone(), 1700),
@@ -1133,7 +1052,6 @@ mod tests {
                 PostingInput::new(cafes.id.clone(), 500),
             ],
         )
-        .cleared(true)
         .insert(&mut conn)
         .unwrap();
 

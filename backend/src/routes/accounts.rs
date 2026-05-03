@@ -161,11 +161,11 @@ pub async fn balance(
         return Err(AppError::NotFound("account".into()));
     }
 
-    let cleared_balance = account.balance(&mut conn)?;
+    let balance = account.balance(&mut conn)?;
 
     Ok(JSend::success(json!({
         "account": account.id,
-        "cleared_balance": cleared_balance,
+        "balance": balance,
     })))
 }
 

@@ -290,12 +290,11 @@ impl Account {
         Ok(())
     }
 
-    /// Sum of postings for this account on cleared, non-deleted entries.
+    /// Sum of postings for this account on non-deleted entries.
     pub fn balance(&self, conn: &mut SqliteConnection) -> Result<i64, AppError> {
         let result: Option<i64> = postings::table
             .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
             .filter(postings::account_id.eq(&self.id))
-            .filter(entries::cleared.eq(true))
             .filter(entries::deleted_at.is_null())
             .select(diesel::dsl::sum(postings::amount))
             .first(conn)
@@ -313,7 +312,6 @@ impl Account {
         let result: Option<i64> = postings::table
             .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
             .filter(postings::account_id.eq_any(&account_ids))
-            .filter(entries::cleared.eq(true))
             .filter(entries::deleted_at.is_null())
             .select(diesel::dsl::sum(postings::amount))
             .first(conn)
@@ -329,7 +327,6 @@ impl Account {
         let result: Option<i64> = postings::table
             .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
             .filter(postings::account_id.eq(&self.id))
-            .filter(entries::cleared.eq(true))
             .filter(entries::deleted_at.is_null())
             .filter(entries::date.le(date))
             .select(diesel::dsl::sum(postings::amount))
@@ -352,7 +349,6 @@ impl Account {
         let result: Option<i64> = postings::table
             .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
             .filter(postings::account_id.eq_any(&account_ids))
-            .filter(entries::cleared.eq(true))
             .filter(entries::deleted_at.is_null())
             .filter(entries::date.le(date))
             .select(diesel::dsl::sum(postings::amount))
@@ -376,7 +372,6 @@ impl Account {
         let result: Option<i64> = postings::table
             .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
             .filter(postings::account_id.eq(&self.id))
-            .filter(entries::cleared.eq(true))
             .filter(entries::deleted_at.is_null())
             .filter(entries::date.ge(start_date))
             .filter(entries::date.le(end_date))
@@ -401,7 +396,6 @@ impl Account {
         let result: Option<i64> = postings::table
             .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
             .filter(postings::account_id.eq_any(&account_ids))
-            .filter(entries::cleared.eq(true))
             .filter(entries::deleted_at.is_null())
             .filter(entries::date.ge(start_date))
             .filter(entries::date.le(end_date))
@@ -912,7 +906,6 @@ mod tests {
         to: &Account,
         amount: i32,
         date: &str,
-        cleared: bool,
         conn: &mut SqliteConnection,
     ) -> crate::domain::entry::Entry {
         NewEntry::new(
@@ -924,34 +917,21 @@ mod tests {
                 PostingInput::new(to.id.clone(), amount),
             ],
         )
-        .cleared(cleared)
         .insert(conn)
         .unwrap()
     }
 
     #[test]
-    fn balance_sum_of_cleared_postings() {
+    fn balance_sum_of_postings() {
         let (mut conn, workspace) = setup();
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
-        make_entry(&workspace, &chequing, &food, 800, "2026-01-16", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+        make_entry(&workspace, &chequing, &food, 800, "2026-01-16", &mut conn);
 
         assert_eq!(food.balance(&mut conn).unwrap(), 2000);
         assert_eq!(chequing.balance(&mut conn).unwrap(), -2000);
-    }
-
-    #[test]
-    fn balance_excludes_uncleared_entries() {
-        let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
-        let food = find_account("Food", &workspace, &mut conn);
-
-        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
-        make_entry(&workspace, &chequing, &food, 800, "2026-01-16", false, &mut conn);
-
-        assert_eq!(food.balance(&mut conn).unwrap(), 1200);
     }
 
     #[test]
@@ -960,8 +940,8 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
-        let deleted_entry = make_entry(&workspace, &chequing, &food, 800, "2026-01-16", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+        let deleted_entry = make_entry(&workspace, &chequing, &food, 800, "2026-01-16", &mut conn);
         deleted_entry.soft_delete(&mut conn).unwrap();
 
         assert_eq!(food.balance(&mut conn).unwrap(), 1200);
@@ -976,8 +956,8 @@ mod tests {
 
         let cafes = NewAccount::child(&food, "Cafes").insert(&mut conn).unwrap();
 
-        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
-        make_entry(&workspace, &chequing, &cafes, 500, "2026-01-16", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+        make_entry(&workspace, &chequing, &cafes, 500, "2026-01-16", &mut conn);
 
         // Food direct balance = 1200
         assert_eq!(food.balance(&mut conn).unwrap(), 1200);
@@ -993,8 +973,8 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
-        make_entry(&workspace, &chequing, &food, 800, "2026-01-20", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+        make_entry(&workspace, &chequing, &food, 800, "2026-01-20", &mut conn);
 
         assert_eq!(food.balance_as_of("2026-01-15", &mut conn).unwrap(), 1200);
         assert_eq!(food.balance_as_of("2026-01-20", &mut conn).unwrap(), 2000);
@@ -1010,13 +990,13 @@ mod tests {
         let rent = find_account("Rent", &workspace, &mut conn);
 
         // Earn salary: debit chequing, credit employment
-        make_entry(&workspace, &employment, &chequing, 500000, "2026-01-01", true, &mut conn);
+        make_entry(&workspace, &employment, &chequing, 500000, "2026-01-01", &mut conn);
 
         // Spend on food
-        make_entry(&workspace, &chequing, &food, 5000, "2026-01-05", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 5000, "2026-01-05", &mut conn);
 
         // Pay rent
-        make_entry(&workspace, &chequing, &rent, 150000, "2026-01-05", true, &mut conn);
+        make_entry(&workspace, &chequing, &rent, 150000, "2026-01-05", &mut conn);
 
         let assets = find_account("Assets", &workspace, &mut conn);
         let liabilities = find_account("Liabilities", &workspace, &mut conn);
@@ -1042,7 +1022,7 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
 
         let err = food.soft_delete(&mut conn).expect_err("should fail with active postings");
         assert!(matches!(err, AppError::Conflict(_)));
@@ -1054,7 +1034,7 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        let entry = make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+        let entry = make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
         entry.soft_delete(&mut conn).unwrap();
 
         food.soft_delete(&mut conn).expect("should succeed when all entries deleted");
@@ -1211,9 +1191,9 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        make_entry(&workspace, &chequing, &food, 1000, "2026-01-10", true, &mut conn);
-        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
-        make_entry(&workspace, &chequing, &food, 800, "2026-01-20", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1000, "2026-01-10", &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+        make_entry(&workspace, &chequing, &food, 800, "2026-01-20", &mut conn);
 
         // Range captures only middle entry
         assert_eq!(food.balance_between("2026-01-11", "2026-01-19", &mut conn).unwrap(), 1200);
@@ -1225,7 +1205,7 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
 
         assert_eq!(food.balance_between("2026-01-15", "2026-01-15", &mut conn).unwrap(), 1200);
     }
@@ -1236,21 +1216,9 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
 
         assert_eq!(food.balance_between("2026-02-01", "2026-02-28", &mut conn).unwrap(), 0);
-    }
-
-    #[test]
-    fn balance_between_excludes_uncleared() {
-        let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
-        let food = find_account("Food", &workspace, &mut conn);
-
-        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
-        make_entry(&workspace, &chequing, &food, 800, "2026-01-16", false, &mut conn);
-
-        assert_eq!(food.balance_between("2026-01-01", "2026-01-31", &mut conn).unwrap(), 1200);
     }
 
     #[test]
@@ -1262,8 +1230,8 @@ mod tests {
 
         let cafes = NewAccount::child(&food, "Cafes").insert(&mut conn).unwrap();
 
-        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
-        make_entry(&workspace, &chequing, &cafes, 500, "2026-01-16", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+        make_entry(&workspace, &chequing, &cafes, 500, "2026-01-16", &mut conn);
 
         assert_eq!(
             expenses.balance_between_with_descendants("2026-01-01", "2026-01-31", &mut conn).unwrap(),
@@ -1281,8 +1249,8 @@ mod tests {
         let cafes = NewAccount::child(&food, "Cafes").insert(&mut conn).unwrap();
 
         // Entries at different dates on different accounts
-        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", true, &mut conn);
-        make_entry(&workspace, &chequing, &cafes, 500, "2026-02-10", true, &mut conn);
+        make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
+        make_entry(&workspace, &chequing, &cafes, 500, "2026-02-10", &mut conn);
 
         // As of Jan 31: chequing has -1200 (only first entry), assets tree = -1200
         assert_eq!(assets.balance_as_of_with_descendants("2026-01-31", &mut conn).unwrap(), -1200);
