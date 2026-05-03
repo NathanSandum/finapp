@@ -1,10 +1,10 @@
-use axum::{extract::Extension, extract::Query, Json};
+use axum::{extract::Extension, extract::Query};
 use serde::Deserialize;
-use serde_json::Value;
 
 use crate::auth::WorkspaceMember;
 use crate::domain::report::{BalanceSheet, IncomeStatement};
 use crate::error::{AppError, FieldError};
+use crate::jsend::JSend;
 use crate::DbPool;
 
 #[derive(Deserialize)]
@@ -16,7 +16,7 @@ pub async fn balance_sheet(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Query(query): Query<BalanceSheetQuery>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<BalanceSheet>, AppError> {
     let as_of = query.as_of.ok_or_else(|| {
         AppError::Validation(vec![FieldError {
             field: "as_of".into(),
@@ -30,9 +30,7 @@ pub async fn balance_sheet(
 
     let sheet = BalanceSheet::as_of(&member.workspace, &as_of, &mut conn)?;
 
-    Ok(Json(serde_json::to_value(sheet).map_err(|err| {
-        AppError::Internal(format!("serialization failed: {err}"))
-    })?))
+    Ok(JSend::success(sheet))
 }
 
 #[derive(Deserialize)]
@@ -45,7 +43,7 @@ pub async fn income_statement(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Query(query): Query<IncomeStatementQuery>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<IncomeStatement>, AppError> {
     let mut errors = Vec::new();
     if query.start_date.is_none() {
         errors.push(FieldError {
@@ -77,7 +75,5 @@ pub async fn income_statement(
         &mut conn,
     )?;
 
-    Ok(Json(serde_json::to_value(statement).map_err(|err| {
-        AppError::Internal(format!("serialization failed: {err}"))
-    })?))
+    Ok(JSend::success(statement))
 }

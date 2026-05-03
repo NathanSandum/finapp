@@ -1,4 +1,4 @@
-use axum::{extract::Extension, extract::Path, Json};
+use axum::{extract::Extension, extract::Path};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -7,6 +7,7 @@ use crate::domain::period::Period;
 use crate::domain::report::{BalanceSheet, IncomeStatement};
 use crate::domain::workspace::WorkspaceRef;
 use crate::error::AppError;
+use crate::jsend::JSend;
 use crate::DbPool;
 
 #[derive(Deserialize)]
@@ -21,7 +22,7 @@ pub async fn income_statement(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<PeriodPath>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<IncomeStatement>, AppError> {
     let period = Period::parse(&path.year, &path.period)?;
 
     let mut conn = pool
@@ -35,16 +36,14 @@ pub async fn income_statement(
         &mut conn,
     )?;
 
-    Ok(Json(serde_json::to_value(statement).map_err(|err| {
-        AppError::Internal(format!("serialization failed: {err}"))
-    })?))
+    Ok(JSend::success(statement))
 }
 
 pub async fn balance_sheet(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<PeriodPath>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<BalanceSheet>, AppError> {
     let period = Period::parse(&path.year, &path.period)?;
 
     let mut conn = pool
@@ -53,16 +52,14 @@ pub async fn balance_sheet(
 
     let sheet = BalanceSheet::as_of(&member.workspace, &period.end_date, &mut conn)?;
 
-    Ok(Json(serde_json::to_value(sheet).map_err(|err| {
-        AppError::Internal(format!("serialization failed: {err}"))
-    })?))
+    Ok(JSend::success(sheet))
 }
 
 pub async fn entries(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<PeriodPath>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     let period = Period::parse(&path.year, &path.period)?;
 
     let mut conn = pool
@@ -79,5 +76,5 @@ pub async fn entries(
         items.push(super::entries::entry_to_json(entry, &postings));
     }
 
-    Ok(Json(json!({ "entries": items })))
+    Ok(JSend::success(json!({ "entries": items })))
 }

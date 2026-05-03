@@ -60,8 +60,17 @@ async fn send(
     let resp = app.clone().oneshot(req).await.unwrap();
     let status = resp.status();
     let bytes = resp.into_body().collect().await.unwrap().to_bytes();
-    let json: Value = serde_json::from_slice(&bytes).unwrap_or(json!({}));
-    (status, json)
+    let envelope: Value = serde_json::from_slice(&bytes).unwrap_or(json!({}));
+    // Unwrap JSend envelope: return `data` for success/fail, or the full envelope
+    // for `error` (no data field) or non-JSend bodies.
+    let body = match envelope.get("status").and_then(Value::as_str) {
+        Some("success") | Some("fail") => envelope
+            .get("data")
+            .cloned()
+            .unwrap_or(Value::Null),
+        _ => envelope,
+    };
+    (status, body)
 }
 
 async fn get(app: &Router, uri: &str, token: &str) -> (StatusCode, Value) {
@@ -127,7 +136,7 @@ async fn health_check() {
     let app = app();
     let (status, body) = send(&app, Method::GET, "/health", None, None).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["status"], "ok");
+    assert_eq!(body["service"], "finapp");
 }
 
 #[tokio::test]
