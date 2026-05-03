@@ -22,14 +22,14 @@ impl<S: Send + Sync> FromRequestParts<S> for AuthUser {
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or(AppError::Unauthorized)?;
 
-        let pool = parts
+        let db = parts
             .extensions
             .get::<DbPool>()
-            .ok_or_else(|| AppError::Internal("missing db pool".into()))?;
+            .ok_or_else(|| AppError::Internal("missing db".into()))?;
 
-        let mut conn = pool
+        let mut conn = db
             .get()
-            .map_err(|err| AppError::Internal(format!("db pool error: {err}")))?;
+            .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
         Session::validate(token, &mut conn)?
             .map(AuthUser)
@@ -78,14 +78,14 @@ impl<S: Send + Sync> FromRequestParts<S> for WorkspaceMember {
         let AuthUser(user) = AuthUser::from_request_parts(parts, state).await?;
         let workspace_id = extract_workspace_id_from_uri(parts)?;
 
-        let pool = parts
+        let db = parts
             .extensions
             .get::<DbPool>()
-            .ok_or_else(|| AppError::Internal("missing db pool".into()))?;
+            .ok_or_else(|| AppError::Internal("missing db".into()))?;
 
-        let mut conn = pool
+        let mut conn = db
             .get()
-            .map_err(|err| AppError::Internal(format!("db pool error: {err}")))?;
+            .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
         let workspace_ref: WorkspaceRef =
             serde_json::from_value(serde_json::json!(workspace_id))

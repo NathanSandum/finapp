@@ -70,7 +70,7 @@ impl DatabaseLocation {
         }
         builder
             .build(manager)
-            .expect("failed to create database pool")
+            .expect("failed to create db pool")
     }
 }
 

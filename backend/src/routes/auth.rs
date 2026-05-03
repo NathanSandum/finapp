@@ -16,12 +16,12 @@ pub struct RegisterRequest {
 }
 
 pub async fn register(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     Json(body): Json<RegisterRequest>,
 ) -> Result<JSend<Value>, AppError> {
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let user = NewUser::new(&body.email, &body.display_name, &body.password)?.insert(&mut conn)?;
     let session = NewSession::create(&user, &mut conn)?;
@@ -36,12 +36,12 @@ pub struct LoginRequest {
 }
 
 pub async fn login(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     Json(body): Json<LoginRequest>,
 ) -> Result<JSend<Value>, AppError> {
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let user = User::from_email(&body.email, &mut conn)?.ok_or(AppError::Unauthorized)?;
     if !user.verify_password(&body.password) {
@@ -54,7 +54,7 @@ pub async fn login(
 }
 
 pub async fn logout(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     headers: axum::http::HeaderMap,
 ) -> Result<JSend<Value>, AppError> {
     let token = headers
@@ -63,9 +63,9 @@ pub async fn logout(
         .and_then(|v| v.strip_prefix("Bearer "))
         .ok_or(AppError::Unauthorized)?;
 
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     Session::invalidate(token, &mut conn)?;
 

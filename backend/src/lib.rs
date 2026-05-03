@@ -27,7 +27,7 @@ async fn health() -> JSend<Value> {
     JSend::success(json!({ "service": "finapp" }))
 }
 
-pub fn build_router(pool: DbPool) -> Router {
+pub fn build_router(db: DbPool) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/auth/register", post(routes::auth::register))
@@ -106,5 +106,5 @@ pub fn build_router(pool: DbPool) -> Router {
             "/workspaces/{workspace}/baselines/{baseline}/variance",
             get(routes::baselines::variance),
         )
-        .layer(Extension(pool))
+        .layer(Extension(db))
 }

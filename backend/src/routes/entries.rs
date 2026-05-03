@@ -25,14 +25,14 @@ pub struct CreateEntryRequest {
 }
 
 pub async fn create(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Json(body): Json<CreateEntryRequest>,
 ) -> Result<JSendResponse<Value>, AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let posting_inputs: Vec<PostingInput> = body
         .postings
@@ -57,12 +57,12 @@ pub async fn create(
 }
 
 pub async fn list(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
 ) -> Result<JSend<Value>, AppError> {
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let entries = member.workspace.entries(&mut conn)?;
 
@@ -83,13 +83,13 @@ pub struct EntryPath {
 }
 
 pub async fn get(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<EntryPath>,
 ) -> Result<JSend<Value>, AppError> {
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let entry =
         Entry::from_ref(&path.entry, &mut conn)?.ok_or(AppError::NotFound("entry".into()))?;
@@ -111,15 +111,15 @@ pub struct UpdateEntryRequest {
 }
 
 pub async fn update(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<EntryPath>,
     Json(body): Json<UpdateEntryRequest>,
 ) -> Result<JSend<Value>, AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let entry =
         Entry::from_ref(&path.entry, &mut conn)?.ok_or(AppError::NotFound("entry".into()))?;
@@ -145,14 +145,14 @@ pub async fn update(
 }
 
 pub async fn delete(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<EntryPath>,
 ) -> Result<JSend<Value>, AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let entry =
         Entry::from_ref(&path.entry, &mut conn)?.ok_or(AppError::NotFound("entry".into()))?;
@@ -175,14 +175,14 @@ pub struct MergeEntriesRequest {
 }
 
 pub async fn merge(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Json(body): Json<MergeEntriesRequest>,
 ) -> Result<JSendResponse<Value>, AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let mut source_entries = Vec::with_capacity(body.source_entry_ids.len());
     for entry_ref in &body.source_entry_ids {

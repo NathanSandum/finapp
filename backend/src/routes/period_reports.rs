@@ -19,15 +19,15 @@ pub struct PeriodPath {
 }
 
 pub async fn income_statement(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<PeriodPath>,
 ) -> Result<JSend<IncomeStatement>, AppError> {
     let period = Period::parse(&path.year, &path.period)?;
 
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let statement = IncomeStatement::for_period(
         &member.workspace,
@@ -40,15 +40,15 @@ pub async fn income_statement(
 }
 
 pub async fn balance_sheet(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<PeriodPath>,
 ) -> Result<JSend<BalanceSheet>, AppError> {
     let period = Period::parse(&path.year, &path.period)?;
 
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let sheet = BalanceSheet::as_of(&member.workspace, &period.end_date, &mut conn)?;
 
@@ -56,15 +56,15 @@ pub async fn balance_sheet(
 }
 
 pub async fn entries(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<PeriodPath>,
 ) -> Result<JSend<Value>, AppError> {
     let period = Period::parse(&path.year, &path.period)?;
 
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let entries = member
         .workspace

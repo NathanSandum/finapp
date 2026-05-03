@@ -13,7 +13,7 @@ pub struct BalanceSheetQuery {
 }
 
 pub async fn balance_sheet(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Query(query): Query<BalanceSheetQuery>,
 ) -> Result<JSend<BalanceSheet>, AppError> {
@@ -24,9 +24,9 @@ pub async fn balance_sheet(
         }])
     })?;
 
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let sheet = BalanceSheet::as_of(&member.workspace, &as_of, &mut conn)?;
 
@@ -40,7 +40,7 @@ pub struct IncomeStatementQuery {
 }
 
 pub async fn income_statement(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Query(query): Query<IncomeStatementQuery>,
 ) -> Result<JSend<IncomeStatement>, AppError> {
@@ -64,9 +64,9 @@ pub async fn income_statement(
     let start_date = query.start_date.unwrap();
     let end_date = query.end_date.unwrap();
 
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let statement = IncomeStatement::for_period(
         &member.workspace,

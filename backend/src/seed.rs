@@ -18,15 +18,15 @@ pub const DEV_USER_DISPLAY_NAME: &str = "Dev User";
 
 const SESSION_DURATION_HOURS: i64 = 24 * 365;
 
-pub fn populate(pool: &DbPool, config: &Config) -> Result<(), AppError> {
+pub fn populate(db: &DbPool, config: &Config) -> Result<(), AppError> {
     let dev_token = config
         .dev_token
         .as_deref()
         .ok_or_else(|| AppError::Internal("seed requires dev_token".into()))?;
 
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("seed pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     if dev_user_exists(&mut conn)? {
         return Ok(());
@@ -305,21 +305,21 @@ mod tests {
         }
     }
 
-    fn populate_via_pool(config: &Config) -> DbPool {
-        let pool = config.database.connect();
+    fn populate_via_db(config: &Config) -> DbPool {
+        let db = config.database.connect();
         {
-            let mut conn = pool.get().expect("get connection");
+            let mut conn = db.get().expect("get connection");
             conn.run_pending_migrations(crate::database::MIGRATIONS)
                 .expect("run migrations");
         }
-        populate(&pool, config).expect("seed populate succeeds");
-        pool
+        populate(&db, config).expect("seed populate succeeds");
+        db
     }
 
     #[test]
     fn populate_creates_dev_user() {
-        let pool = populate_via_pool(&dev_config());
-        let mut conn = pool.get().unwrap();
+        let db = populate_via_db(&dev_config());
+        let mut conn = db.get().unwrap();
         let count: i64 = users::table
             .find(DEV_USER_ID)
             .count()
@@ -330,8 +330,8 @@ mod tests {
 
     #[test]
     fn populate_creates_dev_workspace_with_owner_membership() {
-        let pool = populate_via_pool(&dev_config());
-        let mut conn = pool.get().unwrap();
+        let db = populate_via_db(&dev_config());
+        let mut conn = db.get().unwrap();
 
         let workspace_count: i64 = workspaces::table
             .find(DEV_WORKSPACE_ID)
@@ -352,8 +352,8 @@ mod tests {
     #[test]
     fn populate_creates_default_account_tree() {
         use crate::schema::accounts;
-        let pool = populate_via_pool(&dev_config());
-        let mut conn = pool.get().unwrap();
+        let db = populate_via_db(&dev_config());
+        let mut conn = db.get().unwrap();
 
         let count: i64 = accounts::table
             .filter(accounts::workspace_id.eq(DEV_WORKSPACE_ID))
@@ -366,8 +366,8 @@ mod tests {
     #[test]
     fn dev_token_validates_to_dev_user_session() {
         let config = dev_config();
-        let pool = populate_via_pool(&config);
-        let mut conn = pool.get().unwrap();
+        let db = populate_via_db(&config);
+        let mut conn = db.get().unwrap();
 
         let user = Session::validate(config.dev_token.as_deref().unwrap(), &mut conn)
             .expect("session validates")
@@ -379,8 +379,8 @@ mod tests {
     #[test]
     fn populate_creates_fixture_entries() {
         use crate::schema::entries;
-        let pool = populate_via_pool(&dev_config());
-        let mut conn = pool.get().unwrap();
+        let db = populate_via_db(&dev_config());
+        let mut conn = db.get().unwrap();
         let count: i64 = entries::table
             .filter(entries::workspace_id.eq(DEV_WORKSPACE_ID))
             .count()
@@ -392,11 +392,11 @@ mod tests {
     #[test]
     fn populate_is_idempotent() {
         let config = dev_config();
-        let pool = populate_via_pool(&config);
+        let db = populate_via_db(&config);
         // Second call must not error or duplicate.
-        populate(&pool, &config).expect("second populate succeeds");
+        populate(&db, &config).expect("second populate succeeds");
 
-        let mut conn = pool.get().unwrap();
+        let mut conn = db.get().unwrap();
         let user_count: i64 = users::table.count().get_result(&mut conn).unwrap();
         assert_eq!(user_count, 1);
     }

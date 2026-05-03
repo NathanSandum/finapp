@@ -10,12 +10,12 @@ use crate::jsend::{JSend, JSendResponse};
 use crate::DbPool;
 
 pub async fn list(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
 ) -> Result<JSend<Value>, AppError> {
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let accounts = member.workspace.accounts(&mut conn)?;
 
@@ -33,14 +33,14 @@ pub struct CreateAccountRequest {
 }
 
 pub async fn create(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Json(body): Json<CreateAccountRequest>,
 ) -> Result<JSendResponse<Value>, AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let mut builder = if let Some(ref parent_id) = body.parent_id {
         let parent = Account::from_ref(parent_id, &mut conn)?
@@ -89,14 +89,14 @@ pub struct AccountPath {
 }
 
 pub async fn delete(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<AccountPath>,
 ) -> Result<JSend<Value>, AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let account =
         Account::from_ref(&path.account, &mut conn)?.ok_or(AppError::NotFound("account".into()))?;
@@ -117,15 +117,15 @@ pub struct UpdateAccountRequest {
 }
 
 pub async fn update(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<AccountPath>,
     Json(body): Json<UpdateAccountRequest>,
 ) -> Result<JSend<Value>, AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let mut account =
         Account::from_ref(&path.account, &mut conn)?.ok_or(AppError::NotFound("account".into()))?;
@@ -146,13 +146,13 @@ pub async fn update(
 }
 
 pub async fn balance(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<AccountPath>,
 ) -> Result<JSend<Value>, AppError> {
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let account =
         Account::from_ref(&path.account, &mut conn)?.ok_or(AppError::NotFound("account".into()))?;

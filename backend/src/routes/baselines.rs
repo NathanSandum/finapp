@@ -18,14 +18,14 @@ pub struct CreateBaselineRequest {
 }
 
 pub async fn create(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Json(body): Json<CreateBaselineRequest>,
 ) -> Result<JSendResponse<Baseline>, AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let baseline = NewBaseline::monthly(
         member.workspace.clone(),
@@ -42,12 +42,12 @@ pub async fn create(
 }
 
 pub async fn list(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
 ) -> Result<JSend<Value>, AppError> {
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let baselines = member.workspace.baselines(&mut conn)?;
 
@@ -62,14 +62,14 @@ pub struct BaselinePath {
 }
 
 pub async fn delete(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<BaselinePath>,
 ) -> Result<JSend<Value>, AppError> {
     member.require_role(&Role::Editor)?;
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let baseline = Baseline::from_ref(&path.baseline, &mut conn)?
         .ok_or(AppError::NotFound("baseline".into()))?;
@@ -84,13 +84,13 @@ pub async fn delete(
 }
 
 pub async fn variance(
-    Extension(pool): Extension<DbPool>,
+    Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<BaselinePath>,
 ) -> Result<JSend<Value>, AppError> {
-    let mut conn = pool
+    let mut conn = db
         .get()
-        .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let baseline = Baseline::from_ref(&path.baseline, &mut conn)?
         .ok_or(AppError::NotFound("baseline".into()))?;
