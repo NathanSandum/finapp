@@ -157,26 +157,6 @@ impl Config {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum AuthPolicy {
-    SessionOnly,
-    SessionOrDevToken(String),
-}
-
-impl From<&Config> for AuthPolicy {
-    fn from(config: &Config) -> Self {
-        match config.mode {
-            Mode::Prod => Self::SessionOnly,
-            Mode::Dev => Self::SessionOrDevToken(
-                config
-                    .dev_token
-                    .clone()
-                    .expect("dev_token presence enforced by Config validation"),
-            ),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -274,28 +254,4 @@ mod tests {
         assert_eq!(config.mode, Mode::Prod);
     }
 
-    #[test]
-    fn auth_policy_for_prod_is_session_only() {
-        let config = Config {
-            mode: Mode::Prod,
-            database: DatabaseLocation::File(PathBuf::from("finapp.db")),
-            port: 3000,
-            dev_token: None,
-        };
-        assert_eq!(AuthPolicy::from(&config), AuthPolicy::SessionOnly);
-    }
-
-    #[test]
-    fn auth_policy_for_dev_carries_dev_token() {
-        let config = Config {
-            mode: Mode::Dev,
-            database: DatabaseLocation::Memory,
-            port: 3000,
-            dev_token: Some("secret".into()),
-        };
-        assert_eq!(
-            AuthPolicy::from(&config),
-            AuthPolicy::SessionOrDevToken("secret".into())
-        );
-    }
 }

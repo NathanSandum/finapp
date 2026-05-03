@@ -1,19 +1,21 @@
-use diesel::r2d2::{self, ConnectionManager};
-use diesel::SqliteConnection;
+use backend::config::Config;
+use backend::database;
 
 #[tokio::main]
 async fn main() {
-    let manager = ConnectionManager::<SqliteConnection>::new("finapp.db");
-    let pool = r2d2::Pool::builder()
-        .build(manager)
-        .expect("failed to create db pool");
+    let config = Config::load().expect("config load failed");
+    let pool = database::build(&config);
 
     let app = backend::build_router(pool);
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
+    let bind = format!("127.0.0.1:{}", config.port);
+    let listener = tokio::net::TcpListener::bind(&bind)
         .await
         .unwrap();
 
-    println!("Backend running on http://127.0.0.1:3000");
+    println!(
+        "Backend running on http://{} (mode: {:?}, database: {})",
+        bind, config.mode, config.database
+    );
     axum::serve(listener, app).await.unwrap();
 }

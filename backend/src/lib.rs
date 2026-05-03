@@ -1,5 +1,6 @@
 mod auth;
 pub mod config;
+pub mod database;
 pub mod domain;
 mod error;
 pub mod jsend;
@@ -16,7 +17,6 @@ use axum::{
 use diesel::r2d2::{self, ConnectionManager};
 use diesel::SqliteConnection;
 use serde_json::{json, Value};
-use tower_http::cors::CorsLayer;
 
 use crate::jsend::JSend;
 
@@ -106,5 +106,4 @@ pub fn build_router(pool: DbPool) -> Router {
             get(routes::baselines::variance),
         )
         .layer(Extension(pool))
-        .layer(CorsLayer::permissive())
 }

@@ -9,7 +9,7 @@ use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
-use backend::test_helpers::MIGRATIONS;
+use backend::database::MIGRATIONS;
 use backend::DbPool;
 
 // ── Test helpers ─────────────────────────────────────────────────────────────

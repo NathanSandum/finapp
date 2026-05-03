@@ -1,8 +1,8 @@
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use diesel_migrations::MigrationHarness;
 
-pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
+use crate::database::MIGRATIONS;
 
 pub fn setup_test_db() -> SqliteConnection {
     let mut conn = SqliteConnection::establish(":memory:")
