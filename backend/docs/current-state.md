@@ -10,24 +10,11 @@ Last updated: 2026-04-21
 | 2 — Entries & Postings | Merged to main | wave-2-postings |
 | 3 — Reports & Baselines | Merged to main | wave-3-reports |
 | 4 — API Routes | Merged to main | wave-4-routes |
-| 5 — Frontend Updates | Merged to main | wave-5-frontend |
 | 6 — Opening Balances + CSV Import | Complete | wave-6-import |
 
 ## What Wave 6 Did
 
 - Added Opening Balances equity sub-account to the default account tree (created on workspace creation)
-- Frontend CSV import with configurable column→account mapping (`ImportView.svelte`)
-
-## What Wave 5 Did
-
-- Rewrote `api.svelte.ts`: removed old endpoints (listTransactions, createTransaction, categories, import, baselineSummary), added new (entries CRUD, reports, baselines CRUD + variance)
-- Rewrote `BalanceSheetView.svelte`: uses `GET /reports/balance-sheet`, shows assets/liabilities/equity sections with totals
-- Created `EntriesView.svelte`: shows all workspace entries with postings, account name lookup, delete button
-- Deleted `TransactionsView.svelte` and `ImportView.svelte`
-- Rewrote `IncomeView.svelte`: uses `GET /reports/income-statement`, shows revenue/expense breakdown with net income
-- Rewrote `CashFlowView.svelte`: uses income statement with summary cards (revenue, expenses, net income)
-- Fixed workspace ID extraction (`created.workspace` not `created.id`)
-- `npm run check` and `npm run build` both pass clean
 
 ## What Wave 4 Did
 
@@ -68,7 +55,4 @@ Last updated: 2026-04-21
 
 - `cargo test` — 35 integration tests + 113 unit tests pass (148 total)
 - `cargo build` — clean (1 dead_code warning: `WorkspaceMember.user`)
-- `npm run check` — 0 errors, 0 warnings
-- `npm run build` — static build succeeds
 - Schema, domain models, auth, permissions, routes all consistent
-- Frontend views use new API endpoints exclusively
