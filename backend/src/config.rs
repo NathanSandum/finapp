@@ -96,12 +96,32 @@ struct Args {
     dev_token: Option<String>,
 }
 
+pub const DEFAULT_DEV_TOKEN: &str = "dev-secret";
+pub const DEFAULT_PROD_DATABASE: &str = "finapp.db";
+
 #[derive(Deserialize)]
 struct RawConfig {
     mode: Mode,
-    database: DatabaseLocation,
+    #[serde(default)]
+    database: Option<DatabaseLocation>,
     port: u16,
+    #[serde(default)]
     dev_token: Option<String>,
+}
+
+#[derive(Serialize)]
+struct BaseDefaults {
+    mode: Mode,
+    port: u16,
+}
+
+impl Default for BaseDefaults {
+    fn default() -> Self {
+        Self {
+            mode: Mode::Prod,
+            port: 3000,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -117,7 +137,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             mode: Mode::Prod,
-            database: DatabaseLocation::File(PathBuf::from("finapp.db")),
+            database: DatabaseLocation::File(PathBuf::from(DEFAULT_PROD_DATABASE)),
             port: 3000,
             dev_token: None,
         }
@@ -127,16 +147,25 @@ impl Default for Config {
 impl TryFrom<RawConfig> for Config {
     type Error = String;
     fn try_from(raw: RawConfig) -> Result<Self, Self::Error> {
-        match (raw.mode, &raw.database, &raw.dev_token) {
-            (Mode::Prod, DatabaseLocation::Memory, _) => {
+        let database = raw.database.unwrap_or_else(|| match raw.mode {
+            Mode::Dev => DatabaseLocation::Memory,
+            Mode::Prod => DatabaseLocation::File(PathBuf::from(DEFAULT_PROD_DATABASE)),
+        });
+
+        let dev_token = match (raw.mode, raw.dev_token) {
+            (Mode::Dev, None) => Some(DEFAULT_DEV_TOKEN.to_string()),
+            (_, token) => token,
+        };
+
+        match (raw.mode, &database) {
+            (Mode::Prod, DatabaseLocation::Memory) => {
                 Err("memory database forbidden in prod mode".into())
             }
-            (Mode::Dev, _, None) => Err("dev mode requires dev_token".into()),
             _ => Ok(Self {
                 mode: raw.mode,
-                database: raw.database,
+                database,
                 port: raw.port,
-                dev_token: raw.dev_token,
+                dev_token,
             }),
         }
     }
@@ -149,7 +178,7 @@ impl Config {
     }
 
     fn from_sources(args: &Args) -> Result<Self, figment::Error> {
-        Figment::from(Serialized::defaults(Config::default()))
+        Figment::from(Serialized::defaults(BaseDefaults::default()))
             .merge(Yaml::file(&args.config))
             .merge(Env::prefixed("FINAPP_"))
             .merge(Serialized::defaults(args))
@@ -206,7 +235,7 @@ mod tests {
     fn validation_rejects_prod_with_memory_database() {
         let raw = RawConfig {
             mode: Mode::Prod,
-            database: DatabaseLocation::Memory,
+            database: Some(DatabaseLocation::Memory),
             port: 3000,
             dev_token: None,
         };
@@ -216,42 +245,92 @@ mod tests {
     }
 
     #[test]
-    fn validation_rejects_dev_without_token() {
+    fn dev_mode_defaults_database_to_memory() {
         let raw = RawConfig {
             mode: Mode::Dev,
-            database: DatabaseLocation::Memory,
+            database: None,
             port: 3000,
             dev_token: None,
         };
-        let result = Config::try_from(raw);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("dev_token"));
+        let config = Config::try_from(raw).unwrap();
+        assert_eq!(config.database, DatabaseLocation::Memory);
     }
 
     #[test]
-    fn validation_accepts_dev_with_token_and_memory() {
+    fn dev_mode_defaults_dev_token() {
         let raw = RawConfig {
             mode: Mode::Dev,
-            database: DatabaseLocation::Memory,
+            database: None,
             port: 3000,
-            dev_token: Some("secret".into()),
+            dev_token: None,
         };
         let config = Config::try_from(raw).unwrap();
-        assert_eq!(config.mode, Mode::Dev);
-        assert_eq!(config.database, DatabaseLocation::Memory);
-        assert_eq!(config.dev_token.as_deref(), Some("secret"));
+        assert_eq!(config.dev_token.as_deref(), Some(DEFAULT_DEV_TOKEN));
+    }
+
+    #[test]
+    fn dev_mode_explicit_database_overrides_default() {
+        let raw = RawConfig {
+            mode: Mode::Dev,
+            database: Some(DatabaseLocation::File(PathBuf::from("custom.db"))),
+            port: 3000,
+            dev_token: None,
+        };
+        let config = Config::try_from(raw).unwrap();
+        assert_eq!(
+            config.database,
+            DatabaseLocation::File(PathBuf::from("custom.db"))
+        );
+    }
+
+    #[test]
+    fn dev_mode_explicit_token_overrides_default() {
+        let raw = RawConfig {
+            mode: Mode::Dev,
+            database: None,
+            port: 3000,
+            dev_token: Some("custom-token".into()),
+        };
+        let config = Config::try_from(raw).unwrap();
+        assert_eq!(config.dev_token.as_deref(), Some("custom-token"));
+    }
+
+    #[test]
+    fn prod_mode_defaults_database_to_finapp_db() {
+        let raw = RawConfig {
+            mode: Mode::Prod,
+            database: None,
+            port: 3000,
+            dev_token: None,
+        };
+        let config = Config::try_from(raw).unwrap();
+        assert_eq!(
+            config.database,
+            DatabaseLocation::File(PathBuf::from(DEFAULT_PROD_DATABASE))
+        );
+    }
+
+    #[test]
+    fn prod_mode_does_not_default_dev_token() {
+        let raw = RawConfig {
+            mode: Mode::Prod,
+            database: None,
+            port: 3000,
+            dev_token: None,
+        };
+        let config = Config::try_from(raw).unwrap();
+        assert_eq!(config.dev_token, None);
     }
 
     #[test]
     fn validation_accepts_prod_with_file_database() {
         let raw = RawConfig {
             mode: Mode::Prod,
-            database: DatabaseLocation::File(PathBuf::from("finapp.db")),
+            database: Some(DatabaseLocation::File(PathBuf::from("finapp.db"))),
             port: 3000,
             dev_token: None,
         };
         let config = Config::try_from(raw).unwrap();
         assert_eq!(config.mode, Mode::Prod);
     }
-
 }
