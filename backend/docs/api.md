@@ -103,9 +103,9 @@ Requires Editor role. `data` is `null`.
 ### GET /workspaces/{workspace}/accounts/{account}/balance
 ```json
 // data on 200
-{ "account": "uuid", "cleared_balance": 1200 }
+{ "account": "uuid", "balance": 1200 }
 ```
-Returns sum of postings on cleared, non-deleted entries for this account.
+Returns sum of postings on non-deleted entries for this account.
 
 ## Entry Routes (token + workspace membership required)
 
@@ -116,28 +116,27 @@ Requires Editor role.
 {
   "date": "YYYY-MM-DD",
   "description": "str",
-  "cleared": false,
   "postings": [
     { "account_id": "uuid", "amount": -1200, "note": "optional" },
     { "account_id": "uuid", "amount": 1200 }
   ]
 }
 // data on 201
-{ "id": "uuid", "date": "str", "description": "str", "cleared": false, "postings": [...] }
+{ "id": "uuid", "date": "str", "description": "str", "postings": [...] }
 // 422: non-zero sum, fewer than 2 postings, zero amount
 ```
 
 ### GET /workspaces/{workspace}/entries
 ```json
 // data on 200
-{ "entries": [{ "id": "uuid", "date": "str", "description": "str", "cleared": bool, "postings": [...] }] }
+{ "entries": [{ "id": "uuid", "date": "str", "description": "str", "postings": [...] }] }
 ```
 Returns all non-deleted entries with their postings. Ordered by date descending.
 
 ### GET /workspaces/{workspace}/entries/{entry}
 ```json
 // data on 200
-{ "id": "uuid", "date": "str", "description": "str", "cleared": bool, "postings": [{ "id": "uuid", "account_id": "uuid", "amount": int, "note": "str" }] }
+{ "id": "uuid", "date": "str", "description": "str", "postings": [{ "id": "uuid", "account_id": "uuid", "amount": int, "note": "str" }] }
 // 404: entry not found or wrong workspace
 ```
 

@@ -101,7 +101,7 @@ Permission checks read from projection. At-least-one-owner invariant enforced by
 Every entry has 2+ postings that sum to zero. Amounts in integer cents (i32).
 
 ### Entry
-- Fields: id, workspace, date (TEXT "YYYY-MM-DD"), description, cleared (bool), deleted_at, timestamps
+- Fields: id, workspace, date (TEXT "YYYY-MM-DD"), description, deleted_at, timestamps
 - `postings(conn)` — all postings for this entry
 - Query methods live on owning types:
   - `AccountRef::entries(conn)` — entries with posting to this account, excluding soft-deleted
@@ -114,12 +114,11 @@ Every entry has 2+ postings that sum to zero. Amounts in integer cents (i32).
 
 ### NewEntry Builder
 - `NewEntry::new(workspace, date, description, postings: Vec<PostingInput>)`
-- `.cleared(bool)` chainable
 - `insert(conn)` validates: min 2 postings, sum == 0, no zero amounts. Atomic insert.
 - `PostingInput::new(account, amount)` with `.note(str)` chainable
 
 ### Balance Methods (on Account)
-- `balance(conn) -> i64` — sum of postings for this account on cleared, non-deleted entries
+- `balance(conn) -> i64` — sum of postings for this account on non-deleted entries
 - `balance_with_descendants(conn) -> i64` — includes all descendant account postings
 - `balance_as_of(date, conn) -> i64` — filtered by entry date <= date
 - `balance_as_of_with_descendants(date, conn) -> i64` — combines date filter + descendants

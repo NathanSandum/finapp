@@ -283,7 +283,6 @@ mod tests {
                 PostingInput::new(to.id.clone(), amount),
             ],
         )
-        .cleared(true)
         .insert(conn)
         .unwrap();
     }

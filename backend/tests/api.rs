@@ -413,7 +413,7 @@ async fn account_balance_zero_when_no_postings() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["cleared_balance"], 0);
+    assert_eq!(body["balance"], 0);
 }
 
 #[tokio::test]
@@ -468,7 +468,6 @@ async fn account_balance_reflects_postings() {
                 PostingInput::new(food_ref, 1200),
             ],
         )
-        .cleared(true)
         .insert(&mut conn)
         .unwrap();
     }
@@ -481,7 +480,7 @@ async fn account_balance_reflects_postings() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["cleared_balance"], -1200);
+    assert_eq!(body["balance"], -1200);
 
     let (status, body) = get(
         &app,
@@ -490,7 +489,7 @@ async fn account_balance_reflects_postings() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["cleared_balance"], 1200);
+    assert_eq!(body["balance"], 1200);
 }
 
 #[tokio::test]
@@ -547,7 +546,6 @@ async fn create_entry(
         json!({
             "date": date,
             "description": description,
-            "cleared": true,
             "postings": [
                 { "account_id": from_account, "amount": -amount },
                 { "account_id": to_account, "amount": amount },
@@ -572,7 +570,6 @@ async fn create_entry_succeeds() {
     assert_eq!(status, StatusCode::CREATED, "create entry failed: {body}");
     assert_eq!(body["date"], "2026-01-15");
     assert_eq!(body["description"], "Lunch");
-    assert!(body["cleared"].as_bool().unwrap());
     let postings = body["postings"].as_array().unwrap();
     assert_eq!(postings.len(), 2);
 }
@@ -1108,7 +1105,6 @@ async fn update_entry_date() {
     assert_eq!(status, StatusCode::OK, "update entry failed: {body}");
     assert_eq!(body["date"], "2026-03-01");
     assert_eq!(body["description"], "Lunch");
-    assert!(body["cleared"].as_bool().unwrap());
     assert_eq!(body["postings"].as_array().unwrap().len(), 2);
 }
 
@@ -1352,7 +1348,6 @@ async fn merge_entries_succeeds() {
             "source_entry_ids": [entry_one_id, entry_two_id],
             "date": "2026-01-15",
             "description": "Merged transfer",
-            "cleared": true,
             "postings": [
                 { "account_id": chequing, "amount": -6200 },
                 { "account_id": savings, "amount": 6200 },
