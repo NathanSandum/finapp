@@ -4,7 +4,7 @@
 
 | File | Scope |
 |------|-------|
-| `build-site.md` | Full MVP — all waves from foundation to frontend (complete) |
+| `build-site.md` | Full backend MVP — foundation through baselines API |
 | `build-double-entry.md` | Double-entry rewrite — hierarchical accounts, postings, reports |
 
 ## Double-Entry Rewrite — Wave Summary
@@ -15,7 +15,6 @@
 | 2 | Transactions & Postings | Wave 1 |
 | 3 | Reports & Baselines | Wave 2 |
 | 4 | API Routes | Wave 2, Wave 3 |
-| 5 | Frontend Updates | Wave 4 |
 
 ## Kit Coverage
 

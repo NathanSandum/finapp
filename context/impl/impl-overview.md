@@ -4,15 +4,14 @@
 
 | Wave | Status | Notes |
 |------|--------|-------|
-| 1 — Foundation | Not started | |
-| 2 — Workspace Domain | Not started | |
-| 3 — Ledger Domain | Not started | |
-| 4 — Baselines Domain | Not started | |
-| 5 — Auth & Middleware | Not started | |
-| 6 — Workspace API | Not started | |
-| 7 — Ledger API | Not started | |
-| 8 — Baselines API | Not started | |
-| 9 — Frontend | Not started | |
+| 1 — Foundation | Complete | Cargo workspace, Axum, Diesel, SQLite wired |
+| 2 — Workspace Domain | Complete | Workspaces, members, membership events |
+| 3 — Ledger Domain | Complete | Hierarchical accounts, entries, postings (double-entry) |
+| 4 — Baselines Domain | Complete | Per-account monthly baselines + variance |
+| 5 — Auth & Middleware | Complete | Argon2, session tokens, permissions extractor |
+| 6 — Workspace API | Complete | CRUD + member management routes |
+| 7 — Ledger API | Complete | Accounts, entries, reports, period-scoped reports |
+| 8 — Baselines API | Complete | CRUD + variance endpoint |
 
 ## Dead Ends
 
