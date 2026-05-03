@@ -1,4 +1,5 @@
 mod auth;
+pub mod config;
 pub mod domain;
 mod error;
 pub mod jsend;
