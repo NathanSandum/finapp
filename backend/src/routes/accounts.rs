@@ -1,4 +1,4 @@
-use axum::{extract::Extension, extract::Path, Json};
+use axum::{extract::Extension, extract::Path, http::StatusCode, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -6,32 +6,22 @@ use crate::auth::WorkspaceMember;
 use crate::domain::account::{Account, AccountRef, AccountType, NewAccount};
 use crate::domain::workspace::{Role, WorkspaceRef};
 use crate::error::AppError;
+use crate::jsend::{JSend, JSendResponse};
 use crate::DbPool;
 
 pub async fn list(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     let mut conn = pool
         .get()
         .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
     let accounts = member.workspace.accounts(&mut conn)?;
 
-    let items: Vec<Value> = accounts
-        .iter()
-        .map(|a| {
-            json!({
-                "id": a.id,
-                "parent_id": a.parent_id,
-                "name": a.name,
-                "account_type": a.account_type,
-                "currency": a.currency,
-            })
-        })
-        .collect();
+    let items: Vec<Value> = accounts.iter().map(account_to_json).collect();
 
-    Ok(Json(json!({ "accounts": items })))
+    Ok(JSend::success(json!({ "accounts": items })))
 }
 
 #[derive(Deserialize)]
@@ -46,7 +36,7 @@ pub async fn create(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Json(body): Json<CreateAccountRequest>,
-) -> Result<(axum::http::StatusCode, Json<Value>), AppError> {
+) -> Result<JSendResponse<Value>, AppError> {
     member.require_role(&Role::Editor)?;
     let mut conn = pool
         .get()
@@ -85,15 +75,9 @@ pub async fn create(
 
     let account = builder.insert(&mut conn)?;
 
-    Ok((
-        axum::http::StatusCode::CREATED,
-        Json(json!({
-            "id": account.id,
-            "parent_id": account.parent_id,
-            "name": account.name,
-            "account_type": account.account_type,
-            "currency": account.currency,
-        })),
+    Ok(JSendResponse::new(
+        StatusCode::CREATED,
+        JSend::success(account_to_json(&account)),
     ))
 }
 
@@ -108,7 +92,7 @@ pub async fn delete(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<AccountPath>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     member.require_role(&Role::Editor)?;
     let mut conn = pool
         .get()
@@ -123,7 +107,7 @@ pub async fn delete(
 
     account.soft_delete(&mut conn)?;
 
-    Ok(Json(json!({ "status": "ok" })))
+    Ok(JSend::success(Value::Null))
 }
 
 #[derive(Deserialize)]
@@ -137,7 +121,7 @@ pub async fn update(
     member: WorkspaceMember,
     Path(path): Path<AccountPath>,
     Json(body): Json<UpdateAccountRequest>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     member.require_role(&Role::Editor)?;
     let mut conn = pool
         .get()
@@ -158,20 +142,14 @@ pub async fn update(
         account = account.reparent(new_parent_id, &mut conn)?;
     }
 
-    Ok(Json(json!({
-        "id": account.id,
-        "parent_id": account.parent_id,
-        "name": account.name,
-        "account_type": account.account_type,
-        "currency": account.currency,
-    })))
+    Ok(JSend::success(account_to_json(&account)))
 }
 
 pub async fn balance(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<AccountPath>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     let mut conn = pool
         .get()
         .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
@@ -185,8 +163,18 @@ pub async fn balance(
 
     let cleared_balance = account.balance(&mut conn)?;
 
-    Ok(Json(json!({
+    Ok(JSend::success(json!({
         "account": account.id,
         "cleared_balance": cleared_balance,
     })))
+}
+
+fn account_to_json(account: &Account) -> Value {
+    json!({
+        "id": account.id,
+        "parent_id": account.parent_id,
+        "name": account.name,
+        "account_type": account.account_type,
+        "currency": account.currency,
+    })
 }

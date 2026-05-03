@@ -1,4 +1,4 @@
-use axum::{extract::Extension, extract::Path, Json};
+use axum::{extract::Extension, extract::Path, http::StatusCode, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -7,6 +7,7 @@ use crate::domain::account::AccountRef;
 use crate::domain::baseline::{Baseline, BaselineRef, NewBaseline};
 use crate::domain::workspace::{Role, WorkspaceRef};
 use crate::error::AppError;
+use crate::jsend::{JSend, JSendResponse};
 use crate::DbPool;
 
 #[derive(Deserialize)]
@@ -20,7 +21,7 @@ pub async fn create(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Json(body): Json<CreateBaselineRequest>,
-) -> Result<(axum::http::StatusCode, Json<Value>), AppError> {
+) -> Result<JSendResponse<Baseline>, AppError> {
     member.require_role(&Role::Editor)?;
     let mut conn = pool
         .get()
@@ -34,29 +35,23 @@ pub async fn create(
     )
     .insert(&mut conn)?;
 
-    Ok((
-        axum::http::StatusCode::CREATED,
-        Json(serde_json::to_value(&baseline).map_err(|err| {
-            AppError::Internal(format!("serialization failed: {err}"))
-        })?),
+    Ok(JSendResponse::new(
+        StatusCode::CREATED,
+        JSend::success(baseline),
     ))
 }
 
 pub async fn list(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     let mut conn = pool
         .get()
         .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
     let baselines = member.workspace.baselines(&mut conn)?;
 
-    Ok(Json(json!({
-        "baselines": serde_json::to_value(&baselines).map_err(|err| {
-            AppError::Internal(format!("serialization failed: {err}"))
-        })?
-    })))
+    Ok(JSend::success(json!({ "baselines": baselines })))
 }
 
 #[derive(Deserialize)]
@@ -70,7 +65,7 @@ pub async fn delete(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<BaselinePath>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     member.require_role(&Role::Editor)?;
     let mut conn = pool
         .get()
@@ -85,14 +80,14 @@ pub async fn delete(
 
     baseline.delete(&mut conn)?;
 
-    Ok(Json(json!({ "status": "ok" })))
+    Ok(JSend::success(Value::Null))
 }
 
 pub async fn variance(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<BaselinePath>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     let mut conn = pool
         .get()
         .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
@@ -106,7 +101,7 @@ pub async fn variance(
 
     let variance = baseline.variance(&mut conn)?;
 
-    Ok(Json(json!({
+    Ok(JSend::success(json!({
         "baseline": baseline.id,
         "amount": baseline.amount,
         "actual": variance + baseline.amount as i64,

@@ -1,4 +1,4 @@
-use axum::{extract::Extension, extract::Path, Json};
+use axum::{extract::Extension, extract::Path, http::StatusCode, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -6,6 +6,7 @@ use crate::auth::{AuthUser, WorkspaceMember};
 use crate::domain::user::{User, UserRef};
 use crate::domain::workspace::{NewWorkspace, Role, Workspace, WorkspaceRef};
 use crate::error::AppError;
+use crate::jsend::{JSend, JSendResponse};
 use crate::permissions;
 use crate::DbPool;
 
@@ -18,33 +19,36 @@ pub async fn create(
     Extension(pool): Extension<DbPool>,
     AuthUser(user): AuthUser,
     Json(body): Json<CreateWorkspaceRequest>,
-) -> Result<(axum::http::StatusCode, Json<Workspace>), AppError> {
+) -> Result<JSendResponse<Workspace>, AppError> {
     let mut conn = pool
         .get()
         .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
     let workspace = NewWorkspace::new(&body.name, user.as_ref().clone()).insert(&mut conn)?;
 
-    Ok((axum::http::StatusCode::CREATED, Json(workspace)))
+    Ok(JSendResponse::new(
+        StatusCode::CREATED,
+        JSend::success(workspace),
+    ))
 }
 
 pub async fn list(
     Extension(pool): Extension<DbPool>,
     AuthUser(user): AuthUser,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     let mut conn = pool
         .get()
         .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
     let workspaces = user.as_ref().workspaces(&mut conn)?;
-    Ok(Json(json!({"workspaces": workspaces})))
+    Ok(JSend::success(json!({ "workspaces": workspaces })))
 }
 
 pub async fn get(
     Path(workspace): Path<WorkspaceRef>,
     AuthUser(user): AuthUser,
     Extension(pool): Extension<DbPool>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     let mut conn = pool
         .get()
         .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
@@ -57,7 +61,7 @@ pub async fn get(
 
     let members = workspace.members(&mut conn)?;
 
-    Ok(Json(json!({
+    Ok(JSend::success(json!({
         "workspace": workspace.id,
         "name": workspace.name,
         "created_at": workspace.created_at.to_string(),
@@ -75,14 +79,14 @@ pub async fn update(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Json(body): Json<UpdateWorkspaceRequest>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     member.require_role(&Role::Owner)?;
     let mut conn = pool
         .get()
         .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
 
-    let workspace =
-        Workspace::from_ref(&member.workspace, &mut conn)?.ok_or(AppError::NotFound("workspace".into()))?;
+    let workspace = Workspace::from_ref(&member.workspace, &mut conn)?
+        .ok_or(AppError::NotFound("workspace".into()))?;
 
     let workspace = if let Some(name) = body.name {
         workspace.rename(&name, &mut conn)?
@@ -90,7 +94,7 @@ pub async fn update(
         workspace
     };
 
-    Ok(Json(json!({
+    Ok(JSend::success(json!({
         "workspace": workspace.id,
         "name": workspace.name,
     })))
@@ -106,7 +110,7 @@ pub async fn remove_member(
     Path(path): Path<RemoveMemberPath>,
     AuthUser(actor): AuthUser,
     Extension(pool): Extension<DbPool>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     let mut conn = pool
         .get()
         .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
@@ -134,5 +138,5 @@ pub async fn remove_member(
 
     workspace.remove_member(target.as_ref(), actor.as_ref(), &mut conn)?;
 
-    Ok(Json(json!({ "status": "ok" })))
+    Ok(JSend::success(Value::Null))
 }

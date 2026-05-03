@@ -1,4 +1,4 @@
-use axum::{extract::Extension, extract::Path, Json};
+use axum::{extract::Extension, extract::Path, http::StatusCode, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -7,6 +7,7 @@ use crate::domain::account::AccountRef;
 use crate::domain::entry::{Entry, EntryRef, NewEntry, PostingInput, UpdateEntry};
 use crate::domain::workspace::{Role, WorkspaceRef};
 use crate::error::AppError;
+use crate::jsend::{JSend, JSendResponse};
 use crate::DbPool;
 
 #[derive(Deserialize)]
@@ -29,7 +30,7 @@ pub async fn create(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Json(body): Json<CreateEntryRequest>,
-) -> Result<(axum::http::StatusCode, Json<Value>), AppError> {
+) -> Result<JSendResponse<Value>, AppError> {
     member.require_role(&Role::Editor)?;
     let mut conn = pool
         .get()
@@ -38,13 +39,7 @@ pub async fn create(
     let posting_inputs: Vec<PostingInput> = body
         .postings
         .into_iter()
-        .map(|p| {
-            let mut input = PostingInput::new(p.account_id, p.amount);
-            if let Some(note) = p.note {
-                input = input.note(&note);
-            }
-            input
-        })
+        .map(posting_request_to_input)
         .collect();
 
     let entry = NewEntry::new(
@@ -58,16 +53,16 @@ pub async fn create(
 
     let postings = entry.postings(&mut conn)?;
 
-    Ok((
-        axum::http::StatusCode::CREATED,
-        Json(entry_to_json(&entry, &postings)),
+    Ok(JSendResponse::new(
+        StatusCode::CREATED,
+        JSend::success(entry_to_json(&entry, &postings)),
     ))
 }
 
 pub async fn list(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     let mut conn = pool
         .get()
         .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
@@ -80,7 +75,7 @@ pub async fn list(
         items.push(entry_to_json(entry, &postings));
     }
 
-    Ok(Json(json!({ "entries": items })))
+    Ok(JSend::success(json!({ "entries": items })))
 }
 
 #[derive(Deserialize)]
@@ -94,7 +89,7 @@ pub async fn get(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<EntryPath>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     let mut conn = pool
         .get()
         .map_err(|err| AppError::Internal(format!("db pool: {err}")))?;
@@ -108,7 +103,7 @@ pub async fn get(
 
     let postings = entry.postings(&mut conn)?;
 
-    Ok(Json(entry_to_json(&entry, &postings)))
+    Ok(JSend::success(entry_to_json(&entry, &postings)))
 }
 
 #[derive(Deserialize)]
@@ -124,7 +119,7 @@ pub async fn update(
     member: WorkspaceMember,
     Path(path): Path<EntryPath>,
     Json(body): Json<UpdateEntryRequest>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     member.require_role(&Role::Editor)?;
     let mut conn = pool
         .get()
@@ -137,18 +132,9 @@ pub async fn update(
         return Err(AppError::NotFound("entry".into()));
     }
 
-    let posting_inputs = body.postings.map(|postings| {
-        postings
-            .into_iter()
-            .map(|p| {
-                let mut input = PostingInput::new(p.account_id, p.amount);
-                if let Some(note) = p.note {
-                    input = input.note(&note);
-                }
-                input
-            })
-            .collect()
-    });
+    let posting_inputs = body
+        .postings
+        .map(|postings| postings.into_iter().map(posting_request_to_input).collect());
 
     let changes = UpdateEntry {
         date: body.date,
@@ -160,14 +146,14 @@ pub async fn update(
     let updated = entry.update(changes, &mut conn)?;
     let postings = updated.postings(&mut conn)?;
 
-    Ok(Json(entry_to_json(&updated, &postings)))
+    Ok(JSend::success(entry_to_json(&updated, &postings)))
 }
 
 pub async fn delete(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Path(path): Path<EntryPath>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<JSend<Value>, AppError> {
     member.require_role(&Role::Editor)?;
     let mut conn = pool
         .get()
@@ -182,7 +168,7 @@ pub async fn delete(
 
     entry.soft_delete(&mut conn)?;
 
-    Ok(Json(json!({ "status": "ok" })))
+    Ok(JSend::success(Value::Null))
 }
 
 #[derive(Deserialize)]
@@ -199,7 +185,7 @@ pub async fn merge(
     Extension(pool): Extension<DbPool>,
     member: WorkspaceMember,
     Json(body): Json<MergeEntriesRequest>,
-) -> Result<(axum::http::StatusCode, Json<Value>), AppError> {
+) -> Result<JSendResponse<Value>, AppError> {
     member.require_role(&Role::Editor)?;
     let mut conn = pool
         .get()
@@ -218,13 +204,7 @@ pub async fn merge(
     let posting_inputs: Vec<PostingInput> = body
         .postings
         .into_iter()
-        .map(|p| {
-            let mut input = PostingInput::new(p.account_id, p.amount);
-            if let Some(note) = p.note {
-                input = input.note(&note);
-            }
-            input
-        })
+        .map(posting_request_to_input)
         .collect();
 
     let entry = Entry::merge(
@@ -239,10 +219,18 @@ pub async fn merge(
 
     let postings = entry.postings(&mut conn)?;
 
-    Ok((
-        axum::http::StatusCode::CREATED,
-        Json(entry_to_json(&entry, &postings)),
+    Ok(JSendResponse::new(
+        StatusCode::CREATED,
+        JSend::success(entry_to_json(&entry, &postings)),
     ))
+}
+
+fn posting_request_to_input(request: CreatePostingRequest) -> PostingInput {
+    let mut input = PostingInput::new(request.account_id, request.amount);
+    if let Some(note) = request.note {
+        input = input.note(&note);
+    }
+    input
 }
 
 pub fn entry_to_json(

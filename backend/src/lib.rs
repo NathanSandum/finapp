@@ -10,17 +10,19 @@ pub mod test_helpers;
 use axum::{
     extract::Extension,
     routing::{delete, get, post, put},
-    Json, Router,
+    Router,
 };
 use diesel::r2d2::{self, ConnectionManager};
 use diesel::SqliteConnection;
 use serde_json::{json, Value};
 use tower_http::cors::CorsLayer;
 
+use crate::jsend::JSend;
+
 pub type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 
-async fn health() -> Json<Value> {
-    Json(json!({ "status": "ok" }))
+async fn health() -> JSend<Value> {
+    JSend::success(json!({ "service": "finapp" }))
 }
 
 pub fn build_router(pool: DbPool) -> Router {
