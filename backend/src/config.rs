@@ -3,7 +3,8 @@ use figment::{
     providers::{Env, Format, Serialized, Yaml},
     Figment,
 };
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
 use std::fmt;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -20,14 +21,15 @@ pub enum Mode {
     Dev,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(into = "String", try_from = "String")]
 pub enum DatabaseLocation {
     File(PathBuf),
     Memory,
 }
 
 impl FromStr for DatabaseLocation {
-    type Err = std::convert::Infallible;
+    type Err = Infallible;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             ":memory:" | "memory" => Self::Memory,
@@ -45,16 +47,16 @@ impl fmt::Display for DatabaseLocation {
     }
 }
 
-impl Serialize for DatabaseLocation {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.collect_str(self)
+impl From<DatabaseLocation> for String {
+    fn from(location: DatabaseLocation) -> Self {
+        location.to_string()
     }
 }
 
-impl<'de> Deserialize<'de> for DatabaseLocation {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let raw = String::deserialize(deserializer)?;
-        raw.parse().map_err(de::Error::custom)
+impl TryFrom<String> for DatabaseLocation {
+    type Error = Infallible;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
     }
 }
 
