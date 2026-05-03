@@ -3,7 +3,7 @@
 Stack: Axum, Diesel, SQLite, Tauri, SvelteKit.
 Workflow: TDD (failing test first, then implementation), PR per wave.
 
-This build site covers the rewrite from single-entry (transactions + line items + categories) to double-entry (transactions + postings + hierarchical accounts). Foundation, auth, workspace, and frontend layers are unchanged — only ledger, baselines, and their API routes are affected.
+This build site covers the rewrite from single-entry (transactions + line items + categories) to double-entry (transactions + postings + hierarchical accounts). Foundation, auth, and workspace layers are unchanged — only ledger, baselines, and their API routes are affected.
 
 ---
 
@@ -213,33 +213,3 @@ This build site covers the rewrite from single-entry (transactions + line items 
 - Update CSV mapping logic
 - Write failing tests, then make pass
 
----
-
-## Wave 5 — Frontend Updates
-
-*Depends on Wave 4.*
-
-### T5.1 — Account Tree View
-**Tasks:**
-- Replace flat account list with hierarchical tree view
-- Show rolled-up balances at each level
-- Create account form: name + parent selector (dropdown of existing accounts)
-- Expand/collapse for tree navigation
-
-### T5.2 — Transaction Entry (Double-Entry)
-**Tasks:**
-- Replace line-item entry with postings entry
-- Each posting row: account selector (searchable, shows full path) + amount
-- Running balance indicator showing sum (must reach zero)
-- Common shortcuts: simple expense (debit Expenses:X, credit Assets:Chequing)
-
-### T5.3 — Reports View
-**Tasks:**
-- Balance sheet page with as-of date picker
-- Income statement page with date range picker
-- Hierarchical display with indentation and rollup totals
-
-### T5.4 — Period Summary (Repointed)
-**Tasks:**
-- Replace category references with account references in summary view
-- Baseline editing now targets accounts
