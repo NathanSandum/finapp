@@ -55,14 +55,14 @@ impl IntoResponse for AppError {
                 StatusCode::FORBIDDEN,
                 CodedFailure {
                     code: "forbidden",
-                    message: "insufficient permissions".into(),
+                    message: "Insufficient permissions".into(),
                 },
             ),
             AppError::Unauthorized => fail(
                 StatusCode::UNAUTHORIZED,
                 CodedFailure {
                     code: "unauthorized",
-                    message: "authentication required".into(),
+                    message: "Authentication required".into(),
                 },
             ),
             AppError::Conflict(msg) => fail(
