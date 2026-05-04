@@ -4,6 +4,7 @@ import CashFlowView from '$lib/views/cash-flow/View.svelte';
 import BalanceSheetView from '$lib/views/balance-sheet/View.svelte';
 import EntriesView from '$lib/views/entries/View.svelte';
 import { load as loadEntries } from '$lib/views/entries/loader';
+import { load as loadIncome } from '$lib/views/income/loader';
 import type { JSend, Tab } from './types';
 
 const stubLoader = (): Promise<JSend<null>> =>
@@ -11,7 +12,7 @@ const stubLoader = (): Promise<JSend<null>> =>
 
 export const tabs: Tab[] = [
 	{ id: 'overview', label: 'Overview', view: OverviewView, loader: stubLoader },
-	{ id: 'income', label: 'Income', view: IncomeView, loader: stubLoader },
+	{ id: 'income', label: 'Income', view: IncomeView, loader: loadIncome },
 	{ id: 'cash-flow', label: 'Cash Flow', view: CashFlowView, loader: stubLoader },
 	{ id: 'balance-sheet', label: 'Balance Sheet', view: BalanceSheetView, loader: stubLoader },
 	{ id: 'entries', label: 'Entries', view: EntriesView, loader: loadEntries }

@@ -1,68 +1,93 @@
 <script lang="ts">
 	import {
-		dummy,
 		fmt,
 		pct,
 		totalRevenue,
 		totalExpenses,
 		totalPriorRevenue,
 		totalPriorExpenses,
+		type IncomeData
+	} from '../lib';
+	import type { Granularity } from '../compute';
+
+	let {
+		data,
+		netTrail,
 		months,
-		netTrail
-	} from './dummy';
+		granularity,
+		onPrev,
+		onNext,
+		onGranularity
+	}: {
+		data: IncomeData;
+		netTrail: number[];
+		months: string[];
+		granularity: Granularity;
+		onPrev: () => void;
+		onNext: () => void;
+		onGranularity: (g: Granularity) => void;
+	} = $props();
 
-	const revenueTotal = totalRevenue(dummy);
-	const expenseTotal = totalExpenses(dummy);
-	const netIncome = revenueTotal - expenseTotal;
-	const priorRevenueTotal = totalPriorRevenue(dummy);
-	const priorExpenseTotal = totalPriorExpenses(dummy);
-	const priorNet = priorRevenueTotal - priorExpenseTotal;
-	const savingsRate = revenueTotal > 0 ? ((netIncome / revenueTotal) * 100).toFixed(1) : '0';
+	const revenueTotal = $derived(totalRevenue(data));
+	const expenseTotal = $derived(totalExpenses(data));
+	const netIncome = $derived(revenueTotal - expenseTotal);
+	const priorRevenueTotal = $derived(totalPriorRevenue(data));
+	const priorExpenseTotal = $derived(totalPriorExpenses(data));
+	const priorNet = $derived(priorRevenueTotal - priorExpenseTotal);
+	const savingsRate = $derived(revenueTotal > 0 ? ((netIncome / revenueTotal) * 100).toFixed(1) : '0');
 
-	const sortedRevenue = [...dummy.revenue].sort((a, b) => b.amount - a.amount);
-	const sortedExpenses = [...dummy.expenses].sort((a, b) => b.amount - a.amount);
-
-	const sixMo = netTrail.slice(-6);
-	const sixMoLabels = months.slice(-6);
 	const barW = 28;
 	const barGap = 12;
 	const barChartH = 70;
-	const barMin = Math.min(...sixMo);
-	const barMax = Math.max(...sixMo);
-	const barRange = barMax - barMin || 1;
+	const barMin = $derived(Math.min(...netTrail));
+	const barMax = $derived(Math.max(...netTrail));
+	const barRange = $derived(barMax - barMin || 1);
 </script>
 
 <div class="space-y-6">
 	<header class="flex items-baseline justify-between">
-		<div>
+		<div class="flex items-baseline gap-3">
 			<h3 class="text-2xl font-semibold text-neutral-900">Income</h3>
-			<p class="text-sm text-neutral-500">April 2026</p>
+			<div class="flex items-center gap-1 text-sm text-neutral-500">
+				<button onclick={onPrev} class="rounded px-1.5 py-0.5 hover:bg-neutral-100" aria-label="Previous period">‹</button>
+				<span class="min-w-[100px] text-center">{data.period_label}</span>
+				<button onclick={onNext} class="rounded px-1.5 py-0.5 hover:bg-neutral-100" aria-label="Next period">›</button>
+			</div>
 		</div>
 		<div class="flex gap-1 rounded-full bg-neutral-100 p-1 text-xs">
-			<button class="rounded-full bg-white px-3 py-1 font-medium shadow-sm">Month</button>
-			<button class="px-3 py-1 text-neutral-500">Quarter</button>
-			<button class="px-3 py-1 text-neutral-500">Year</button>
+			<button
+				onclick={() => onGranularity('month')}
+				class="rounded-full px-3 py-1 {granularity === 'month' ? 'bg-white font-medium shadow-sm' : 'text-neutral-500'}"
+			>Month</button>
+			<button
+				onclick={() => onGranularity('quarter')}
+				class="rounded-full px-3 py-1 {granularity === 'quarter' ? 'bg-white font-medium shadow-sm' : 'text-neutral-500'}"
+			>Quarter</button>
+			<button
+				onclick={() => onGranularity('year')}
+				class="rounded-full px-3 py-1 {granularity === 'year' ? 'bg-white font-medium shadow-sm' : 'text-neutral-500'}"
+			>Year</button>
 		</div>
 	</header>
 
 	<section class="grid grid-cols-[1fr_auto] items-end gap-8 rounded-2xl border border-neutral-200 bg-white p-7 shadow-sm">
 		<div>
-			<p class="text-xs font-medium uppercase tracking-wide text-neutral-500">Net Income · April 2026</p>
+			<p class="text-xs font-medium uppercase tracking-wide text-neutral-500">Net Income · {data.period_label}</p>
 			<p class="mt-2 font-mono text-5xl font-semibold tabular-nums text-neutral-900">{fmt(netIncome)}</p>
 			<div class="mt-3 flex items-center gap-3 text-sm">
 				<span class="rounded-md bg-emerald-50 px-2 py-0.5 font-mono text-xs font-semibold tabular-nums text-emerald-700">{pct(netIncome, priorNet)}</span>
-				<span class="text-neutral-500">vs March · {savingsRate}% saved</span>
+				<span class="text-neutral-500">vs {data.prior_label} · {savingsRate}% saved</span>
 			</div>
 		</div>
 		<div>
-			<svg width={(barW + barGap) * sixMo.length} height={barChartH + 16} class="overflow-visible">
-				{#each sixMo as v, i}
+			<svg width={(barW + barGap) * netTrail.length} height={barChartH + 16} class="overflow-visible">
+				{#each netTrail as v, i}
 					{@const h = ((v - barMin) / barRange) * (barChartH - 4) + 4}
 					{@const x = i * (barW + barGap)}
 					{@const y = barChartH - h}
-					{@const isCurrent = i === sixMo.length - 1}
+					{@const isCurrent = i === netTrail.length - 1}
 					<rect {x} {y} width={barW} height={h} rx="2" fill={isCurrent ? 'rgb(16 185 129)' : 'rgb(229 231 235)'} />
-					<text x={x + barW / 2} y={barChartH + 12} text-anchor="middle" class="fill-neutral-400 font-mono" font-size="9">{sixMoLabels[i]}</text>
+					<text x={x + barW / 2} y={barChartH + 12} text-anchor="middle" class="fill-neutral-400 font-mono" font-size="9">{months[i]}</text>
 				{/each}
 			</svg>
 		</div>
@@ -74,9 +99,9 @@
 				<h4 class="text-sm font-semibold uppercase tracking-wide text-neutral-500">Revenue</h4>
 				<span class="font-mono text-lg font-semibold tabular-nums text-neutral-900">{fmt(revenueTotal)}</span>
 			</div>
-			<p class="mb-3 font-mono text-xs tabular-nums {revenueTotal >= priorRevenueTotal ? 'text-emerald-700' : 'text-rose-700'}">{pct(revenueTotal, priorRevenueTotal)} vs Mar</p>
+			<p class="mb-3 font-mono text-xs tabular-nums {revenueTotal >= priorRevenueTotal ? 'text-emerald-700' : 'text-rose-700'}">{pct(revenueTotal, priorRevenueTotal)} vs {data.prior_short_label}</p>
 			<ul class="space-y-2">
-				{#each sortedRevenue as line}
+				{#each data.revenue as line}
 					<li class="flex items-baseline justify-between text-sm">
 						<span class="text-neutral-700">{line.name}</span>
 						<span class="font-mono tabular-nums text-neutral-900">{fmt(line.amount)}</span>
@@ -90,10 +115,10 @@
 				<h4 class="text-sm font-semibold uppercase tracking-wide text-neutral-500">Expenses</h4>
 				<span class="font-mono text-lg font-semibold tabular-nums text-neutral-900">{fmt(expenseTotal)}</span>
 			</div>
-			<p class="mb-3 font-mono text-xs tabular-nums {expenseTotal <= priorExpenseTotal ? 'text-emerald-700' : 'text-rose-700'}">{pct(expenseTotal, priorExpenseTotal)} vs Mar</p>
+			<p class="mb-3 font-mono text-xs tabular-nums {expenseTotal <= priorExpenseTotal ? 'text-emerald-700' : 'text-rose-700'}">{pct(expenseTotal, priorExpenseTotal)} vs {data.prior_short_label}</p>
 			<ul class="space-y-2">
-				{#each sortedExpenses as line}
-					{@const fraction = line.amount / expenseTotal}
+				{#each data.expenses as line}
+					{@const fraction = expenseTotal > 0 ? line.amount / expenseTotal : 0}
 					<li>
 						<div class="flex items-baseline justify-between text-sm">
 							<span class="text-neutral-700">{line.name}</span>

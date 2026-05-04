@@ -1,49 +1,75 @@
 <script lang="ts">
 	import {
-		dummy,
 		fmt,
 		pct,
 		totalRevenue,
 		totalExpenses,
 		totalPriorRevenue,
 		totalPriorExpenses,
-		months,
+		buildLine,
+		type IncomeData
+	} from '../lib';
+	import type { Granularity } from '../compute';
+
+	let {
+		data,
 		netTrail,
-		buildLine
-	} from './dummy';
+		months,
+		granularity,
+		onPrev,
+		onNext,
+		onGranularity
+	}: {
+		data: IncomeData;
+		netTrail: number[];
+		months: string[];
+		granularity: Granularity;
+		onPrev: () => void;
+		onNext: () => void;
+		onGranularity: (g: Granularity) => void;
+	} = $props();
 
-	const revenueTotal = totalRevenue(dummy);
-	const expenseTotal = totalExpenses(dummy);
-	const netIncome = revenueTotal - expenseTotal;
-	const priorRevenueTotal = totalPriorRevenue(dummy);
-	const priorExpenseTotal = totalPriorExpenses(dummy);
-	const priorNet = priorRevenueTotal - priorExpenseTotal;
-	const savingsRate = revenueTotal > 0 ? ((netIncome / revenueTotal) * 100).toFixed(1) : '0';
-
-	const sortedRevenue = [...dummy.revenue].sort((a, b) => b.amount - a.amount);
-	const sortedExpenses = [...dummy.expenses].sort((a, b) => b.amount - a.amount);
-
-	const big = buildLine(netTrail, 560, 80);
+	const revenueTotal = $derived(totalRevenue(data));
+	const expenseTotal = $derived(totalExpenses(data));
+	const netIncome = $derived(revenueTotal - expenseTotal);
+	const priorRevenueTotal = $derived(totalPriorRevenue(data));
+	const priorExpenseTotal = $derived(totalPriorExpenses(data));
+	const priorNet = $derived(priorRevenueTotal - priorExpenseTotal);
+	const savingsRate = $derived(revenueTotal > 0 ? ((netIncome / revenueTotal) * 100).toFixed(1) : '0');
+	const big = $derived(buildLine(netTrail, 560, 80));
 </script>
 
 <div class="flex h-full flex-col gap-3 overflow-hidden">
 	<header class="flex shrink-0 items-baseline justify-between">
-		<div>
+		<div class="flex items-baseline gap-3">
 			<h3 class="text-xl font-semibold text-neutral-900">Income</h3>
-			<p class="text-xs text-neutral-500">April 2026</p>
+			<div class="flex items-center gap-1 text-xs text-neutral-500">
+				<button onclick={onPrev} class="rounded px-1.5 py-0.5 hover:bg-neutral-100" aria-label="Previous period">‹</button>
+				<span class="min-w-[88px] text-center">{data.period_label}</span>
+				<button onclick={onNext} class="rounded px-1.5 py-0.5 hover:bg-neutral-100" aria-label="Next period">›</button>
+			</div>
 		</div>
 		<div class="flex gap-1 rounded-full bg-neutral-100 p-1 text-xs">
-			<button class="rounded-full bg-white px-3 py-1 font-medium shadow-sm">Month</button>
-			<button class="px-3 py-1 text-neutral-500">Quarter</button>
-			<button class="px-3 py-1 text-neutral-500">Year</button>
+			<button
+				onclick={() => onGranularity('month')}
+				class="rounded-full px-3 py-1 {granularity === 'month' ? 'bg-white font-medium shadow-sm' : 'text-neutral-500'}"
+			>Month</button>
+			<button
+				onclick={() => onGranularity('quarter')}
+				class="rounded-full px-3 py-1 {granularity === 'quarter' ? 'bg-white font-medium shadow-sm' : 'text-neutral-500'}"
+			>Quarter</button>
+			<button
+				onclick={() => onGranularity('year')}
+				class="rounded-full px-3 py-1 {granularity === 'year' ? 'bg-white font-medium shadow-sm' : 'text-neutral-500'}"
+			>Year</button>
 		</div>
 	</header>
 
 	<section class="relative shrink-0 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
 		<div class="absolute left-5 top-4 z-10">
-			<p class="text-[10px] font-medium uppercase tracking-wide text-neutral-500">Net Income · April 2026</p>
+			<p class="text-[10px] font-medium uppercase tracking-wide text-neutral-500">Net Income · {data.period_label}</p>
 			<p class="mt-0.5 font-mono text-3xl font-semibold tabular-nums text-neutral-900">{fmt(netIncome)}</p>
-			<span class="mt-1 inline-block rounded-md bg-emerald-50 px-2 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-emerald-700">{pct(netIncome, priorNet)} vs Mar · {savingsRate}% saved</span>
+			<span class="mt-1 inline-block rounded-md bg-emerald-50 px-2 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-emerald-700">{pct(netIncome, priorNet)} vs {data.prior_short_label} · {savingsRate}% saved</span>
 		</div>
 		<svg width="100%" viewBox="0 0 560 100" class="overflow-visible" preserveAspectRatio="none">
 			<defs>
@@ -56,7 +82,7 @@
 			<polyline fill="none" stroke="rgb(16 185 129)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points={big.path} transform="translate(0,20)" />
 			<circle cx={big.points[big.points.length - 1].x} cy={big.points[big.points.length - 1].y + 20} r="3" fill="rgb(16 185 129)" />
 		</svg>
-		<div class="grid grid-cols-12 px-5 pb-2 text-[9px] font-mono tabular-nums text-neutral-400">
+		<div class="grid px-5 pb-2 text-[9px] font-mono tabular-nums text-neutral-400" style:grid-template-columns="repeat({months.length}, 1fr)">
 			{#each months as m}
 				<span class="text-center">{m}</span>
 			{/each}
@@ -69,9 +95,9 @@
 				<h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Revenue</h4>
 				<span class="font-mono text-base font-semibold tabular-nums text-neutral-900">{fmt(revenueTotal)}</span>
 			</div>
-			<p class="mb-2 shrink-0 font-mono text-[10px] tabular-nums {revenueTotal >= priorRevenueTotal ? 'text-emerald-700' : 'text-rose-700'}">{pct(revenueTotal, priorRevenueTotal)} vs Mar</p>
+			<p class="mb-2 shrink-0 font-mono text-[10px] tabular-nums {revenueTotal >= priorRevenueTotal ? 'text-emerald-700' : 'text-rose-700'}">{pct(revenueTotal, priorRevenueTotal)} vs {data.prior_short_label}</p>
 			<ul class="min-h-0 flex-1 space-y-1.5 overflow-hidden">
-				{#each sortedRevenue as line}
+				{#each data.revenue as line}
 					<li class="flex items-baseline justify-between text-xs">
 						<span class="text-neutral-700">{line.name}</span>
 						<span class="font-mono tabular-nums text-neutral-900">{fmt(line.amount)}</span>
@@ -85,10 +111,10 @@
 				<h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Expenses</h4>
 				<span class="font-mono text-base font-semibold tabular-nums text-neutral-900">{fmt(expenseTotal)}</span>
 			</div>
-			<p class="mb-2 shrink-0 font-mono text-[10px] tabular-nums {expenseTotal <= priorExpenseTotal ? 'text-emerald-700' : 'text-rose-700'}">{pct(expenseTotal, priorExpenseTotal)} vs Mar</p>
+			<p class="mb-2 shrink-0 font-mono text-[10px] tabular-nums {expenseTotal <= priorExpenseTotal ? 'text-emerald-700' : 'text-rose-700'}">{pct(expenseTotal, priorExpenseTotal)} vs {data.prior_short_label}</p>
 			<ul class="min-h-0 flex-1 space-y-1.5 overflow-hidden">
-				{#each sortedExpenses as line}
-					{@const fraction = line.amount / revenueTotal}
+				{#each data.expenses as line}
+					{@const fraction = revenueTotal > 0 ? line.amount / revenueTotal : 0}
 					<li>
 						<div class="flex items-baseline justify-between text-xs">
 							<span class="text-neutral-700">{line.name}</span>
