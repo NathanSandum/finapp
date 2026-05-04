@@ -9,6 +9,9 @@ export const cache = {
 	},
 
 	async load<T>(key: string, fetcher: () => Promise<JSend<T>>): Promise<JSend<T>> {
+		const cached = store[key];
+		if (cached !== undefined) return cached as JSend<T>;
+
 		const existing = inFlight.get(key);
 		if (existing) return existing as Promise<JSend<T>>;
 
