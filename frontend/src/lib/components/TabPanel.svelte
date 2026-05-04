@@ -19,7 +19,7 @@
 	{#if result === undefined}
 		<p class="p-6 text-sm text-neutral-500">Loading…</p>
 	{:else if result.status === 'success'}
-		<div class="p-6">
+		<div class="h-full p-6">
 			<tab.view data={result.data} />
 		</div>
 	{:else if result.status === 'fail'}
