@@ -3,14 +3,30 @@
 
 	let { result }: { result: JSendFail } = $props();
 
-	const entries = $derived(Object.entries(result.data));
+	const data = $derived(result.data);
+	const isCoded = $derived(
+		typeof data === 'object' &&
+			data !== null &&
+			'code' in data &&
+			'message' in data &&
+			typeof (data as { code: unknown }).code === 'string' &&
+			typeof (data as { message: unknown }).message === 'string'
+	);
+	const coded = $derived(isCoded ? (data as { code: string; message: string }) : null);
+	const fields = $derived(
+		isCoded ? [] : Object.entries(data as Record<string, string>)
+	);
 </script>
 
-<div class="rounded-lg border border-amber-300 bg-amber-50 p-6">
-	<h3 class="mb-2 text-sm font-semibold text-amber-900">Request rejected</h3>
-	<ul class="space-y-1 text-sm text-amber-900">
-		{#each entries as [field, message] (field)}
-			<li><span class="font-mono text-xs">{field}</span>: {message}</li>
-		{/each}
-	</ul>
+<div class="border-l-2 border-amber-400 bg-white py-2 pl-4">
+	{#if coded}
+		<p class="text-sm text-neutral-900">{coded.message}</p>
+	{:else}
+		<p class="text-xs uppercase tracking-wide text-neutral-500">Check your input</p>
+		<ul class="mt-1 space-y-0.5 text-sm text-neutral-900">
+			{#each fields as [field, message] (field)}
+				<li><span class="font-mono text-xs text-neutral-500">{field}</span> {message}</li>
+			{/each}
+		</ul>
+	{/if}
 </div>

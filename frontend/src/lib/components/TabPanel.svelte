@@ -17,9 +17,11 @@
 
 <section class="h-full" style:display={active ? 'block' : 'none'}>
 	{#if result === undefined}
-		<p class="text-sm text-neutral-500">Loading…</p>
+		<p class="p-6 text-sm text-neutral-500">Loading…</p>
 	{:else if result.status === 'success'}
-		<tab.view data={result.data} />
+		<div class="p-6">
+			<tab.view data={result.data} />
+		</div>
 	{:else if result.status === 'fail'}
 		<FailView {result} />
 	{:else}
