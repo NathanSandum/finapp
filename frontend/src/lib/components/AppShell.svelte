@@ -19,7 +19,7 @@
 	<aside class="col-start-1 row-start-2 overflow-y-auto border-r border-neutral-200 bg-white p-2">
 		{@render sidebar()}
 	</aside>
-	<main class="col-start-2 row-start-2 overflow-y-auto p-6">
+	<main class="col-start-2 row-start-2 overflow-y-auto">
 		{@render main()}
 	</main>
 </div>

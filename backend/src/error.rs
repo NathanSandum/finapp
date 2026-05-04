@@ -7,6 +7,11 @@ use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
+#[derive(Serialize)]
+struct Message {
+    message: String,
+}
+
 #[derive(Debug)]
 pub enum AppError {
     NotFound(String),
@@ -35,43 +40,23 @@ pub struct FieldError {
     pub message: String,
 }
 
-#[derive(Serialize)]
-struct CodedFailure {
-    code: &'static str,
-    message: String,
-}
-
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         match self {
-            AppError::NotFound(msg) => fail(
-                StatusCode::NOT_FOUND,
-                CodedFailure {
-                    code: "not_found",
-                    message: msg,
-                },
-            ),
+            AppError::NotFound(msg) => fail(StatusCode::NOT_FOUND, Message { message: msg }),
             AppError::Forbidden => fail(
                 StatusCode::FORBIDDEN,
-                CodedFailure {
-                    code: "forbidden",
-                    message: "insufficient permissions".into(),
+                Message {
+                    message: "Insufficient permissions".into(),
                 },
             ),
             AppError::Unauthorized => fail(
                 StatusCode::UNAUTHORIZED,
-                CodedFailure {
-                    code: "unauthorized",
-                    message: "authentication required".into(),
+                Message {
+                    message: "Authentication required".into(),
                 },
             ),
-            AppError::Conflict(msg) => fail(
-                StatusCode::CONFLICT,
-                CodedFailure {
-                    code: "conflict",
-                    message: msg,
-                },
-            ),
+            AppError::Conflict(msg) => fail(StatusCode::CONFLICT, Message { message: msg }),
             AppError::Validation(fields) => {
                 let mut data = Map::new();
                 for FieldError { field, message } in fields {
@@ -137,7 +122,6 @@ mod tests {
     async fn client_error_is_jsend_fail() {
         let body = body_json(AppError::NotFound("workspace".into())).await;
         assert_eq!(body["status"], "fail");
-        assert_eq!(body["data"]["code"], "not_found");
         assert_eq!(body["data"]["message"], "workspace");
     }
 

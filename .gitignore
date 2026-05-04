@@ -21,6 +21,7 @@ desktop/gen/
 .env
 .env.*
 !.env.example
+!frontend/.env.development
 
 # Claude Code
 .agents/
