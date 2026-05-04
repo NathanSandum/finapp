@@ -1,7 +1,11 @@
 <script lang="ts">
-	import { accountLabel, formatAmount, type Entry } from './fixture';
+	import type { Entry } from './loader';
+	import { formatAmount } from './loader';
 
-	let { entries }: { entries: Entry[] } = $props();
+	let {
+		entries,
+		accountNames
+	}: { entries: Entry[]; accountNames: Record<string, string> } = $props();
 
 	let selectedId = $state<string | null>(null);
 	const selected = $derived(entries.find((entry) => entry.id === selectedId) ?? entries[0]);
@@ -10,6 +14,10 @@
 		return entry.postings
 			.filter((posting) => posting.amount > 0)
 			.reduce((sum, posting) => sum + posting.amount, 0);
+	}
+
+	function accountLabel(id: string): string {
+		return accountNames[id] ?? id;
 	}
 </script>
 
