@@ -2,24 +2,19 @@
 	import type { Snippet } from 'svelte';
 
 	let {
-		header,
 		sidebar,
 		main
 	}: {
-		header: Snippet;
 		sidebar: Snippet;
 		main: Snippet;
 	} = $props();
 </script>
 
-<div class="grid h-screen w-screen grid-cols-[240px_1fr] grid-rows-[56px_1fr] bg-neutral-50 text-neutral-900">
-	<header class="col-span-2 row-start-1 flex items-center border-b border-neutral-200 bg-white px-4">
-		{@render header()}
-	</header>
-	<aside class="col-start-1 row-start-2 overflow-y-auto border-r border-neutral-200 bg-white p-2">
+<div class="grid h-screen w-screen grid-cols-[240px_1fr] bg-white text-neutral-900">
+	<aside class="col-start-1 flex flex-col overflow-y-auto bg-neutral-900 p-3 text-neutral-200">
 		{@render sidebar()}
 	</aside>
-	<main class="col-start-2 row-start-2 overflow-y-auto">
+	<main class="col-start-2 overflow-y-auto">
 		{@render main()}
 	</main>
 </div>
