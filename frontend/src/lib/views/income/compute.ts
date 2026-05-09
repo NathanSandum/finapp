@@ -1,119 +1,19 @@
 import type { Account, Entry } from '../entries/loader';
+import {
+	defaultTrailCount,
+	periodBounds,
+	periodLabel,
+	priorPeriod,
+	priorShortLabel,
+	shiftPeriod,
+	snapToGranularity,
+	trailLabel,
+	type Granularity
+} from '../period';
 import type { IncomeData, Line } from './lib';
 
-export type Granularity = 'month' | 'quarter' | 'year';
-
-const MONTH_LONG = [
-	'January', 'February', 'March', 'April', 'May', 'June',
-	'July', 'August', 'September', 'October', 'November', 'December'
-];
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function pad2(n: number): string {
-	return n.toString().padStart(2, '0');
-}
-
-function quarterOf(month: number): number {
-	return Math.ceil(month / 3);
-}
-
-function quarterStartMonth(quarter: number): number {
-	return (quarter - 1) * 3 + 1;
-}
-
-function lastDayOfMonth(year: number, month: number): number {
-	return new Date(Date.UTC(year, month, 0)).getUTCDate();
-}
-
-function bounds(year: number, month: number, granularity: Granularity): { start: string; end: string } {
-	if (granularity === 'month') {
-		return { start: `${year}-${pad2(month)}-01`, end: `${year}-${pad2(month)}-${pad2(lastDayOfMonth(year, month))}` };
-	}
-	if (granularity === 'quarter') {
-		const q = quarterOf(month);
-		const startM = quarterStartMonth(q);
-		const endM = startM + 2;
-		return {
-			start: `${year}-${pad2(startM)}-01`,
-			end: `${year}-${pad2(endM)}-${pad2(lastDayOfMonth(year, endM))}`
-		};
-	}
-	return { start: `${year}-01-01`, end: `${year}-12-31` };
-}
-
-export function priorPeriod(year: number, month: number, granularity: Granularity): { year: number; month: number } {
-	if (granularity === 'month') {
-		if (month === 1) return { year: year - 1, month: 12 };
-		return { year, month: month - 1 };
-	}
-	if (granularity === 'quarter') {
-		const q = quarterOf(month);
-		if (q === 1) return { year: year - 1, month: quarterStartMonth(4) };
-		return { year, month: quarterStartMonth(q - 1) };
-	}
-	return { year: year - 1, month: 1 };
-}
-
-export function shiftPeriod(
-	year: number,
-	month: number,
-	granularity: Granularity,
-	direction: 1 | -1
-): { year: number; month: number } {
-	if (granularity === 'month') {
-		let m = month + direction;
-		let y = year;
-		while (m < 1) {
-			m += 12;
-			y -= 1;
-		}
-		while (m > 12) {
-			m -= 12;
-			y += 1;
-		}
-		return { year: y, month: m };
-	}
-	if (granularity === 'quarter') {
-		const q = quarterOf(month);
-		let nq = q + direction;
-		let y = year;
-		while (nq < 1) {
-			nq += 4;
-			y -= 1;
-		}
-		while (nq > 4) {
-			nq -= 4;
-			y += 1;
-		}
-		return { year: y, month: quarterStartMonth(nq) };
-	}
-	return { year: year + direction, month: 1 };
-}
-
-export function snapToGranularity(year: number, month: number, granularity: Granularity): { year: number; month: number } {
-	if (granularity === 'month') return { year, month };
-	if (granularity === 'quarter') return { year, month: quarterStartMonth(quarterOf(month)) };
-	return { year, month: 1 };
-}
-
-function periodLabel(year: number, month: number, granularity: Granularity): string {
-	if (granularity === 'month') return `${MONTH_LONG[month - 1]} ${year}`;
-	if (granularity === 'quarter') return `Q${quarterOf(month)} ${year}`;
-	return `${year}`;
-}
-
-function priorShort(year: number, month: number, granularity: Granularity): string {
-	const prior = priorPeriod(year, month, granularity);
-	if (granularity === 'month') return MONTH_SHORT[prior.month - 1];
-	if (granularity === 'quarter') return `Q${quarterOf(prior.month)}`;
-	return `${prior.year}`;
-}
-
-function trailLabel(year: number, month: number, granularity: Granularity): string {
-	if (granularity === 'month') return MONTH_SHORT[month - 1];
-	if (granularity === 'quarter') return `Q${quarterOf(month)}`;
-	return `'${(year % 100).toString().padStart(2, '0')}`;
-}
+export { defaultTrailCount, priorPeriod, shiftPeriod, snapToGranularity };
+export type { Granularity };
 
 function bucketFor(accountId: string, accounts: Map<string, Account>): Account | null {
 	let current = accounts.get(accountId);
@@ -173,9 +73,9 @@ export function computeIncomeData(
 	granularity: Granularity
 ): IncomeData {
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
-	const { start, end } = bounds(year, month, granularity);
+	const { start, end } = periodBounds(year, month, granularity);
 	const prior = priorPeriod(year, month, granularity);
-	const { start: priorStart, end: priorEnd } = bounds(prior.year, prior.month, granularity);
+	const { start: priorStart, end: priorEnd } = periodBounds(prior.year, prior.month, granularity);
 
 	const current = buildLines(entries, accountIndex, start, end);
 	const priorBucket = buildLines(entries, accountIndex, priorStart, priorEnd);
@@ -183,18 +83,12 @@ export function computeIncomeData(
 	return {
 		period_label: periodLabel(year, month, granularity),
 		prior_label: periodLabel(prior.year, prior.month, granularity),
-		prior_short_label: priorShort(year, month, granularity),
+		prior_short_label: priorShortLabel(year, month, granularity),
 		revenue: current.revenue,
 		expenses: current.expenses,
 		prior_revenue: priorBucket.revenue,
 		prior_expenses: priorBucket.expenses
 	};
-}
-
-export function defaultTrailCount(granularity: Granularity): number {
-	if (granularity === 'month') return 12;
-	if (granularity === 'quarter') return 8;
-	return 5;
 }
 
 export function computeNetTrail(
@@ -220,7 +114,7 @@ export function computeNetTrail(
 	const values: number[] = [];
 	const labels: string[] = [];
 	for (const period of periods) {
-		const { start, end } = bounds(period.year, period.month, granularity);
+		const { start, end } = periodBounds(period.year, period.month, granularity);
 		let revenue = 0;
 		let expense = 0;
 		for (const entry of entries) {
