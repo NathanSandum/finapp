@@ -1,5 +1,122 @@
 <script lang="ts">
-	let { data: _data }: { data: null } = $props();
+	import { untrack } from 'svelte';
+	import NetHero from '$lib/components/NetHero.svelte';
+	import PeriodHeader from '$lib/components/PeriodHeader.svelte';
+	import { delta } from '../income/lib';
+	import {
+		computeAssetTrails,
+		computeBalanceSheet,
+		computeNetWorthTrail,
+		defaultTrailCount,
+		latestActivityPeriod,
+		shiftPeriod,
+		snapToGranularity,
+		type Granularity
+	} from './compute';
+	import type { BalanceSheetRaw } from './loader';
+	import ModePill, { type Mode } from './ModePill.svelte';
+	import Tiles from './Tiles.svelte';
+	import Detail from './variants/Detail.svelte';
+	import Summary from './variants/Summary.svelte';
+	import Trend from './variants/Trend.svelte';
+
+	let { data }: { data: BalanceSheetRaw } = $props();
+
+	const initial = untrack(() => latestActivityPeriod(data.entries, data.accounts));
+	let selectedYear = $state(initial.year);
+	let selectedMonth = $state(initial.month);
+	let granularity = $state<Granularity>('month');
+	let mode = $state<Mode>('summary');
+
+	function shift(direction: 1 | -1) {
+		const next = shiftPeriod(selectedYear, selectedMonth, granularity, direction);
+		selectedYear = next.year;
+		selectedMonth = next.month;
+	}
+
+	function setGranularity(next: Granularity) {
+		const snapped = snapToGranularity(selectedYear, selectedMonth, next);
+		selectedYear = snapped.year;
+		selectedMonth = snapped.month;
+		granularity = next;
+	}
+
+	const bs = $derived(
+		computeBalanceSheet(data.entries, data.accounts, selectedYear, selectedMonth, granularity)
+	);
+	const netTrail = $derived(
+		computeNetWorthTrail(
+			data.entries,
+			data.accounts,
+			selectedYear,
+			selectedMonth,
+			granularity,
+			defaultTrailCount(granularity)
+		)
+	);
+	const assetTrails = $derived(
+		computeAssetTrails(
+			data.entries,
+			data.accounts,
+			selectedYear,
+			selectedMonth,
+			granularity,
+			defaultTrailCount(granularity)
+		)
+	);
+
+	const totalAssets = $derived(bs.assets.reduce((s, l) => s + l.amount, 0));
+	const totalLiab = $derived(bs.liabilities.reduce((s, l) => s + l.amount, 0));
+	const netWorth = $derived(totalAssets - totalLiab);
+	const priorAssets = $derived(bs.prior_assets.reduce((s, l) => s + l.amount, 0));
+	const priorLiab = $derived(bs.prior_liabilities.reduce((s, l) => s + l.amount, 0));
+	const priorNet = $derived(priorAssets - priorLiab);
 </script>
 
-<h2 class="text-2xl font-semibold">Hello, world</h2>
+<div class="flex flex-col gap-3">
+	<PeriodHeader
+		title="Balance Sheet"
+		periodLabel="As of {bs.as_of_label}"
+		{granularity}
+		onPrev={() => shift(-1)}
+		onNext={() => shift(1)}
+		onGranularity={setGranularity}
+	/>
+
+	<NetHero
+		label="Net Worth · {bs.as_of_label}"
+		value={netWorth}
+		prior={priorNet}
+		priorShortLabel={bs.prior_short_label}
+		trail={netTrail.values}
+		trailLabels={netTrail.labels}
+		gradientId="balance-sheet-net-grad"
+		badgeSuffix={delta(netWorth, priorNet)}
+	/>
+
+	<Tiles
+		{totalAssets}
+		{priorAssets}
+		{totalLiab}
+		{priorLiab}
+		priorShortLabel={bs.prior_short_label}
+	/>
+
+	<ModePill {mode} onSelect={(next) => (mode = next)} />
+
+	{#if mode === 'summary'}
+		<Summary assets={bs.assets} liabilities={bs.liabilities} {totalAssets} {totalLiab} />
+	{:else if mode === 'detail'}
+		<Detail
+			assets={bs.assets}
+			liabilities={bs.liabilities}
+			{totalAssets}
+			{totalLiab}
+			{priorAssets}
+			{priorLiab}
+			priorShortLabel={bs.prior_short_label}
+		/>
+	{:else}
+		<Trend assets={bs.assets} trails={assetTrails.trails} />
+	{/if}
+</div>
