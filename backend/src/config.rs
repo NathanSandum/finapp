@@ -64,13 +64,13 @@ impl DatabaseLocation {
     pub fn connect(&self) -> DbPool {
         let url = self.to_string();
         let manager = ConnectionManager::<SqliteConnection>::new(url);
-        let mut builder = r2d2::Pool::builder();
-        if matches!(self, Self::Memory) {
-            builder = builder
+        let builder = match self {
+            Self::Memory => r2d2::Pool::builder()
                 .max_size(1)
                 .idle_timeout(None)
-                .max_lifetime(None);
-        }
+                .max_lifetime(None),
+            Self::File(_) => r2d2::Pool::builder(),
+        };
         builder
             .build(manager)
             .expect("failed to create db pool")
