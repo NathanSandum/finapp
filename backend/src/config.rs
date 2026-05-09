@@ -66,11 +66,6 @@ impl DatabaseLocation {
         let manager = ConnectionManager::<SqliteConnection>::new(url);
         let mut builder = r2d2::Pool::builder();
         if matches!(self, Self::Memory) {
-            // Each :memory: connection is its own private DB, so the seeded
-            // schema and data live only on the single pooled connection.
-            // r2d2's idle reaper (default 10min) and max_lifetime (default
-            // 30min) would silently drop it, leaving subsequent requests to
-            // hit a fresh, empty :memory: DB and 500.
             builder = builder
                 .max_size(1)
                 .idle_timeout(None)
