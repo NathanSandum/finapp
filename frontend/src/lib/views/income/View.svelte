@@ -108,7 +108,6 @@
 				prior={priorRevenueTotal}
 				priorShortLabel={income.prior_short_label}
 				accent="emerald"
-				direction="higher"
 			/>
 			<MetricTile
 				label="Expenses"
@@ -116,7 +115,6 @@
 				prior={priorExpenseTotal}
 				priorShortLabel={income.prior_short_label}
 				accent="rose"
-				direction="lower"
 			/>
 		</div>
 	{/snippet}
