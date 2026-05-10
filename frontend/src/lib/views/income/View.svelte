@@ -96,7 +96,7 @@
 	{/snippet}
 
 	{#snippet tiles()}
-		<div class="grid grid-cols-2 gap-3">
+		<div class="grid grid-cols-2 gap-3 border-t border-border">
 			<MetricTile
 				label="Revenue"
 				total={revenueTotal}
