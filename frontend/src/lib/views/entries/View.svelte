@@ -56,7 +56,7 @@
 		onGranularity={setGranularity}
 	/>
 
-	<div class="grid min-h-0 flex-1 grid-cols-[320px_1fr] gap-0 overflow-hidden rounded-lg border border-border bg-surface-card">
+	<div class="grid min-h-0 flex-1 grid-cols-[320px_1fr] gap-0 overflow-hidden border border-border bg-surface-card">
 		<ul class="h-full divide-y divide-border-faint overflow-y-auto border-r border-ink-faint">
 			{#each filteredEntries as entry (entry.id)}
 				{@const isSel = selected?.id === entry.id}
