@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import MetricTile from '$lib/components/MetricTile.svelte';
-	import ModePill, { type Mode } from '$lib/components/ModePill.svelte';
 	import NetHero from '$lib/components/NetHero.svelte';
-	import PeriodHeader from '$lib/components/PeriodHeader.svelte';
+	import StatementView from '$lib/components/StatementView.svelte';
 	import {
 		computeIncomeData,
 		computeIncomeTrails,
@@ -31,7 +30,6 @@
 	let selectedYear = $state(initial.year);
 	let selectedMonth = $state(initial.month);
 	let granularity = $state<Granularity>('month');
-	let mode = $state<Mode>('summary');
 
 	function shift(direction: 1 | -1) {
 		const next = shiftPeriod(selectedYear, selectedMonth, granularity, direction);
@@ -81,56 +79,58 @@
 	);
 </script>
 
-<div class="flex flex-col gap-3">
-	<PeriodHeader
-		title="Income"
-		periodLabel={income.period_label}
-		{granularity}
-		onPrev={() => shift(-1)}
-		onNext={() => shift(1)}
-		onGranularity={setGranularity}
-	/>
-
-	<NetHero
-		label="Net Income · {income.period_label}"
-		value={netIncome}
-		prior={priorNet}
-		priorShortLabel={income.prior_short_label}
-		trail={trail.values}
-		trailLabels={trail.labels}
-		gradientId="income-net-grad"
-		badgeSuffix="{savingsRate}% saved"
-	/>
-
-	<div class="grid grid-cols-2 gap-3">
-		<MetricTile
-			label="Revenue"
-			total={revenueTotal}
-			prior={priorRevenueTotal}
+<StatementView
+	title="Income"
+	periodLabel={income.period_label}
+	{granularity}
+	onPrev={() => shift(-1)}
+	onNext={() => shift(1)}
+	onGranularity={setGranularity}
+>
+	{#snippet hero()}
+		<NetHero
+			label="Net Income · {income.period_label}"
+			value={netIncome}
+			prior={priorNet}
 			priorShortLabel={income.prior_short_label}
-			accent="emerald"
-			direction="higher"
+			trail={trail.values}
+			trailLabels={trail.labels}
+			gradientId="income-net-grad"
+			badgeSuffix="{savingsRate}% saved"
 		/>
-		<MetricTile
-			label="Expenses"
-			total={expenseTotal}
-			prior={priorExpenseTotal}
-			priorShortLabel={income.prior_short_label}
-			accent="rose"
-			direction="lower"
-		/>
-	</div>
+	{/snippet}
 
-	<ModePill {mode} onSelect={(next) => (mode = next)} />
+	{#snippet tiles()}
+		<div class="grid grid-cols-2 gap-3">
+			<MetricTile
+				label="Revenue"
+				total={revenueTotal}
+				prior={priorRevenueTotal}
+				priorShortLabel={income.prior_short_label}
+				accent="emerald"
+				direction="higher"
+			/>
+			<MetricTile
+				label="Expenses"
+				total={expenseTotal}
+				prior={priorExpenseTotal}
+				priorShortLabel={income.prior_short_label}
+				accent="rose"
+				direction="lower"
+			/>
+		</div>
+	{/snippet}
 
-	{#if mode === 'summary'}
+	{#snippet summary()}
 		<Summary
 			revenue={income.revenue}
 			expenses={income.expenses}
 			{revenueTotal}
 			{expenseTotal}
 		/>
-	{:else if mode === 'detail'}
+	{/snippet}
+
+	{#snippet detail()}
 		<Detail
 			revenue={income.revenue}
 			expenses={income.expenses}
@@ -140,12 +140,14 @@
 			{priorExpenseTotal}
 			priorShortLabel={income.prior_short_label}
 		/>
-	{:else}
+	{/snippet}
+
+	{#snippet trend()}
 		<Trend
 			revenue={income.revenue}
 			expenses={income.expenses}
 			revenueTrails={trails.revenueTrails}
 			expenseTrails={trails.expenseTrails}
 		/>
-	{/if}
-</div>
+	{/snippet}
+</StatementView>
