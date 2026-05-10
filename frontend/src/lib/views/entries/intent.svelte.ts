@@ -1,7 +1,7 @@
 import type { VerbId } from './verbs';
 
 export type EntryIntent = {
-	verb: VerbId | null;
+	verb: VerbId;
 	sourceTab: string;
 };
 

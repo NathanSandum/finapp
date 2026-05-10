@@ -23,7 +23,7 @@
 	let granularity = $state<Granularity>('month');
 	let selectedId = $state<string | null>(null);
 	let creating = $state(false);
-	let formVerb = $state<VerbId | null>('spent');
+	let formVerb = $state<VerbId>('spent');
 
 	const incomingIntent = $derived(entryIntent.get());
 	$effect(() => {
