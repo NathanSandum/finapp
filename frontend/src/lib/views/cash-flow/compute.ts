@@ -5,6 +5,7 @@ import {
 	periodBounds,
 	periodLabel,
 	priorPeriod,
+	priorPeriodList,
 	priorShortLabel,
 	shiftPeriod,
 	snapToGranularity,
@@ -160,25 +161,6 @@ export function computeCashFlow(
 		opening_cash,
 		closing_cash
 	};
-}
-
-function priorPeriodList(
-	year: number,
-	month: number,
-	granularity: Granularity,
-	count: number
-): { year: number; month: number }[] {
-	const periods: { year: number; month: number }[] = [];
-	let y = year;
-	let m = month;
-	for (let i = 0; i < count; i++) {
-		periods.push({ year: y, month: m });
-		const p = priorPeriod(y, m, granularity);
-		y = p.year;
-		m = p.month;
-	}
-	periods.reverse();
-	return periods;
 }
 
 export function computeNetCashTrail(

@@ -142,3 +142,22 @@ export function trailLabel(year: number, month: number, granularity: Granularity
 	if (granularity === 'quarter') return `Q${quarterOf(month)}`;
 	return `'${(year % 100).toString().padStart(2, '0')}`;
 }
+
+export function priorPeriodList(
+	year: number,
+	month: number,
+	granularity: Granularity,
+	count: number
+): { year: number; month: number }[] {
+	const periods: { year: number; month: number }[] = [];
+	let y = year;
+	let m = month;
+	for (let i = 0; i < count; i++) {
+		periods.push({ year: y, month: m });
+		const p = priorPeriod(y, m, granularity);
+		y = p.year;
+		m = p.month;
+	}
+	periods.reverse();
+	return periods;
+}

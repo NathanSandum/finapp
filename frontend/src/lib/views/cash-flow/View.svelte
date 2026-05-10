@@ -12,7 +12,7 @@
 		snapToGranularity,
 		type Granularity
 	} from './compute';
-	import CashFlowTile from './CashFlowTile.svelte';
+	import MetricTile from '$lib/components/MetricTile.svelte';
 	import type { CashFlowRaw } from './loader';
 	import Detail from './variants/Detail.svelte';
 	import Summary from './variants/Summary.svelte';
@@ -90,32 +90,32 @@
 	{#snippet tiles()}
 		<div class="mx-auto h-px w-[95%] bg-border"></div>
 		<div class="grid grid-cols-3 gap-3">
-			<CashFlowTile
-				noun="Income"
+			<MetricTile
+				label="Income"
 				total={cf.operating.total}
 				prior={cf.prior_operating_total}
 				priorShortLabel={cf.prior_short_label}
 				accent="emerald"
-				verbPositive="Earned"
-				verbNegative="Spent"
+				signPrefix={{ positive: 'From', negative: 'To' }}
+				verbs={{ positive: 'Earned', negative: 'Spent' }}
 			/>
-			<CashFlowTile
-				noun="Investments"
+			<MetricTile
+				label="Investments"
 				total={cf.investing.total}
 				prior={cf.prior_investing_total}
 				priorShortLabel={cf.prior_short_label}
 				accent="sky"
-				verbPositive="Withdrew"
-				verbNegative="Contributed"
+				signPrefix={{ positive: 'From', negative: 'To' }}
+				verbs={{ positive: 'Withdrew', negative: 'Contributed' }}
 			/>
-			<CashFlowTile
-				noun="Financing"
+			<MetricTile
+				label="Financing"
 				total={cf.financing.total}
 				prior={cf.prior_financing_total}
 				priorShortLabel={cf.prior_short_label}
 				accent="amber"
-				verbPositive="Borrowed"
-				verbNegative="Repaid"
+				signPrefix={{ positive: 'From', negative: 'To' }}
+				verbs={{ positive: 'Borrowed', negative: 'Repaid' }}
 			/>
 		</div>
 	{/snippet}

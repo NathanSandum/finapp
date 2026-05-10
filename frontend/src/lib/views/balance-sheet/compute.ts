@@ -4,6 +4,7 @@ import {
 	asOfLabel,
 	defaultTrailCount,
 	priorPeriod,
+	priorPeriodList,
 	priorShortLabel,
 	shiftPeriod,
 	snapToGranularity,
@@ -110,16 +111,7 @@ export function computeNetWorthTrail(
 	count: number
 ): { values: number[]; labels: string[] } {
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
-	const periods: { year: number; month: number }[] = [];
-	let y = year;
-	let m = month;
-	for (let i = 0; i < count; i++) {
-		periods.push({ year: y, month: m });
-		const p = priorPeriod(y, m, granularity);
-		y = p.year;
-		m = p.month;
-	}
-	periods.reverse();
+	const periods = priorPeriodList(year, month, granularity, count);
 
 	const values: number[] = [];
 	const labels: string[] = [];
@@ -152,16 +144,7 @@ function computeBalanceTrails(
 	type: 'asset' | 'liability'
 ): { trails: Map<string, number[]>; labels: string[] } {
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
-	const periods: { year: number; month: number }[] = [];
-	let y = year;
-	let m = month;
-	for (let i = 0; i < count; i++) {
-		periods.push({ year: y, month: m });
-		const p = priorPeriod(y, m, granularity);
-		y = p.year;
-		m = p.month;
-	}
-	periods.reverse();
+	const periods = priorPeriodList(year, month, granularity, count);
 
 	const sign = type === 'asset' ? 1 : -1;
 	const trails = new Map<string, number[]>();
