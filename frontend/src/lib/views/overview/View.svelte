@@ -16,21 +16,21 @@
 	}
 </script>
 
-<div class="px-8 py-8">
-	<header class="mb-8 flex items-baseline justify-between gap-3">
-		<h1 class="font-display text-2xl font-semibold text-ink">Overview</h1>
+<div class="flex h-full flex-col gap-3 overflow-hidden">
+	<header class="flex shrink-0 items-baseline justify-between gap-3">
 		<div class="flex items-baseline gap-3">
-			<button
-				type="button"
-				onclick={newEntry}
-				class="bg-surface-inverse px-3 py-1.5 text-xs font-medium uppercase tracking-[0.08em] text-ink-inverse transition-colors hover:bg-surface-inverse-hover"
-			>
-				+ New
-			</button>
-			<p class="font-mono text-[11px] uppercase tracking-wider text-ink-muted">
+			<h3 class="text-xl font-semibold text-ink">Overview</h3>
+			<span class="font-mono text-xs uppercase tracking-wider text-ink-muted">
 				as of {metrics.asOfLabel}
-			</p>
+			</span>
 		</div>
+		<button
+			type="button"
+			onclick={newEntry}
+			class="bg-surface-inverse px-3 py-1.5 text-xs font-medium uppercase tracking-[0.08em] text-ink-inverse transition-colors hover:bg-surface-inverse-hover"
+		>
+			+ New
+		</button>
 	</header>
 
 	<section class="mb-12 grid grid-cols-2 gap-12">
