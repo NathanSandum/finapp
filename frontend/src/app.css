@@ -87,3 +87,129 @@ body {
 	font-family: var(--font-body);
 }
 
+/*
+ * Variant B — Cool / Slate.
+ * Surfaces tinted toward blue. Indigo brand. Teal-leaning positive.
+ */
+[data-theme='b'] {
+	--color-surface: oklch(98.5% 0.005 250);
+	--color-surface-card: oklch(100% 0 0);
+	--color-surface-sunken: oklch(96.1% 0.008 250);
+	--color-surface-hover: oklch(96.1% 0.008 250);
+	--color-surface-hover-faint: oklch(98.5% 0.005 250);
+
+	--color-surface-inverse: oklch(22% 0.025 260);
+	--color-surface-inverse-hover: oklch(28% 0.03 260);
+
+	--color-ink: oklch(20.5% 0.02 260);
+	--color-ink-body: oklch(38% 0.018 260);
+	--color-ink-muted: oklch(56% 0.015 260);
+	--color-ink-faint: oklch(71% 0.012 260);
+
+	--color-ink-inverse: oklch(100% 0 0);
+	--color-ink-inverse-body: oklch(92.2% 0.005 250);
+	--color-ink-inverse-muted: oklch(70.8% 0.01 250);
+
+	--color-border: oklch(91% 0.012 250);
+	--color-border-faint: oklch(96.1% 0.008 250);
+
+	--color-positive: oklch(52% 0.11 175);
+	--color-positive-line: oklch(68% 0.13 180);
+	--color-positive-tint: color-mix(in oklch, oklch(95% 0.04 180) 50%, transparent);
+	--color-positive-tint-strong: oklch(95% 0.04 180);
+	--color-positive-bar-1: oklch(68% 0.13 180);
+	--color-positive-bar-2: oklch(76% 0.13 180);
+	--color-positive-bar-3: oklch(85% 0.1 180);
+	--color-positive-bar-4: oklch(92% 0.06 180);
+
+	--color-negative: oklch(52% 0.2 18);
+	--color-negative-strong: oklch(57% 0.24 24);
+	--color-negative-line: oklch(64% 0.22 18);
+	--color-negative-tint: color-mix(in oklch, oklch(96.5% 0.018 12) 50%, transparent);
+	--color-negative-border: oklch(72% 0.19 22);
+	--color-negative-bar-1: oklch(64% 0.22 18);
+	--color-negative-bar-2: oklch(72% 0.18 22);
+	--color-negative-bar-3: oklch(81% 0.11 12);
+	--color-negative-bar-4: oklch(89% 0.06 10);
+
+	--color-investing: oklch(50% 0.16 270);
+	--color-investing-line: oklch(66% 0.18 275);
+	--color-investing-tint: color-mix(in oklch, oklch(96% 0.025 270) 50%, transparent);
+
+	--color-financing: oklch(50% 0.14 305);
+	--color-financing-line: oklch(70% 0.17 310);
+	--color-financing-tint: color-mix(in oklch, oklch(97% 0.022 305) 50%, transparent);
+	--color-financing-border: oklch(80% 0.16 308);
+
+	--color-brand: oklch(58% 0.2 268);
+	--color-brand-soft: oklch(72% 0.16 268);
+
+	--color-avatar-from: oklch(67% 0.18 235);
+	--color-avatar-to: oklch(58% 0.22 270);
+
+	--color-trend-zero: oklch(86% 0.01 250);
+}
+
+/*
+ * Variant C — Warm / Earthy.
+ * Surfaces tinted toward stone. Terracotta brand. Jade positive.
+ */
+[data-theme='c'] {
+	--color-surface: oklch(98.5% 0.006 60);
+	--color-surface-card: oklch(99.5% 0.003 60);
+	--color-surface-sunken: oklch(96.1% 0.01 60);
+	--color-surface-hover: oklch(96.1% 0.01 60);
+	--color-surface-hover-faint: oklch(98.5% 0.006 60);
+
+	--color-surface-inverse: oklch(22% 0.018 50);
+	--color-surface-inverse-hover: oklch(28% 0.022 50);
+
+	--color-ink: oklch(20.5% 0.015 50);
+	--color-ink-body: oklch(38% 0.014 50);
+	--color-ink-muted: oklch(56% 0.012 50);
+	--color-ink-faint: oklch(71% 0.01 50);
+
+	--color-ink-inverse: oklch(99% 0.005 60);
+	--color-ink-inverse-body: oklch(92% 0.008 60);
+	--color-ink-inverse-muted: oklch(72% 0.01 60);
+
+	--color-border: oklch(91% 0.014 60);
+	--color-border-faint: oklch(96% 0.01 60);
+
+	--color-positive: oklch(48% 0.11 150);
+	--color-positive-line: oklch(64% 0.14 150);
+	--color-positive-tint: color-mix(in oklch, oklch(94% 0.05 150) 50%, transparent);
+	--color-positive-tint-strong: oklch(94% 0.05 150);
+	--color-positive-bar-1: oklch(64% 0.14 150);
+	--color-positive-bar-2: oklch(73% 0.14 150);
+	--color-positive-bar-3: oklch(83% 0.11 150);
+	--color-positive-bar-4: oklch(91% 0.07 145);
+
+	--color-negative: oklch(50% 0.2 28);
+	--color-negative-strong: oklch(56% 0.23 30);
+	--color-negative-line: oklch(62% 0.22 28);
+	--color-negative-tint: color-mix(in oklch, oklch(96% 0.022 28) 50%, transparent);
+	--color-negative-border: oklch(70% 0.2 30);
+	--color-negative-bar-1: oklch(62% 0.22 28);
+	--color-negative-bar-2: oklch(70% 0.18 30);
+	--color-negative-bar-3: oklch(80% 0.12 28);
+	--color-negative-bar-4: oklch(89% 0.06 25);
+
+	--color-investing: oklch(50% 0.1 220);
+	--color-investing-line: oklch(66% 0.13 220);
+	--color-investing-tint: color-mix(in oklch, oklch(96% 0.022 220) 50%, transparent);
+
+	--color-financing: oklch(50% 0.14 50);
+	--color-financing-line: oklch(72% 0.18 60);
+	--color-financing-tint: color-mix(in oklch, oklch(97% 0.025 70) 50%, transparent);
+	--color-financing-border: oklch(80% 0.18 65);
+
+	--color-brand: oklch(63% 0.17 35);
+	--color-brand-soft: oklch(74% 0.16 40);
+
+	--color-avatar-from: oklch(72% 0.16 50);
+	--color-avatar-to: oklch(60% 0.21 18);
+
+	--color-trend-zero: oklch(86% 0.012 60);
+}
+
