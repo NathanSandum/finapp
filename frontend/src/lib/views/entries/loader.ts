@@ -1,7 +1,7 @@
 import { apiFetch, DEV_WORKSPACE } from '$lib/api/client';
 import type { JSend } from '$lib/tabs/types';
 
-export type Posting = {
+type Posting = {
 	id: string;
 	account_id: string;
 	amount: number;
