@@ -180,14 +180,7 @@ impl ToSql<Text, Sqlite> for SystemAccount {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct CustomAccount {
-    pub parent: Box<AccountType>,
     pub name: String,
-}
-
-impl CustomAccount {
-    pub fn category(&self) -> Category {
-        self.parent.category()
-    }
 }
 
 // ── AccountType ──────────────────────────────────────────────────────────────
@@ -197,15 +190,6 @@ impl CustomAccount {
 pub enum AccountType {
     System(SystemAccount),
     Custom(CustomAccount),
-}
-
-impl AccountType {
-    pub fn category(&self) -> Category {
-        match self {
-            AccountType::System(s) => s.category(),
-            AccountType::Custom(c) => c.category(),
-        }
-    }
 }
 
 impl std::fmt::Display for AccountType {
@@ -269,6 +253,7 @@ pub struct Account {
     pub workspace: WorkspaceRef,
     pub parent_id: Option<AccountRef>,
     pub account_type: AccountType,
+    pub category: Category,
     pub currency: Currency,
     pub deleted_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
@@ -324,7 +309,7 @@ impl Account {
     }
 
     pub fn category(&self) -> Category {
-        self.account_type.category()
+        self.category
     }
 
     /// Returns the colon-delimited full path from root to this account.
@@ -677,7 +662,8 @@ impl WorkspaceRef {
 // ── Hydration ────────────────────────────────────────────────────────────────
 
 fn hydrate(row: AccountRow, conn: &mut SqliteConnection) -> Result<Account, AppError> {
-    let account_type = parse_account_type(&row, conn)?;
+    let account_type = parse_account_type(&row)?;
+    let category = resolve_category(&row, conn)?;
     let currency = row
         .currency
         .parse::<Currency>()
@@ -688,6 +674,7 @@ fn hydrate(row: AccountRow, conn: &mut SqliteConnection) -> Result<Account, AppE
         workspace: row.workspace_id,
         parent_id: row.parent_id,
         account_type,
+        category,
         currency,
         deleted_at: row.deleted_at,
         created_at: row.created_at,
@@ -695,34 +682,46 @@ fn hydrate(row: AccountRow, conn: &mut SqliteConnection) -> Result<Account, AppE
     })
 }
 
-fn parse_account_type(
-    row: &AccountRow,
-    conn: &mut SqliteConnection,
-) -> Result<AccountType, AppError> {
+fn parse_account_type(row: &AccountRow) -> Result<AccountType, AppError> {
     if row.account_type == "Custom" {
-        let parent_ref = row.parent_id.as_ref().ok_or_else(|| {
-            AppError::Internal(format!("custom account {} missing parent_id", row.id))
-        })?;
         let name = row.name.clone().ok_or_else(|| {
             AppError::Internal(format!("custom account {} missing name", row.id))
         })?;
+        Ok(AccountType::Custom(CustomAccount { name }))
+    } else {
+        let system: SystemAccount = row.account_type.parse().map_err(AppError::Internal)?;
+        Ok(AccountType::System(system))
+    }
+}
+
+fn resolve_category(
+    row: &AccountRow,
+    conn: &mut SqliteConnection,
+) -> Result<Category, AppError> {
+    if row.account_type != "Custom" {
+        let system: SystemAccount = row.account_type.parse().map_err(AppError::Internal)?;
+        return Ok(system.category());
+    }
+    let mut current_parent = row.parent_id.clone();
+    while let Some(parent_id) = current_parent {
         let parent_row: AccountRow = accounts::table
-            .find(parent_ref)
+            .find(&parent_id)
             .select(AccountRow::as_select())
             .first(conn)
             .map_err(|err| AppError::Internal(format!("parent lookup failed: {err}")))?;
-        let parent_type = parse_account_type(&parent_row, conn)?;
-        Ok(AccountType::Custom(CustomAccount {
-            parent: Box::new(parent_type),
-            name,
-        }))
-    } else {
-        let system: SystemAccount = row
-            .account_type
-            .parse()
-            .map_err(|e: String| AppError::Internal(e))?;
-        Ok(AccountType::System(system))
+        if parent_row.account_type != "Custom" {
+            let system: SystemAccount = parent_row
+                .account_type
+                .parse()
+                .map_err(AppError::Internal)?;
+            return Ok(system.category());
+        }
+        current_parent = parent_row.parent_id;
     }
+    Err(AppError::Internal(format!(
+        "custom account {} has no system ancestor",
+        row.id
+    )))
 }
 
 // ── NewCustomAccount ─────────────────────────────────────────────────────────
