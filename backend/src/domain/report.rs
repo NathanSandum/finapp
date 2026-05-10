@@ -49,7 +49,7 @@ impl BalanceSheet {
         for root in &roots {
             let root_balance = root.balance_as_of_with_descendants(date, conn)?;
 
-            match root.category() {
+            match root.category(conn)? {
                 Category::Asset => {
                     total_assets = root_balance;
                     assets_detail = Self::children_balances(root, date, false, conn)?;
@@ -139,7 +139,7 @@ impl IncomeStatement {
         let mut expense_detail = Vec::new();
 
         for root in &roots {
-            match root.category() {
+            match root.category(conn)? {
                 Category::Revenue => {
                     revenue_balance =
                         root.balance_between_with_descendants(start_date, end_date, conn)?;

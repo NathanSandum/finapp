@@ -1,4 +1,5 @@
 use axum::{extract::Extension, extract::Path, http::StatusCode, Json};
+use diesel::SqliteConnection;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -19,7 +20,10 @@ pub async fn list(
 
     let accounts = member.workspace.accounts(&mut conn)?;
 
-    let items: Vec<Value> = accounts.iter().map(account_to_json).collect();
+    let items: Vec<Value> = accounts
+        .iter()
+        .map(|account| account_to_json(account, &mut conn))
+        .collect::<Result<_, _>>()?;
 
     Ok(JSend::success(json!({ "accounts": items })))
 }
@@ -57,9 +61,10 @@ pub async fn create(
 
     let account = NewCustomAccount::child(&parent, &body.name).insert(&mut conn)?;
 
+    let body = account_to_json(&account, &mut conn)?;
     Ok(JSendResponse::new(
         StatusCode::CREATED,
-        JSend::success(account_to_json(&account)),
+        JSend::success(body),
     ))
 }
 
@@ -124,7 +129,8 @@ pub async fn update(
         account = account.reparent(new_parent_id, &mut conn)?;
     }
 
-    Ok(JSend::success(account_to_json(&account)))
+    let body = account_to_json(&account, &mut conn)?;
+    Ok(JSend::success(body))
 }
 
 pub async fn balance(
@@ -151,17 +157,20 @@ pub async fn balance(
     })))
 }
 
-fn account_to_json(account: &Account) -> Value {
+fn account_to_json(
+    account: &Account,
+    conn: &mut SqliteConnection,
+) -> Result<Value, AppError> {
     let (kind, name) = match &account.account_type {
         AccountType::System(s) => (s.as_str().to_string(), Value::Null),
         AccountType::Custom(c) => ("Custom".to_string(), Value::String(c.name.clone())),
     };
-    json!({
+    Ok(json!({
         "id": account.id,
         "parent_id": account.parent_id,
         "kind": kind,
         "name": name,
-        "category": account.category(),
+        "category": account.category(conn)?,
         "currency": account.currency,
-    })
+    }))
 }

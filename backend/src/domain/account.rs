@@ -215,22 +215,7 @@ impl std::fmt::Display for AccountRef {
     }
 }
 
-// ── Diesel row (internal) ────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Queryable, Selectable)]
-#[diesel(table_name = accounts)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
-struct AccountRow {
-    id: AccountRef,
-    workspace_id: WorkspaceRef,
-    parent_id: Option<AccountRef>,
-    name: Option<String>,
-    account_type: String,
-    currency: String,
-    deleted_at: Option<NaiveDateTime>,
-    created_at: NaiveDateTime,
-    updated_at: NaiveDateTime,
-}
+// ── Insertable row (internal) ────────────────────────────────────────────────
 
 #[derive(Insertable)]
 #[diesel(table_name = accounts)]
@@ -253,11 +238,105 @@ pub struct Account {
     pub workspace: WorkspaceRef,
     pub parent_id: Option<AccountRef>,
     pub account_type: AccountType,
-    pub category: Category,
     pub currency: Currency,
     pub deleted_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+}
+
+type AccountSqlTypes = (
+    diesel::sql_types::Text,
+    diesel::sql_types::Text,
+    diesel::sql_types::Nullable<diesel::sql_types::Text>,
+    diesel::sql_types::Nullable<diesel::sql_types::Text>,
+    diesel::sql_types::Text,
+    diesel::sql_types::Text,
+    diesel::sql_types::Nullable<diesel::sql_types::Timestamp>,
+    diesel::sql_types::Timestamp,
+    diesel::sql_types::Timestamp,
+);
+
+impl Queryable<AccountSqlTypes, Sqlite> for Account {
+    type Row = (
+        AccountRef,
+        WorkspaceRef,
+        Option<AccountRef>,
+        Option<String>,
+        String,
+        String,
+        Option<NaiveDateTime>,
+        NaiveDateTime,
+        NaiveDateTime,
+    );
+
+    fn build(row: Self::Row) -> deserialize::Result<Self> {
+        let (
+            id,
+            workspace,
+            parent_id,
+            name,
+            account_type_str,
+            currency_str,
+            deleted_at,
+            created_at,
+            updated_at,
+        ) = row;
+
+        let account_type = if account_type_str == "Custom" {
+            let name = name.ok_or_else::<Box<dyn std::error::Error + Send + Sync>, _>(|| {
+                format!("custom account {id} missing name").into()
+            })?;
+            AccountType::Custom(CustomAccount { name })
+        } else {
+            let system: SystemAccount = account_type_str
+                .parse()
+                .map_err(|e: String| -> Box<dyn std::error::Error + Send + Sync> { e.into() })?;
+            AccountType::System(system)
+        };
+
+        let currency: Currency = currency_str
+            .parse()
+            .map_err(|e: String| -> Box<dyn std::error::Error + Send + Sync> { e.into() })?;
+
+        Ok(Account {
+            id,
+            workspace,
+            parent_id,
+            account_type,
+            currency,
+            deleted_at,
+            created_at,
+            updated_at,
+        })
+    }
+}
+
+impl diesel::expression::Selectable<Sqlite> for Account {
+    type SelectExpression = (
+        accounts::id,
+        accounts::workspace_id,
+        accounts::parent_id,
+        accounts::name,
+        accounts::account_type,
+        accounts::currency,
+        accounts::deleted_at,
+        accounts::created_at,
+        accounts::updated_at,
+    );
+
+    fn construct_selection() -> Self::SelectExpression {
+        (
+            accounts::id,
+            accounts::workspace_id,
+            accounts::parent_id,
+            accounts::name,
+            accounts::account_type,
+            accounts::currency,
+            accounts::deleted_at,
+            accounts::created_at,
+            accounts::updated_at,
+        )
+    }
 }
 
 impl Account {
@@ -269,17 +348,12 @@ impl Account {
         account_ref: &AccountRef,
         conn: &mut SqliteConnection,
     ) -> Result<Option<Account>, AppError> {
-        let row: Option<AccountRow> = accounts::table
+        accounts::table
             .find(account_ref)
-            .select(AccountRow::as_select())
+            .select(Account::as_select())
             .first(conn)
             .optional()
-            .map_err(|err| AppError::Internal(format!("account lookup failed: {err}")))?;
-
-        match row {
-            Some(r) => Ok(Some(hydrate(r, conn)?)),
-            None => Ok(None),
-        }
+            .map_err(|err| AppError::Internal(format!("account lookup failed: {err}")))
     }
 
     pub fn from_system(
@@ -308,8 +382,23 @@ impl Account {
         self.account_type.to_string()
     }
 
-    pub fn category(&self) -> Category {
-        self.category
+    pub fn category(&self, conn: &mut SqliteConnection) -> Result<Category, AppError> {
+        if let AccountType::System(s) = &self.account_type {
+            return Ok(s.category());
+        }
+        let mut current_parent = self.parent_id.clone();
+        while let Some(parent_id) = current_parent {
+            let parent = Account::from_ref(&parent_id, conn)?
+                .ok_or_else(|| AppError::Internal("broken parent chain".into()))?;
+            if let AccountType::System(s) = &parent.account_type {
+                return Ok(s.category());
+            }
+            current_parent = parent.parent_id;
+        }
+        Err(AppError::Internal(format!(
+            "custom account {} has no system ancestor",
+            self.id
+        )))
     }
 
     /// Returns the colon-delimited full path from root to this account.
@@ -338,14 +427,12 @@ impl Account {
 
     /// Returns direct children of this account.
     pub fn children(&self, conn: &mut SqliteConnection) -> Result<Vec<Account>, AppError> {
-        let rows: Vec<AccountRow> = accounts::table
+        accounts::table
             .filter(accounts::parent_id.eq(&self.id))
             .filter(accounts::deleted_at.is_null())
-            .select(AccountRow::as_select())
+            .select(Account::as_select())
             .load(conn)
-            .map_err(|err| AppError::Internal(format!("children query failed: {err}")))?;
-
-        rows.into_iter().map(|r| hydrate(r, conn)).collect()
+            .map_err(|err| AppError::Internal(format!("children query failed: {err}")))
     }
 
     /// Returns all transitive descendants (BFS).
@@ -354,15 +441,14 @@ impl Account {
         let mut queue = vec![self.id.clone()];
 
         while let Some(parent_id) = queue.pop() {
-            let rows: Vec<AccountRow> = accounts::table
+            let children: Vec<Account> = accounts::table
                 .filter(accounts::parent_id.eq(&parent_id))
                 .filter(accounts::deleted_at.is_null())
-                .select(AccountRow::as_select())
+                .select(Account::as_select())
                 .load(conn)
                 .map_err(|err| AppError::Internal(format!("descendants query failed: {err}")))?;
 
-            for row in rows {
-                let child = hydrate(row, conn)?;
+            for child in children {
                 queue.push(child.id.clone());
                 result.push(child);
             }
@@ -432,13 +518,13 @@ impl Account {
             }]));
         }
 
-        if parent.category() != self.category() {
+        let self_category = self.category(conn)?;
+        let parent_category = parent.category(conn)?;
+        if parent_category != self_category {
             return Err(AppError::Validation(vec![crate::error::FieldError {
                 field: "parent_id".into(),
                 message: format!(
-                    "cannot reparent {:?} account under {:?} account",
-                    self.category(),
-                    parent.category()
+                    "cannot reparent {self_category:?} account under {parent_category:?} account"
                 ),
             }]));
         }
@@ -616,26 +702,22 @@ impl Account {
 
 impl WorkspaceRef {
     pub fn accounts(&self, conn: &mut SqliteConnection) -> Result<Vec<Account>, AppError> {
-        let rows: Vec<AccountRow> = accounts::table
+        accounts::table
             .filter(accounts::workspace_id.eq(self))
             .filter(accounts::deleted_at.is_null())
-            .select(AccountRow::as_select())
+            .select(Account::as_select())
             .load(conn)
-            .map_err(|err| AppError::Internal(format!("account list failed: {err}")))?;
-
-        rows.into_iter().map(|r| hydrate(r, conn)).collect()
+            .map_err(|err| AppError::Internal(format!("account list failed: {err}")))
     }
 
     pub fn root_accounts(&self, conn: &mut SqliteConnection) -> Result<Vec<Account>, AppError> {
-        let rows: Vec<AccountRow> = accounts::table
+        accounts::table
             .filter(accounts::workspace_id.eq(self))
             .filter(accounts::parent_id.is_null())
             .filter(accounts::deleted_at.is_null())
-            .select(AccountRow::as_select())
+            .select(Account::as_select())
             .load(conn)
-            .map_err(|err| AppError::Internal(format!("root accounts query failed: {err}")))?;
-
-        rows.into_iter().map(|r| hydrate(r, conn)).collect()
+            .map_err(|err| AppError::Internal(format!("root accounts query failed: {err}")))
     }
 
     pub fn system_account(
@@ -643,86 +725,17 @@ impl WorkspaceRef {
         system: SystemAccount,
         conn: &mut SqliteConnection,
     ) -> Result<Option<Account>, AppError> {
-        let row: Option<AccountRow> = accounts::table
+        accounts::table
             .filter(accounts::workspace_id.eq(self))
             .filter(accounts::account_type.eq(system.as_str()))
             .filter(accounts::deleted_at.is_null())
-            .select(AccountRow::as_select())
+            .select(Account::as_select())
             .first(conn)
             .optional()
-            .map_err(|err| AppError::Internal(format!("system account lookup failed: {err}")))?;
-
-        match row {
-            Some(r) => Ok(Some(hydrate(r, conn)?)),
-            None => Ok(None),
-        }
+            .map_err(|err| AppError::Internal(format!("system account lookup failed: {err}")))
     }
 }
 
-// ── Hydration ────────────────────────────────────────────────────────────────
-
-fn hydrate(row: AccountRow, conn: &mut SqliteConnection) -> Result<Account, AppError> {
-    let account_type = parse_account_type(&row)?;
-    let category = resolve_category(&row, conn)?;
-    let currency = row
-        .currency
-        .parse::<Currency>()
-        .map_err(AppError::Internal)?;
-
-    Ok(Account {
-        id: row.id,
-        workspace: row.workspace_id,
-        parent_id: row.parent_id,
-        account_type,
-        category,
-        currency,
-        deleted_at: row.deleted_at,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-    })
-}
-
-fn parse_account_type(row: &AccountRow) -> Result<AccountType, AppError> {
-    if row.account_type == "Custom" {
-        let name = row.name.clone().ok_or_else(|| {
-            AppError::Internal(format!("custom account {} missing name", row.id))
-        })?;
-        Ok(AccountType::Custom(CustomAccount { name }))
-    } else {
-        let system: SystemAccount = row.account_type.parse().map_err(AppError::Internal)?;
-        Ok(AccountType::System(system))
-    }
-}
-
-fn resolve_category(
-    row: &AccountRow,
-    conn: &mut SqliteConnection,
-) -> Result<Category, AppError> {
-    if row.account_type != "Custom" {
-        let system: SystemAccount = row.account_type.parse().map_err(AppError::Internal)?;
-        return Ok(system.category());
-    }
-    let mut current_parent = row.parent_id.clone();
-    while let Some(parent_id) = current_parent {
-        let parent_row: AccountRow = accounts::table
-            .find(&parent_id)
-            .select(AccountRow::as_select())
-            .first(conn)
-            .map_err(|err| AppError::Internal(format!("parent lookup failed: {err}")))?;
-        if parent_row.account_type != "Custom" {
-            let system: SystemAccount = parent_row
-                .account_type
-                .parse()
-                .map_err(AppError::Internal)?;
-            return Ok(system.category());
-        }
-        current_parent = parent_row.parent_id;
-    }
-    Err(AppError::Internal(format!(
-        "custom account {} has no system ancestor",
-        row.id
-    )))
-}
 
 // ── NewCustomAccount ─────────────────────────────────────────────────────────
 
@@ -937,7 +950,7 @@ mod tests {
         assert_eq!(all.len(), 20);
 
         let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
-        assert_eq!(chequing.category(), Category::Asset);
+        assert_eq!(chequing.category(&mut conn).unwrap(), Category::Asset);
         assert!(matches!(chequing.account_type, AccountType::System(_)));
     }
 
@@ -984,7 +997,7 @@ mod tests {
             .expect("custom creation should succeed");
 
         assert_eq!(child.name(), "Brokerage");
-        assert_eq!(child.category(), Category::Asset);
+        assert_eq!(child.category(&mut conn).unwrap(), Category::Asset);
         assert_eq!(child.parent_id, Some(assets.id.clone()));
         assert!(matches!(child.account_type, AccountType::Custom(_)));
     }
@@ -998,7 +1011,7 @@ mod tests {
             .insert(&mut conn)
             .unwrap();
 
-        assert_eq!(dining_out.category(), Category::Expense);
+        assert_eq!(dining_out.category(&mut conn).unwrap(), Category::Expense);
         assert_eq!(dining_out.parent_id, Some(food.id.clone()));
 
         assert_eq!(
@@ -1145,9 +1158,9 @@ mod tests {
             .insert(&mut conn)
             .unwrap();
 
-        assert_eq!(assets.category(), Category::Asset);
-        assert_eq!(bank.category(), Category::Asset);
-        assert_eq!(grandchild.category(), Category::Asset);
+        assert_eq!(assets.category(&mut conn).unwrap(), Category::Asset);
+        assert_eq!(bank.category(&mut conn).unwrap(), Category::Asset);
+        assert_eq!(grandchild.category(&mut conn).unwrap(), Category::Asset);
     }
 
     #[test]
