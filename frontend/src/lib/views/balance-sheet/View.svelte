@@ -6,6 +6,7 @@
 	import {
 		computeAssetTrails,
 		computeBalanceSheet,
+		computeLiabilityTrails,
 		computeNetWorthTrail,
 		defaultTrailCount,
 		latestActivityPeriod,
@@ -53,6 +54,16 @@
 	);
 	const assetTrails = $derived(
 		computeAssetTrails(
+			data.entries,
+			data.accounts,
+			selectedYear,
+			selectedMonth,
+			granularity,
+			defaultTrailCount(granularity)
+		)
+	);
+	const liabilityTrails = $derived(
+		computeLiabilityTrails(
 			data.entries,
 			data.accounts,
 			selectedYear,
@@ -126,6 +137,11 @@
 	{/snippet}
 
 	{#snippet trend()}
-		<Trend assets={bs.assets} trails={assetTrails.trails} />
+		<Trend
+			assets={bs.assets}
+			liabilities={bs.liabilities}
+			assetTrails={assetTrails.trails}
+			liabilityTrails={liabilityTrails.trails}
+		/>
 	{/snippet}
 </StatementView>
