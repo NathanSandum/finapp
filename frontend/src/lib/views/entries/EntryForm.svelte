@@ -6,12 +6,12 @@
 
 	let {
 		accounts,
-		initialVerb = 'spent',
+		initialVerb = null,
 		onClose,
 		onCreated
 	}: {
 		accounts: Account[];
-		initialVerb?: VerbId;
+		initialVerb?: VerbId | null;
 		onClose: () => void;
 		onCreated?: () => void;
 	} = $props();
@@ -28,7 +28,7 @@
 
 	const chequing = $derived(accounts.find((a) => a.name === CHEQUING_NAME));
 
-	let verb = $state<VerbId>(initialVerb);
+	let verb = $state<VerbId | null>(initialVerb);
 	let counterpartyId = $state('');
 	let amountText = $state('');
 	let date = $state(todayISO());
@@ -38,12 +38,14 @@
 	let errorMessage = $state<string | null>(null);
 	let fieldErrors = $state<Record<string, string>>({});
 
-	const config = $derived(verbConfig(verb));
+	const config = $derived(verb ? verbConfig(verb) : null);
 
 	const counterparties = $derived(
-		accounts
-			.filter((a) => a.account_type === config.counterpartyType && a.id !== chequing?.id)
-			.sort((a, b) => a.name.localeCompare(b.name))
+		config
+			? accounts
+					.filter((a) => a.account_type === config.counterpartyType && a.id !== chequing?.id)
+					.sort((a, b) => a.name.localeCompare(b.name))
+			: []
 	);
 
 	$effect(() => {
@@ -70,6 +72,11 @@
 			return;
 		}
 
+		if (!verb || !config) {
+			fieldErrors = { verb: 'pick an action' };
+			return;
+		}
+
 		const cents = parseAmount(amountText);
 		if (cents === null) {
 			fieldErrors = { amount: 'enter a positive amount' };
@@ -84,9 +91,10 @@
 
 		submitting = true;
 		try {
+			const verbLabel = config.label;
 			const result = await createEntry({
 				date,
-				description: description.trim() || config.label,
+				description: description.trim() || verbLabel,
 				postings,
 				note: note.trim() || undefined
 			});
@@ -148,30 +156,39 @@
 		</label>
 	</div>
 
-	<label class="flex flex-col gap-1">
-		<span class="text-xs uppercase tracking-wide text-ink-muted">
-			{config.label} {config.counterpartyPreposition}
-		</span>
-		<select
-			bind:value={counterpartyId}
-			class="border border-border bg-surface-card px-2 py-1.5"
-			required
-		>
-			<option value="" disabled>select…</option>
-			{#each counterparties as account (account.id)}
-				<option value={account.id}>{account.name}</option>
-			{/each}
-		</select>
-		{#if fieldErrors.counterparty}
-			<span class="text-xs text-negative">{fieldErrors.counterparty}</span>
+	{#if config}
+		<label class="flex flex-col gap-1">
+			<span class="text-xs uppercase tracking-wide text-ink-muted">
+				{config.label} {config.counterpartyPreposition}
+			</span>
+			<select
+				bind:value={counterpartyId}
+				class="border border-border bg-surface-card px-2 py-1.5"
+				required
+			>
+				<option value="" disabled>select…</option>
+				{#each counterparties as account (account.id)}
+					<option value={account.id}>{account.name}</option>
+				{/each}
+			</select>
+			{#if fieldErrors.counterparty}
+				<span class="text-xs text-negative">{fieldErrors.counterparty}</span>
+			{/if}
+		</label>
+	{:else}
+		<p class="border border-border-faint bg-surface-sunken px-3 py-2 text-xs text-ink-muted">
+			Pick an action above to continue.
+		</p>
+		{#if fieldErrors.verb}
+			<span class="text-xs text-negative">{fieldErrors.verb}</span>
 		{/if}
-	</label>
+	{/if}
 
 	<label class="flex flex-col gap-1">
 		<span class="text-xs uppercase tracking-wide text-ink-muted">Description (optional)</span>
 		<input
 			type="text"
-			placeholder={config.label}
+			placeholder={config?.label ?? 'Description'}
 			bind:value={description}
 			class="border border-border bg-surface-card px-2 py-1.5"
 		/>
