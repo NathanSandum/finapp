@@ -1,8 +1,8 @@
 <script lang="ts">
 	const variants = [
-		{ key: 'a', label: 'A — Default (current)' },
-		{ key: 'b', label: 'B — Cool / Slate' },
-		{ key: 'c', label: 'C — Warm / Earthy' }
+		{ key: 'a', label: 'A — System sans (current)' },
+		{ key: 'b', label: 'B — Fraunces serif + Inter' },
+		{ key: 'c', label: 'C — Space Grotesk + Inter' }
 	];
 
 	const tabs = [
@@ -23,10 +23,10 @@
 <div class="min-h-screen bg-neutral-100 p-6">
 	<header class="mb-6 flex items-center justify-between">
 		<div>
-			<h1 class="text-xl font-semibold">Palette A/B</h1>
+			<h1 class="text-xl font-semibold">Typography A/B</h1>
 			<p class="mt-1 text-sm text-neutral-600">
-				Three palette variants rendered side-by-side. Pick a tab to preview that view across all
-				three.
+				Three typography variants rendered side-by-side. Pick a tab to preview that view across all
+				three. Display font drives h1/h2/h3; body font everything else.
 			</p>
 		</div>
 		<nav class="flex gap-1 rounded-lg border border-neutral-300 bg-white p-1">
