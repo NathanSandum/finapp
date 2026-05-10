@@ -76,6 +76,11 @@
 	--color-financing-tint: color-mix(in oklch, oklch(97% 0.022 305) 50%, transparent);
 	--color-financing-border: oklch(80% 0.16 308);
 
+	--color-outflow-bar-1: oklch(45% 0.025 260);
+	--color-outflow-bar-2: oklch(58% 0.02 260);
+	--color-outflow-bar-3: oklch(72% 0.015 260);
+	--color-outflow-bar-4: oklch(84% 0.01 260);
+
 	--color-brand: oklch(58% 0.2 268);
 	--color-brand-soft: oklch(72% 0.16 268);
 

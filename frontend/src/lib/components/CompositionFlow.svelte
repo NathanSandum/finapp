@@ -8,14 +8,22 @@
 		positive,
 		negative,
 		netLabel,
+		showNet = true,
 		positivePalette = ['bg-positive-bar-1', 'bg-positive-bar-2', 'bg-positive-bar-3', 'bg-positive-bar-4'],
-		negativePalette = ['bg-negative-bar-1', 'bg-negative-bar-2', 'bg-negative-bar-3', 'bg-negative-bar-4']
+		negativePalette = ['bg-negative-bar-1', 'bg-negative-bar-2', 'bg-negative-bar-3', 'bg-negative-bar-4'],
+		positiveText = 'text-positive',
+		negativeText = 'text-negative',
+		negativeSignPrefix = '−'
 	}: {
 		positive: Side;
 		negative: Side;
 		netLabel: string;
+		showNet?: boolean;
 		positivePalette?: string[];
 		negativePalette?: string[];
+		positiveText?: string;
+		negativeText?: string;
+		negativeSignPrefix?: string;
 	} = $props();
 
 	const net = $derived(positive.total - negative.total);
@@ -37,7 +45,7 @@
 		{/each}
 	</div>
 	<div class="flex items-center gap-2 text-[10px]">
-		<span class="font-semibold uppercase tracking-[0.1em] text-positive">{positive.label}</span>
+		<span class="font-semibold uppercase tracking-[0.1em] {positiveText}">{positive.label}</span>
 		<div class="flex-1 border-t border-dashed border-border"></div>
 		<span class="font-mono tabular-nums text-ink">{fmt(positive.total)}</span>
 	</div>
@@ -61,15 +69,17 @@
 		></div>
 	</div>
 	<div class="flex items-center gap-2 text-[10px]">
-		<span class="font-semibold uppercase tracking-[0.1em] text-negative">{negative.label}</span>
+		<span class="font-semibold uppercase tracking-[0.1em] {negativeText}">{negative.label}</span>
 		<div class="flex-1 border-t border-dashed border-border"></div>
-		<span class="font-mono tabular-nums text-negative">−{fmt(negative.total)}</span>
+		<span class="font-mono tabular-nums {negativeText}">{negativeSignPrefix}{fmt(negative.total)}</span>
 	</div>
 
-	<div class="flex items-baseline justify-between border-t border-border pt-2">
-		<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{netLabel}</span>
-		<span class="font-mono text-lg font-semibold tabular-nums {net >= 0 ? 'text-positive' : 'text-negative'}">
-			{fmt(net)}
-		</span>
-	</div>
+	{#if showNet}
+		<div class="flex items-baseline justify-between border-t border-border pt-2">
+			<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{netLabel}</span>
+			<span class="font-mono text-lg font-semibold tabular-nums {net >= 0 ? 'text-positive' : 'text-negative'}">
+				{fmt(net)}
+			</span>
+		</div>
+	{/if}
 </div>

@@ -1,14 +1,28 @@
 <script lang="ts">
 	import { buildLine, fmt } from '$lib/views/income/lib';
 
+	export type TrendAccent = 'positive' | 'negative' | 'investing' | 'financing';
 	export type TrendRow = {
 		name: string;
 		amount: number;
 		trail: number[];
-		accent: 'positive' | 'negative';
+		accent: TrendAccent;
 	};
 
 	let { rows }: { rows: TrendRow[] } = $props();
+
+	const STROKE: Record<TrendAccent, string> = {
+		positive: 'stroke-positive-line',
+		negative: 'stroke-negative-line',
+		investing: 'stroke-investing-line',
+		financing: 'stroke-financing-line'
+	};
+	const TXT: Record<TrendAccent, string> = {
+		positive: 'text-positive',
+		negative: 'text-negative',
+		investing: 'text-investing',
+		financing: 'text-financing'
+	};
 </script>
 
 <table class="w-full text-[11px]">
@@ -25,8 +39,8 @@
 			{@const first = row.trail[0] ?? 0}
 			{@const last = row.trail[row.trail.length - 1] ?? 0}
 			{@const dir = last >= first ? '▲' : '▼'}
-			{@const stroke = row.accent === 'positive' ? 'stroke-positive-line' : 'stroke-negative-line'}
-			{@const txt = row.accent === 'positive' ? 'text-positive' : 'text-negative'}
+			{@const stroke = STROKE[row.accent]}
+			{@const txt = TXT[row.accent]}
 			<tr class="h-8 border-b border-border-faint">
 				<td class="text-ink-body">
 					<span class="mr-1 font-mono {txt}">{dir}</span>{row.name}

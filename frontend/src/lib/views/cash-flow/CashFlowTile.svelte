@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { fmt } from '../income/lib';
+	import { fmt, pct } from '$lib/views/income/lib';
 
 	let {
 		noun,
@@ -26,20 +26,26 @@
 				? 'text-investing'
 				: 'text-financing'
 	);
-	const verb = $derived(total >= 0 ? 'From' : 'To');
+	const preposition = $derived(total >= 0 ? 'From' : 'To');
 	const priorVerb = $derived(prior >= 0 ? verbPositive : verbNegative);
+	const arrow = $derived(total >= prior ? '▲' : '▼');
+	const arrowClass = $derived('text-ink-muted');
 </script>
 
-<div class="mx-auto flex max-w-xs items-baseline justify-between gap-3 px-1 pt-6 pb-2">
-	<p class="text-[10px] font-medium uppercase tracking-wide {accentText}">
-		{verb} {noun}
+<div class="mx-auto max-w-xs px-2 py-3">
+	<div class="flex items-baseline justify-between">
+		<p class="text-[10px] font-medium uppercase tracking-[0.1em] {accentText}">
+			{preposition} {noun}
+		</p>
+		<p class="font-mono text-[10px] tabular-nums {arrowClass}">
+			<span aria-hidden="true">{arrow}</span> {pct(total, prior)}
+		</p>
+	</div>
+	<p class="mt-1 font-mono text-xl font-semibold tabular-nums leading-tight text-ink">
+		{fmt(Math.abs(total))}
 	</p>
-	<div class="text-right">
-		<p class="font-mono text-xl font-semibold tabular-nums text-ink">
-			{fmt(Math.abs(total))}
-		</p>
-		<p class="font-mono text-[10px] tabular-nums text-ink-faint">
-			{priorShortLabel} {priorVerb} {fmt(Math.abs(prior))}
-		</p>
+	<div class="mt-1 flex justify-between gap-2 font-mono text-[9px] tabular-nums text-ink-faint">
+		<span>{priorShortLabel}</span>
+		<span>{priorVerb} {fmt(Math.abs(prior))}</span>
 	</div>
 </div>

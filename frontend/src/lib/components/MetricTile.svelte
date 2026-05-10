@@ -12,14 +12,29 @@
 		total: number;
 		prior: number;
 		priorShortLabel: string;
-		accent: 'emerald' | 'rose';
+		accent: 'emerald' | 'rose' | 'sky' | 'amber';
 	} = $props();
 
-	const accentText = $derived(accent === 'emerald' ? 'text-positive' : 'text-negative');
-	const direction = $derived(accent === 'emerald' ? 'higher' : 'lower');
-	const positive = $derived(direction === 'higher' ? total >= prior : total <= prior);
-	const arrow = $derived(positive ? '▲' : '▼');
-	const arrowClass = $derived(positive ? 'text-positive' : 'text-negative');
+	const accentText = $derived(
+		accent === 'emerald'
+			? 'text-positive'
+			: accent === 'rose'
+				? 'text-negative'
+				: accent === 'sky'
+					? 'text-investing'
+					: 'text-financing'
+	);
+	const direction = $derived(
+		accent === 'emerald' ? 'higher' : accent === 'rose' ? 'lower' : 'neutral'
+	);
+	const arrow = $derived(total >= prior ? '▲' : '▼');
+	const arrowClass = $derived(
+		direction === 'neutral'
+			? 'text-ink-muted'
+			: (direction === 'higher' ? total >= prior : total <= prior)
+				? 'text-positive'
+				: 'text-negative'
+	);
 </script>
 
 <div class="mx-auto max-w-xs px-2 py-3">

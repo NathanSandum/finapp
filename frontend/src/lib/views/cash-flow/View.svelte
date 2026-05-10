@@ -78,7 +78,7 @@
 >
 	{#snippet hero()}
 		<NetHero
-			label="Net Δ Cash · {cf.period_label}"
+			label="Net Change in Cash · {cf.period_label}"
 			value={netChange}
 			prior={priorNet}
 			trail={netTrail.values}
