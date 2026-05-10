@@ -93,3 +93,19 @@ h3 {
 	font-family: var(--font-display);
 }
 
+/*
+ * Variant B — JetBrains Mono.
+ * Popular dev mono with clean tabular numerals and slight character.
+ */
+[data-theme='b'] {
+	--font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/*
+ * Variant C — IBM Plex Mono.
+ * Slab-leaning mono with distinctive digit shapes.
+ */
+[data-theme='c'] {
+	--font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
