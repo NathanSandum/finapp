@@ -15,7 +15,8 @@
 		tiles,
 		summary,
 		detail,
-		trend
+		trend,
+		actions
 	}: {
 		title: string;
 		periodLabel: string;
@@ -28,6 +29,7 @@
 		summary: Snippet;
 		detail: Snippet;
 		trend: Snippet;
+		actions?: Snippet;
 	} = $props();
 
 	let mode = $state<Mode>('summary');
@@ -58,7 +60,7 @@
 </script>
 
 <div class="flex h-full flex-col gap-3 overflow-hidden">
-	<PeriodHeader {title} {periodLabel} {granularity} {onPrev} {onNext} {onGranularity} />
+	<PeriodHeader {title} {periodLabel} {granularity} {onPrev} {onNext} {onGranularity} {actions} />
 
 	{@render hero()}
 	{@render tiles()}

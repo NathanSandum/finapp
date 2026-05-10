@@ -3,13 +3,14 @@
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import TabPanel from '$lib/components/TabPanel.svelte';
 	import { tabs } from '$lib/tabs/registry';
+	import { tabState } from '$lib/tabs/state.svelte';
 
-	let current = $state(tabs[0]);
+	const current = $derived(tabs.find((t) => t.id === tabState.get()) ?? tabs[0]);
 </script>
 
 <AppShell>
 	{#snippet sidebar()}
-		<Sidebar {current} onSelect={(tab) => (current = tab)} />
+		<Sidebar {current} onSelect={(tab) => tabState.set(tab.id)} />
 	{/snippet}
 
 	{#snippet main()}

@@ -25,6 +25,7 @@ export type Account = {
 
 export type EntriesData = {
 	entries: Entry[];
+	accounts: Account[];
 	accountNames: Record<string, string>;
 };
 
@@ -44,7 +45,11 @@ export async function load(): Promise<JSend<EntriesData>> {
 
 	return {
 		status: 'success',
-		data: { entries: entriesResult.data.entries, accountNames }
+		data: {
+			entries: entriesResult.data.entries,
+			accounts: accountsResult.data.accounts,
+			accountNames
+		}
 	};
 }
 

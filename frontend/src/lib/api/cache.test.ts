@@ -81,6 +81,18 @@ describe('cache', () => {
 		expect(cache.get(b)).toEqual(success('B'));
 	});
 
+	it('invalidateAll clears every key', async () => {
+		const a = freshKey('a');
+		const b = freshKey('b');
+		await cache.load(a, async () => success('A'));
+		await cache.load(b, async () => success('B'));
+
+		cache.invalidateAll();
+
+		expect(cache.get(a)).toBeUndefined();
+		expect(cache.get(b)).toBeUndefined();
+	});
+
 	it('stores fail and error envelopes too', async () => {
 		const key = freshKey();
 		const failResult: JSend<unknown> = {

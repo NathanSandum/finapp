@@ -1,5 +1,5 @@
 import type { Account, Entry } from '../entries/loader';
-import { periodBounds } from '../period';
+import { periodBounds, periodLabel, type Granularity } from '../period';
 
 const CASH_NAMES = new Set(['chequing', 'checking', 'cash']);
 const MONTH_SHORT = [
@@ -61,13 +61,15 @@ export type OverviewMetrics = {
 	debtToAssets: Ratio;
 };
 
-export function computeOverview(entries: Entry[], accounts: Account[]): OverviewMetrics {
-	let asOf = '';
-	for (const e of entries) if (e.date > asOf) asOf = e.date;
-	if (!asOf) {
-		const d = new Date();
-		asOf = d.toISOString().slice(0, 10);
-	}
+export function computeOverview(
+	entries: Entry[],
+	accounts: Account[],
+	year: number,
+	month: number,
+	granularity: Granularity
+): OverviewMetrics {
+	const bounds = periodBounds(year, month, granularity);
+	const asOf = bounds.end;
 
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
 
@@ -100,7 +102,7 @@ export function computeOverview(entries: Entry[], accounts: Account[]): Overview
 	const [yStr, mStr] = asOf.split('-');
 	const asOfYear = Number(yStr);
 	const asOfMonth = Number(mStr);
-	const asOfLabel = `${MONTH_SHORT[asOfMonth - 1]} ${asOfYear}`;
+	const asOfLabel = periodLabel(year, month, granularity);
 
 	let income12mo = 0;
 	let expenses12mo = 0;
