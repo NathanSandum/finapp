@@ -10,6 +10,7 @@
 		type Granularity
 	} from '$lib/views/period';
 	import { entryAmount, formatAmount, type EntriesData } from './loader';
+	import EntryForm from './EntryForm.svelte';
 
 	let { data }: { data: EntriesData } = $props();
 
@@ -18,6 +19,7 @@
 	let selectedMonth = $state(initial.month);
 	let granularity = $state<Granularity>('month');
 	let selectedId = $state<string | null>(null);
+	let creating = $state(false);
 
 	function shift(direction: 1 | -1) {
 		const next = shiftPeriod(selectedYear, selectedMonth, granularity, direction);
@@ -47,14 +49,26 @@
 </script>
 
 <div class="flex h-full flex-col gap-4">
-	<PeriodHeader
-		title="Entries"
-		periodLabel={periodLabel(selectedYear, selectedMonth, granularity)}
-		{granularity}
-		onPrev={() => shift(-1)}
-		onNext={() => shift(1)}
-		onGranularity={setGranularity}
-	/>
+	<div class="flex items-center justify-between gap-3">
+		<div class="flex-1">
+			<PeriodHeader
+				title="Entries"
+				periodLabel={periodLabel(selectedYear, selectedMonth, granularity)}
+				{granularity}
+				onPrev={() => shift(-1)}
+				onNext={() => shift(1)}
+				onGranularity={setGranularity}
+			/>
+		</div>
+		<button
+			type="button"
+			onclick={() => (creating = true)}
+			disabled={creating}
+			class="bg-surface-inverse px-3 py-1.5 text-xs font-medium uppercase tracking-[0.08em] text-ink-inverse transition-colors hover:bg-surface-inverse-hover disabled:opacity-50"
+		>
+			+ New
+		</button>
+	</div>
 
 	<div class="grid min-h-0 flex-1 grid-cols-[320px_1fr] gap-0 overflow-hidden border border-border bg-surface-card">
 		<ul class="h-full divide-y divide-border-faint overflow-y-auto border-r border-ink-faint">
@@ -85,7 +99,15 @@
 		</ul>
 
 		<section class="overflow-y-auto p-6">
-			{#if selected}
+			{#if creating}
+				<header class="mb-4 flex items-baseline justify-between">
+					<h3 class="text-lg font-semibold text-ink">New entry</h3>
+				</header>
+				<EntryForm
+					accounts={data.accounts}
+					onClose={() => (creating = false)}
+				/>
+			{:else if selected}
 				<header class="mb-4 flex items-baseline justify-between">
 					<div>
 						<h3 class="text-lg font-semibold text-ink">{selected.description}</h3>
