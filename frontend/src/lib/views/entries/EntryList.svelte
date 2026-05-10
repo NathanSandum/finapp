@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Entry } from './loader';
-	import { formatAmount } from './loader';
+	import { entryAmount, formatAmount } from './loader';
 
 	let {
 		entries,
@@ -11,10 +11,6 @@
 		selectedId: string | null;
 		onSelect: (id: string) => void;
 	} = $props();
-
-	function entryAmount(entry: Entry): number {
-		return entry.postings.filter((p) => p.amount > 0).reduce((s, p) => s + p.amount, 0);
-	}
 </script>
 
 <ul class="h-full divide-y divide-border-faint overflow-y-auto">

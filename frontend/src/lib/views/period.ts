@@ -143,6 +143,21 @@ export function trailLabel(year: number, month: number, granularity: Granularity
 	return `'${(year % 100).toString().padStart(2, '0')}`;
 }
 
+export function latestActivityPeriod(
+	entries: { date: string }[]
+): { year: number; month: number } {
+	let latest: string | null = null;
+	for (const entry of entries) {
+		if (latest === null || entry.date > latest) latest = entry.date;
+	}
+	if (latest) {
+		const [y, m] = latest.split('-');
+		return { year: Number(y), month: Number(m) };
+	}
+	const now = new Date();
+	return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
+}
+
 export function priorPeriodList(
 	year: number,
 	month: number,
