@@ -26,7 +26,7 @@
 	);
 </script>
 
-<div class="grid h-[calc(100vh-160px)] grid-cols-[320px_1fr] gap-0 overflow-hidden rounded-lg border border-border bg-surface-card">
+<div class="grid min-h-0 flex-1 grid-cols-[320px_1fr] gap-0 overflow-hidden rounded-lg border border-border bg-surface-card">
 	<aside class="overflow-hidden border-r border-ink-faint">
 		<EntryList {entries} selectedId={selected?.id ?? null} onSelect={(id) => (selectedId = id)} />
 	</aside>
