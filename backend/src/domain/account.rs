@@ -93,20 +93,6 @@ impl SystemAccount {
         }
     }
 
-    pub fn label(&self) -> &'static str {
-        match self {
-            SystemAccount::AssetsRoot => "Assets",
-            SystemAccount::LiabilitiesRoot => "Liabilities",
-            SystemAccount::EquityRoot => "Equity",
-            SystemAccount::RevenueRoot => "Revenue",
-            SystemAccount::ExpensesRoot => "Expenses",
-            SystemAccount::Chequing => "Chequing",
-            SystemAccount::EmergencyFund => "Emergency Fund",
-            SystemAccount::RetainedEarnings => "Retained Earnings",
-            SystemAccount::OpeningBalances => "Opening Balances",
-        }
-    }
-
     pub fn category(&self) -> Category {
         match self {
             SystemAccount::AssetsRoot
@@ -139,6 +125,22 @@ impl SystemAccount {
 
     pub fn is_root(&self) -> bool {
         self.parent_variant().is_none()
+    }
+}
+
+impl std::fmt::Display for SystemAccount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            SystemAccount::AssetsRoot => "Assets",
+            SystemAccount::LiabilitiesRoot => "Liabilities",
+            SystemAccount::EquityRoot => "Equity",
+            SystemAccount::RevenueRoot => "Revenue",
+            SystemAccount::ExpensesRoot => "Expenses",
+            SystemAccount::Chequing => "Chequing",
+            SystemAccount::EmergencyFund => "Emergency Fund",
+            SystemAccount::RetainedEarnings => "Retained Earnings",
+            SystemAccount::OpeningBalances => "Opening Balances",
+        })
     }
 }
 
@@ -207,7 +209,7 @@ impl AccountType {
 
     pub fn label(&self) -> String {
         match self {
-            AccountType::System(s) => s.label().to_string(),
+            AccountType::System(s) => s.to_string(),
             AccountType::Custom(c) => c.name.clone(),
         }
     }
