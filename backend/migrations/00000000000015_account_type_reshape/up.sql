@@ -11,7 +11,7 @@ CREATE TABLE accounts_new (
     name         TEXT,
     account_type TEXT NOT NULL CHECK (account_type IN (
         'AssetsRoot', 'LiabilitiesRoot', 'EquityRoot', 'RevenueRoot', 'ExpensesRoot',
-        'Chequing', 'EmergencyFund', 'RetainedEarnings', 'OpeningBalances',
+        'Chequing', 'Savings', 'RetainedEarnings', 'OpeningBalances',
         'Custom'
     )),
     currency     TEXT NOT NULL DEFAULT 'CAD',

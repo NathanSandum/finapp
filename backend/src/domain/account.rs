@@ -73,7 +73,7 @@ pub enum SystemAccount {
     RevenueRoot,
     ExpensesRoot,
     Chequing,
-    EmergencyFund,
+    Savings,
     RetainedEarnings,
     OpeningBalances,
 }
@@ -87,7 +87,7 @@ impl SystemAccount {
             SystemAccount::RevenueRoot => "RevenueRoot",
             SystemAccount::ExpensesRoot => "ExpensesRoot",
             SystemAccount::Chequing => "Chequing",
-            SystemAccount::EmergencyFund => "EmergencyFund",
+            SystemAccount::Savings => "Savings",
             SystemAccount::RetainedEarnings => "RetainedEarnings",
             SystemAccount::OpeningBalances => "OpeningBalances",
         }
@@ -97,7 +97,7 @@ impl SystemAccount {
         match self {
             SystemAccount::AssetsRoot
             | SystemAccount::Chequing
-            | SystemAccount::EmergencyFund => Category::Asset,
+            | SystemAccount::Savings => Category::Asset,
             SystemAccount::LiabilitiesRoot => Category::Liability,
             SystemAccount::EquityRoot
             | SystemAccount::RetainedEarnings
@@ -114,7 +114,7 @@ impl SystemAccount {
             | SystemAccount::EquityRoot
             | SystemAccount::RevenueRoot
             | SystemAccount::ExpensesRoot => None,
-            SystemAccount::Chequing | SystemAccount::EmergencyFund => {
+            SystemAccount::Chequing | SystemAccount::Savings => {
                 Some(SystemAccount::AssetsRoot)
             }
             SystemAccount::RetainedEarnings | SystemAccount::OpeningBalances => {
@@ -137,7 +137,7 @@ impl std::fmt::Display for SystemAccount {
             SystemAccount::RevenueRoot => "Revenue",
             SystemAccount::ExpensesRoot => "Expenses",
             SystemAccount::Chequing => "Chequing",
-            SystemAccount::EmergencyFund => "Emergency Fund",
+            SystemAccount::Savings => "Savings",
             SystemAccount::RetainedEarnings => "Retained Earnings",
             SystemAccount::OpeningBalances => "Opening Balances",
         })
@@ -155,7 +155,7 @@ impl std::str::FromStr for SystemAccount {
             "RevenueRoot" => Ok(SystemAccount::RevenueRoot),
             "ExpensesRoot" => Ok(SystemAccount::ExpensesRoot),
             "Chequing" => Ok(SystemAccount::Chequing),
-            "EmergencyFund" => Ok(SystemAccount::EmergencyFund),
+            "Savings" => Ok(SystemAccount::Savings),
             "RetainedEarnings" => Ok(SystemAccount::RetainedEarnings),
             "OpeningBalances" => Ok(SystemAccount::OpeningBalances),
             other => Err(format!("unknown system account: {other}")),
@@ -815,7 +815,7 @@ pub fn create_default_tree(
     )?;
     insert_system(
         workspace,
-        SystemAccount::EmergencyFund,
+        SystemAccount::Savings,
         Some(&assets.id),
         conn,
     )?;
@@ -832,7 +832,6 @@ pub fn create_default_tree(
         conn,
     )?;
 
-    NewCustomAccount::child(&assets, "Savings").insert(conn)?;
     NewCustomAccount::child(&assets, "TFSA").insert(conn)?;
     NewCustomAccount::child(&assets, "RRSP").insert(conn)?;
 
@@ -903,9 +902,9 @@ mod tests {
             .all(|a| matches!(a.account_type, AccountType::System(s) if s.is_root())));
 
         let all = workspace.as_ref().accounts(&mut conn).unwrap();
-        // 5 system roots + 4 system children (Chequing, EmergencyFund, RetainedEarnings, OpeningBalances)
-        // + 12 custom (Savings, TFSA, RRSP, Credit Card, Employment, 7 expenses) = 21
-        assert_eq!(all.len(), 21);
+        // 5 system roots + 4 system children (Chequing, Savings, RetainedEarnings, OpeningBalances)
+        // + 11 custom (TFSA, RRSP, Credit Card, Employment, 7 expenses) = 20
+        assert_eq!(all.len(), 20);
 
         let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
         assert_eq!(chequing.category(), Category::Asset);
@@ -922,7 +921,7 @@ mod tests {
             SystemAccount::RevenueRoot,
             SystemAccount::ExpensesRoot,
             SystemAccount::Chequing,
-            SystemAccount::EmergencyFund,
+            SystemAccount::Savings,
             SystemAccount::RetainedEarnings,
             SystemAccount::OpeningBalances,
         ] {
@@ -986,8 +985,8 @@ mod tests {
         let (mut conn, workspace) = setup();
         let assets = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn);
 
-        // "Savings" already exists as custom child of Assets
-        let err = NewCustomAccount::child(&assets, "Savings")
+        // "TFSA" already exists as custom child of Assets
+        let err = NewCustomAccount::child(&assets, "TFSA")
             .insert(&mut conn)
             .expect_err("duplicate sibling name should fail");
 
@@ -1085,9 +1084,9 @@ mod tests {
         let (mut conn, workspace) = setup();
         let assets = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn);
 
-        // Assets default children: Chequing, EmergencyFund (System), Savings, TFSA, RRSP (Custom) = 5
+        // Assets default children: Chequing, Savings (System), TFSA, RRSP (Custom) = 4
         let children = assets.children(&mut conn).unwrap();
-        assert_eq!(children.len(), 5);
+        assert_eq!(children.len(), 4);
     }
 
     #[test]
@@ -1127,13 +1126,13 @@ mod tests {
     #[test]
     fn soft_delete_leaf_succeeds() {
         let (mut conn, workspace) = setup();
-        let savings = find_account("Savings", &workspace, &mut conn);
+        let tfsa = find_account("TFSA", &workspace, &mut conn);
 
-        savings.soft_delete(&mut conn).unwrap();
+        tfsa.soft_delete(&mut conn).unwrap();
 
         let assets = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn);
         let children = assets.children(&mut conn).unwrap();
-        assert!(!children.iter().any(|a| a.name() == "Savings"));
+        assert!(!children.iter().any(|a| a.name() == "TFSA"));
     }
 
     #[test]
@@ -1151,13 +1150,13 @@ mod tests {
     #[test]
     fn accounts_returns_only_active() {
         let (mut conn, workspace) = setup();
-        let savings = find_account("Savings", &workspace, &mut conn);
+        let tfsa = find_account("TFSA", &workspace, &mut conn);
 
-        savings.soft_delete(&mut conn).unwrap();
+        tfsa.soft_delete(&mut conn).unwrap();
 
         let all = workspace.as_ref().accounts(&mut conn).unwrap();
-        assert!(!all.iter().any(|a| a.name() == "Savings"));
-        assert!(all.iter().any(|a| a.name() == "TFSA"));
+        assert!(!all.iter().any(|a| a.name() == "TFSA"));
+        assert!(all.iter().any(|a| a.name() == "RRSP"));
     }
 
     #[test]
@@ -1345,12 +1344,12 @@ mod tests {
     #[test]
     fn rename_custom_succeeds() {
         let (mut conn, workspace) = setup();
-        let savings = find_account("Savings", &workspace, &mut conn);
+        let tfsa = find_account("TFSA", &workspace, &mut conn);
 
-        let renamed = savings.rename("High-Interest Savings", &mut conn).unwrap();
+        let renamed = tfsa.rename("TFSA (renamed)", &mut conn).unwrap();
 
-        assert_eq!(renamed.name(), "High-Interest Savings");
-        assert_eq!(renamed.id, savings.id);
+        assert_eq!(renamed.name(), "TFSA (renamed)");
+        assert_eq!(renamed.id, tfsa.id);
     }
 
     #[test]
@@ -1365,10 +1364,10 @@ mod tests {
     #[test]
     fn rename_duplicate_under_same_parent_rejected() {
         let (mut conn, workspace) = setup();
-        let savings = find_account("Savings", &workspace, &mut conn);
+        let tfsa = find_account("TFSA", &workspace, &mut conn);
 
-        // "TFSA" is a sibling under Assets
-        let result = savings.rename("TFSA", &mut conn);
+        // "RRSP" is a sibling under Assets
+        let result = tfsa.rename("RRSP", &mut conn);
 
         assert!(matches!(result, Err(AppError::Conflict(_))));
     }

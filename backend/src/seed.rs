@@ -183,7 +183,7 @@ fn insert_fixture_entries(
 ) -> Result<(), AppError> {
     let chequing = lookup_system(workspace_ref, SystemAccount::Chequing, conn)?;
     let opening = lookup_system(workspace_ref, SystemAccount::OpeningBalances, conn)?;
-    let savings = lookup_custom(workspace_ref, "Savings", conn)?;
+    let savings = lookup_system(workspace_ref, SystemAccount::Savings, conn)?;
     let tfsa = lookup_custom(workspace_ref, "TFSA", conn)?;
     let rrsp = lookup_custom(workspace_ref, "RRSP", conn)?;
     let credit_card = lookup_custom(workspace_ref, "Credit Card", conn)?;

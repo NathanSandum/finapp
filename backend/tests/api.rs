@@ -250,9 +250,9 @@ async fn workspace_has_default_accounts() {
     assert_eq!(status, StatusCode::OK);
 
     let accounts = body["accounts"].as_array().unwrap();
-    // 5 system roots + 4 system children (Chequing/EmergencyFund/RetainedEarnings/OpeningBalances)
-    // + 12 custom (Savings/TFSA/RRSP/Credit Card/Employment/Food/Rent/Groceries/Dining/Transit/Utilities/Entertainment) = 21
-    assert_eq!(accounts.len(), 21);
+    // 5 system roots + 4 system children (Chequing/Savings/RetainedEarnings/OpeningBalances)
+    // + 11 custom (TFSA/RRSP/Credit Card/Employment/Food/Rent/Groceries/Dining/Transit/Utilities/Entertainment) = 20
+    assert_eq!(accounts.len(), 20);
 
     let root_kinds: Vec<&str> = accounts
         .iter()
