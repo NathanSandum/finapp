@@ -9,9 +9,7 @@
 		snapToGranularity,
 		type Granularity
 	} from '$lib/views/period';
-	import EntryList from './EntryList.svelte';
-	import type { EntriesData } from './loader';
-	import { entryAmount, formatAmount } from './loader';
+	import { entryAmount, formatAmount, type EntriesData } from './loader';
 
 	let { data }: { data: EntriesData } = $props();
 
@@ -32,10 +30,6 @@
 		selectedYear = snapped.year;
 		selectedMonth = snapped.month;
 		granularity = next;
-	}
-
-	function accountLabel(id: string): string {
-		return data.accountNames[id] ?? id;
 	}
 
 	const bounds = $derived(periodBounds(selectedYear, selectedMonth, granularity));
@@ -63,13 +57,32 @@
 	/>
 
 	<div class="grid min-h-0 flex-1 grid-cols-[320px_1fr] gap-0 overflow-hidden rounded-lg border border-border bg-surface-card">
-		<aside class="overflow-hidden border-r border-ink-faint">
-			<EntryList
-				entries={filteredEntries}
-				selectedId={selected?.id ?? null}
-				onSelect={(id) => (selectedId = id)}
-			/>
-		</aside>
+		<ul class="h-full divide-y divide-border-faint overflow-y-auto border-r border-ink-faint">
+			{#each filteredEntries as entry (entry.id)}
+				{@const isSel = selected?.id === entry.id}
+				<li>
+					<button
+						type="button"
+						onclick={() => (selectedId = entry.id)}
+						class="flex w-full flex-col items-start gap-0.5 px-4 py-3 text-left transition-colors {isSel
+							? 'bg-surface-inverse text-ink-inverse'
+							: 'hover:bg-surface-hover-faint'}"
+					>
+						<span class="flex w-full items-baseline justify-between">
+							<span class="font-mono text-xs {isSel ? 'text-ink-inverse-muted' : 'text-ink-muted'}">
+								{entry.date}
+							</span>
+							<span
+								class="font-mono text-xs tabular-nums {isSel ? 'text-ink-inverse' : 'text-ink-body'}"
+							>
+								{formatAmount(entryAmount(entry))}
+							</span>
+						</span>
+						<span class="text-sm font-medium">{entry.description}</span>
+					</button>
+				</li>
+			{/each}
+		</ul>
 
 		<section class="overflow-y-auto p-6">
 			{#if selected}
@@ -93,7 +106,9 @@
 								{isDebit ? 'DR' : 'CR'}
 							</span>
 							<div class="flex flex-1 flex-col gap-0.5 min-w-0">
-								<span class="truncate text-sm text-ink">{accountLabel(posting.account_id)}</span>
+								<span class="truncate text-sm text-ink">
+									{data.accountNames[posting.account_id] ?? posting.account_id}
+								</span>
 								{#if posting.note}
 									<span class="truncate text-[11px] text-ink-muted">{posting.note}</span>
 								{/if}
