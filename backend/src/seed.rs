@@ -386,7 +386,50 @@ mod tests {
             .count()
             .get_result(&mut conn)
             .unwrap();
-        assert!(count > 0, "fixture entries should be inserted");
+        assert!(count >= 100, "expected rich fixture set, got {count}");
+    }
+
+    #[test]
+    fn fixture_entries_span_at_least_twelve_months() {
+        use crate::schema::entries;
+        let db = populate_via_db(&dev_config());
+        let mut conn = db.get().unwrap();
+
+        let dates: Vec<String> = entries::table
+            .filter(entries::workspace_id.eq(DEV_WORKSPACE_ID))
+            .select(entries::date)
+            .load(&mut conn)
+            .unwrap();
+
+        let mut months = std::collections::BTreeSet::new();
+        for date in &dates {
+            months.insert(date[..7].to_string());
+        }
+        assert!(
+            months.len() >= 12,
+            "fixture should cover at least 12 distinct months, got {}: {:?}",
+            months.len(),
+            months
+        );
+    }
+
+    #[test]
+    fn fixture_entries_touch_investment_and_opening_accounts() {
+        use crate::schema::{accounts, entries, postings};
+        let db = populate_via_db(&dev_config());
+        let mut conn = db.get().unwrap();
+
+        for name in ["TFSA", "RRSP", "Opening Balances"] {
+            let count: i64 = postings::table
+                .inner_join(accounts::table.on(postings::account_id.eq(accounts::id)))
+                .inner_join(entries::table.on(postings::entry_id.eq(entries::id)))
+                .filter(entries::workspace_id.eq(DEV_WORKSPACE_ID))
+                .filter(accounts::name.eq(name))
+                .count()
+                .get_result(&mut conn)
+                .unwrap();
+            assert!(count > 0, "expected fixture postings touching '{name}'");
+        }
     }
 
     #[test]
