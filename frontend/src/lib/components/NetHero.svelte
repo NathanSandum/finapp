@@ -51,7 +51,7 @@
 		<polyline
 			fill="none"
 			class="stroke-positive-line"
-			stroke-width="2"
+			stroke-width="1.25"
 			stroke-linecap="round"
 			stroke-linejoin="round"
 			points={sparkline.path}
