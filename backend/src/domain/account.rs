@@ -297,6 +297,28 @@ impl Account {
         }
     }
 
+    pub fn from_system(
+        workspace: &WorkspaceRef,
+        system: SystemAccount,
+        conn: &mut SqliteConnection,
+    ) -> Result<Account, AppError> {
+        workspace
+            .system_account(system, conn)?
+            .ok_or_else(|| AppError::NotFound(format!("system account {system:?}")))
+    }
+
+    pub fn from_custom_name(
+        workspace: &WorkspaceRef,
+        name: &str,
+        conn: &mut SqliteConnection,
+    ) -> Result<Account, AppError> {
+        workspace
+            .accounts(conn)?
+            .into_iter()
+            .find(|a| a.name() == name)
+            .ok_or_else(|| AppError::NotFound(format!("custom account '{name}'")))
+    }
+
     pub fn name(&self) -> String {
         self.account_type.to_string()
     }

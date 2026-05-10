@@ -3,7 +3,7 @@ use diesel::prelude::*;
 use sha2::{Digest, Sha256};
 
 use crate::config::Config;
-use crate::domain::account::{create_default_tree, AccountRef, SystemAccount};
+use crate::domain::account::{create_default_tree, Account, SystemAccount};
 use crate::domain::entry::{NewEntry, PostingInput};
 use crate::domain::user::UserRef;
 use crate::domain::workspace::{Role, WorkspaceRef};
@@ -153,47 +153,23 @@ fn hash_token(token: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
-fn lookup_system(
-    workspace_ref: &WorkspaceRef,
-    system: SystemAccount,
-    conn: &mut SqliteConnection,
-) -> Result<AccountRef, AppError> {
-    workspace_ref
-        .system_account(system, conn)?
-        .map(|a| a.id)
-        .ok_or_else(|| AppError::Internal(format!("system account {:?} missing", system)))
-}
-
-fn lookup_custom(
-    workspace_ref: &WorkspaceRef,
-    name: &str,
-    conn: &mut SqliteConnection,
-) -> Result<AccountRef, AppError> {
-    workspace_ref
-        .accounts(conn)?
-        .into_iter()
-        .find(|a| a.name() == name)
-        .map(|a| a.id)
-        .ok_or_else(|| AppError::Internal(format!("custom account '{name}' missing")))
-}
-
 fn insert_fixture_entries(
     workspace_ref: &WorkspaceRef,
     conn: &mut SqliteConnection,
 ) -> Result<(), AppError> {
-    let chequing = lookup_system(workspace_ref, SystemAccount::Chequing, conn)?;
-    let opening = lookup_system(workspace_ref, SystemAccount::OpeningBalances, conn)?;
-    let savings = lookup_system(workspace_ref, SystemAccount::Savings, conn)?;
-    let tfsa = lookup_custom(workspace_ref, "TFSA", conn)?;
-    let rrsp = lookup_custom(workspace_ref, "RRSP", conn)?;
-    let credit_card = lookup_custom(workspace_ref, "Credit Card", conn)?;
-    let employment = lookup_custom(workspace_ref, "Employment", conn)?;
-    let rent = lookup_custom(workspace_ref, "Rent", conn)?;
-    let groceries = lookup_custom(workspace_ref, "Groceries", conn)?;
-    let dining = lookup_custom(workspace_ref, "Dining", conn)?;
-    let transit = lookup_custom(workspace_ref, "Transit", conn)?;
-    let utilities = lookup_custom(workspace_ref, "Utilities", conn)?;
-    let entertainment = lookup_custom(workspace_ref, "Entertainment", conn)?;
+    let chequing = Account::from_system(workspace_ref, SystemAccount::Chequing, conn)?.id;
+    let opening = Account::from_system(workspace_ref, SystemAccount::OpeningBalances, conn)?.id;
+    let savings = Account::from_system(workspace_ref, SystemAccount::Savings, conn)?.id;
+    let tfsa = Account::from_custom_name(workspace_ref, "TFSA", conn)?.id;
+    let rrsp = Account::from_custom_name(workspace_ref, "RRSP", conn)?.id;
+    let credit_card = Account::from_custom_name(workspace_ref, "Credit Card", conn)?.id;
+    let employment = Account::from_custom_name(workspace_ref, "Employment", conn)?.id;
+    let rent = Account::from_custom_name(workspace_ref, "Rent", conn)?.id;
+    let groceries = Account::from_custom_name(workspace_ref, "Groceries", conn)?.id;
+    let dining = Account::from_custom_name(workspace_ref, "Dining", conn)?.id;
+    let transit = Account::from_custom_name(workspace_ref, "Transit", conn)?.id;
+    let utilities = Account::from_custom_name(workspace_ref, "Utilities", conn)?.id;
+    let entertainment = Account::from_custom_name(workspace_ref, "Entertainment", conn)?.id;
 
     let mut entries: Vec<(String, String, Vec<PostingInput>)> = Vec::new();
 
