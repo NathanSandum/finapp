@@ -837,46 +837,48 @@ impl NewSystemAccount {
 
 // ── Default Account Tree ─────────────────────────────────────────────────────
 
-pub fn create_default_tree(
-    workspace: &WorkspaceRef,
-    conn: &mut SqliteConnection,
-) -> Result<(), AppError> {
-    let assets = NewSystemAccount::new(workspace, SystemAccount::AssetsRoot).insert(conn)?;
-    let liabilities =
-        NewSystemAccount::new(workspace, SystemAccount::LiabilitiesRoot).insert(conn)?;
-    let equity = NewSystemAccount::new(workspace, SystemAccount::EquityRoot).insert(conn)?;
-    let revenue = NewSystemAccount::new(workspace, SystemAccount::RevenueRoot).insert(conn)?;
-    let expenses = NewSystemAccount::new(workspace, SystemAccount::ExpensesRoot).insert(conn)?;
+impl WorkspaceRef {
+    pub fn create_default_account_tree(
+        &self,
+        conn: &mut SqliteConnection,
+    ) -> Result<(), AppError> {
+        let assets = NewSystemAccount::new(self, SystemAccount::AssetsRoot).insert(conn)?;
+        let liabilities =
+            NewSystemAccount::new(self, SystemAccount::LiabilitiesRoot).insert(conn)?;
+        let equity = NewSystemAccount::new(self, SystemAccount::EquityRoot).insert(conn)?;
+        let revenue = NewSystemAccount::new(self, SystemAccount::RevenueRoot).insert(conn)?;
+        let expenses = NewSystemAccount::new(self, SystemAccount::ExpensesRoot).insert(conn)?;
 
-    NewSystemAccount::new(workspace, SystemAccount::Chequing)
-        .parent(&assets)
-        .insert(conn)?;
-    NewSystemAccount::new(workspace, SystemAccount::Savings)
-        .parent(&assets)
-        .insert(conn)?;
-    NewSystemAccount::new(workspace, SystemAccount::RetainedEarnings)
-        .parent(&equity)
-        .insert(conn)?;
-    NewSystemAccount::new(workspace, SystemAccount::OpeningBalances)
-        .parent(&equity)
-        .insert(conn)?;
+        NewSystemAccount::new(self, SystemAccount::Chequing)
+            .parent(&assets)
+            .insert(conn)?;
+        NewSystemAccount::new(self, SystemAccount::Savings)
+            .parent(&assets)
+            .insert(conn)?;
+        NewSystemAccount::new(self, SystemAccount::RetainedEarnings)
+            .parent(&equity)
+            .insert(conn)?;
+        NewSystemAccount::new(self, SystemAccount::OpeningBalances)
+            .parent(&equity)
+            .insert(conn)?;
 
-    NewCustomAccount::child(&assets, "TFSA").insert(conn)?;
-    NewCustomAccount::child(&assets, "RRSP").insert(conn)?;
+        NewCustomAccount::child(&assets, "TFSA").insert(conn)?;
+        NewCustomAccount::child(&assets, "RRSP").insert(conn)?;
 
-    NewCustomAccount::child(&liabilities, "Credit Card").insert(conn)?;
+        NewCustomAccount::child(&liabilities, "Credit Card").insert(conn)?;
 
-    NewCustomAccount::child(&revenue, "Employment").insert(conn)?;
+        NewCustomAccount::child(&revenue, "Employment").insert(conn)?;
 
-    NewCustomAccount::child(&expenses, "Food").insert(conn)?;
-    NewCustomAccount::child(&expenses, "Rent").insert(conn)?;
-    NewCustomAccount::child(&expenses, "Groceries").insert(conn)?;
-    NewCustomAccount::child(&expenses, "Dining").insert(conn)?;
-    NewCustomAccount::child(&expenses, "Transit").insert(conn)?;
-    NewCustomAccount::child(&expenses, "Utilities").insert(conn)?;
-    NewCustomAccount::child(&expenses, "Entertainment").insert(conn)?;
+        NewCustomAccount::child(&expenses, "Food").insert(conn)?;
+        NewCustomAccount::child(&expenses, "Rent").insert(conn)?;
+        NewCustomAccount::child(&expenses, "Groceries").insert(conn)?;
+        NewCustomAccount::child(&expenses, "Dining").insert(conn)?;
+        NewCustomAccount::child(&expenses, "Transit").insert(conn)?;
+        NewCustomAccount::child(&expenses, "Utilities").insert(conn)?;
+        NewCustomAccount::child(&expenses, "Entertainment").insert(conn)?;
 
-    Ok(())
+        Ok(())
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

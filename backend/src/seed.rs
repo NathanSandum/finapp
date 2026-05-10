@@ -3,7 +3,7 @@ use diesel::prelude::*;
 use sha2::{Digest, Sha256};
 
 use crate::config::Config;
-use crate::domain::account::{create_default_tree, Account, SystemAccount};
+use crate::domain::account::{Account, SystemAccount};
 use crate::domain::entry::{NewEntry, PostingInput};
 use crate::domain::user::UserRef;
 use crate::domain::workspace::{Role, WorkspaceRef};
@@ -38,7 +38,7 @@ pub fn populate(db: &DbPool, config: &Config) -> Result<(), AppError> {
 
     insert_dev_user(&user_ref, now, &mut conn)?;
     insert_dev_workspace(&workspace_ref, &user_ref, now, &mut conn)?;
-    create_default_tree(&workspace_ref, &mut conn)?;
+    workspace_ref.create_default_account_tree(&mut conn)?;
     insert_dev_session(&user_ref, dev_token, now, &mut conn)?;
     insert_fixture_entries(&workspace_ref, &mut conn)?;
 

@@ -314,7 +314,7 @@ impl NewWorkspace {
                 })
                 .execute(conn)?;
 
-            crate::domain::account::create_default_tree(workspace.as_ref(), conn)?;
+            workspace.as_ref().create_default_account_tree(conn)?;
 
             Ok(workspace)
         })
