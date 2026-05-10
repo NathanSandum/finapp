@@ -16,12 +16,36 @@
 		closingCash: number;
 	} = $props();
 
-	type Row = { label: string; total: number; bar: string };
+	type Row = {
+		label: string;
+		total: number;
+		bar: string;
+		verbPositive: string;
+		verbNegative: string;
+	};
 
 	const rows = $derived<Row[]>([
-		{ label: 'Income', total: operating.total, bar: 'bg-emerald-400' },
-		{ label: 'Investing', total: investing.total, bar: 'bg-sky-400' },
-		{ label: 'Financing', total: financing.total, bar: 'bg-amber-400' }
+		{
+			label: 'Income',
+			total: operating.total,
+			bar: 'bg-emerald-400',
+			verbPositive: 'Earned',
+			verbNegative: 'Spent'
+		},
+		{
+			label: 'Investing',
+			total: investing.total,
+			bar: 'bg-sky-400',
+			verbPositive: 'Withdrew',
+			verbNegative: 'Contributed'
+		},
+		{
+			label: 'Financing',
+			total: financing.total,
+			bar: 'bg-amber-400',
+			verbPositive: 'Borrowed',
+			verbNegative: 'Repaid'
+		}
 	]);
 
 	const maxAbs = $derived(
@@ -44,7 +68,9 @@
 					<div class="flex items-baseline justify-between text-xs">
 						<span class="text-neutral-700">{row.label}</span>
 						<span class="font-mono tabular-nums text-neutral-900">
-							<span class="font-bold text-neutral-500">{positive ? 'From' : 'To'}</span>
+							<span class="font-bold text-neutral-500">
+								{positive ? row.verbPositive : row.verbNegative}
+							</span>
 							{fmt(Math.abs(row.total))}
 						</span>
 					</div>
