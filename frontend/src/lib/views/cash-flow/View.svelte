@@ -2,7 +2,6 @@
 	import { untrack } from 'svelte';
 	import NetHero from '$lib/components/NetHero.svelte';
 	import StatementView from '$lib/components/StatementView.svelte';
-	import { fmt } from '../income/lib';
 	import {
 		computeCashFlow,
 		computeNetCashTrail,
@@ -82,11 +81,9 @@
 			label="Net Δ Cash · {cf.period_label}"
 			value={netChange}
 			prior={priorNet}
-			priorShortLabel={cf.prior_short_label}
 			trail={netTrail.values}
 			trailLabels={netTrail.labels}
 			gradientId="cash-flow-net-grad"
-			badgeSuffix="{fmt(cf.opening_cash)} → {fmt(cf.closing_cash)}"
 		/>
 	{/snippet}
 
