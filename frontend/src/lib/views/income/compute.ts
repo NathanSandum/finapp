@@ -132,6 +132,71 @@ export function computeNetTrail(
 	return { values, labels };
 }
 
+export function computeIncomeTrails(
+	entries: Entry[],
+	accounts: Account[],
+	year: number,
+	month: number,
+	granularity: Granularity,
+	count: number
+): {
+	revenueTrails: Map<string, number[]>;
+	expenseTrails: Map<string, number[]>;
+	labels: string[];
+} {
+	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
+	const periods: { year: number; month: number }[] = [];
+	let y = year;
+	let m = month;
+	for (let i = 0; i < count; i++) {
+		periods.push({ year: y, month: m });
+		const p = priorPeriod(y, m, granularity);
+		y = p.year;
+		m = p.month;
+	}
+	periods.reverse();
+
+	const revenueTrails = new Map<string, number[]>();
+	const expenseTrails = new Map<string, number[]>();
+	const labels: string[] = [];
+	for (let pi = 0; pi < periods.length; pi++) {
+		const period = periods[pi];
+		const { start, end } = periodBounds(period.year, period.month, granularity);
+		const revSums = new Map<string, number>();
+		const expSums = new Map<string, number>();
+		for (const entry of entries) {
+			if (entry.date < start || entry.date > end) continue;
+			for (const posting of entry.postings) {
+				const bucket = bucketFor(posting.account_id, accountIndex);
+				if (!bucket) continue;
+				if (bucket.account_type === 'revenue') {
+					revSums.set(bucket.name, (revSums.get(bucket.name) ?? 0) + -posting.amount);
+				} else if (bucket.account_type === 'expense') {
+					expSums.set(bucket.name, (expSums.get(bucket.name) ?? 0) + posting.amount);
+				}
+			}
+		}
+		for (const [name, sum] of revSums) {
+			let arr = revenueTrails.get(name);
+			if (!arr) {
+				arr = new Array(periods.length).fill(0);
+				revenueTrails.set(name, arr);
+			}
+			arr[pi] = sum;
+		}
+		for (const [name, sum] of expSums) {
+			let arr = expenseTrails.get(name);
+			if (!arr) {
+				arr = new Array(periods.length).fill(0);
+				expenseTrails.set(name, arr);
+			}
+			arr[pi] = sum;
+		}
+		labels.push(trailLabel(period.year, period.month, granularity));
+	}
+	return { revenueTrails, expenseTrails, labels };
+}
+
 export function latestActivityMonth(
 	entries: Entry[],
 	accounts: Account[]

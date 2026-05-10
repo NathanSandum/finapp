@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import MetricTile from '$lib/components/MetricTile.svelte';
 	import NetHero from '$lib/components/NetHero.svelte';
-	import PeriodHeader from '$lib/components/PeriodHeader.svelte';
+	import StatementView from '$lib/components/StatementView.svelte';
 	import { delta } from '../income/lib';
 	import {
 		computeAssetTrails,
@@ -14,8 +15,6 @@
 		type Granularity
 	} from './compute';
 	import type { BalanceSheetRaw } from './loader';
-	import ModePill, { type Mode } from './ModePill.svelte';
-	import Tiles from './Tiles.svelte';
 	import Detail from './variants/Detail.svelte';
 	import Summary from './variants/Summary.svelte';
 	import Trend from './variants/Trend.svelte';
@@ -26,7 +25,6 @@
 	let selectedYear = $state(initial.year);
 	let selectedMonth = $state(initial.month);
 	let granularity = $state<Granularity>('month');
-	let mode = $state<Mode>('summary');
 
 	function shift(direction: 1 | -1) {
 		const next = shiftPeriod(selectedYear, selectedMonth, granularity, direction);
@@ -73,40 +71,53 @@
 	const priorNet = $derived(priorAssets - priorLiab);
 </script>
 
-<div class="flex flex-col gap-3">
-	<PeriodHeader
-		title="Balance Sheet"
-		periodLabel="As of {bs.as_of_label}"
-		{granularity}
-		onPrev={() => shift(-1)}
-		onNext={() => shift(1)}
-		onGranularity={setGranularity}
-	/>
+<StatementView
+	title="Balance Sheet"
+	periodLabel="As of {bs.as_of_label}"
+	{granularity}
+	onPrev={() => shift(-1)}
+	onNext={() => shift(1)}
+	onGranularity={setGranularity}
+>
+	{#snippet hero()}
+		<NetHero
+			label="Net Worth · {bs.as_of_label}"
+			value={netWorth}
+			prior={priorNet}
+			priorShortLabel={bs.prior_short_label}
+			trail={netTrail.values}
+			trailLabels={netTrail.labels}
+			gradientId="balance-sheet-net-grad"
+			badgeSuffix={delta(netWorth, priorNet)}
+		/>
+	{/snippet}
 
-	<NetHero
-		label="Net Worth · {bs.as_of_label}"
-		value={netWorth}
-		prior={priorNet}
-		priorShortLabel={bs.prior_short_label}
-		trail={netTrail.values}
-		trailLabels={netTrail.labels}
-		gradientId="balance-sheet-net-grad"
-		badgeSuffix={delta(netWorth, priorNet)}
-	/>
+	{#snippet tiles()}
+		<div class="grid grid-cols-2 gap-3">
+			<MetricTile
+				label="Assets"
+				total={totalAssets}
+				prior={priorAssets}
+				priorShortLabel={bs.prior_short_label}
+				accent="emerald"
+				direction="higher"
+			/>
+			<MetricTile
+				label="Liabilities"
+				total={totalLiab}
+				prior={priorLiab}
+				priorShortLabel={bs.prior_short_label}
+				accent="rose"
+				direction="lower"
+			/>
+		</div>
+	{/snippet}
 
-	<Tiles
-		{totalAssets}
-		{priorAssets}
-		{totalLiab}
-		{priorLiab}
-		priorShortLabel={bs.prior_short_label}
-	/>
-
-	<ModePill {mode} onSelect={(next) => (mode = next)} />
-
-	{#if mode === 'summary'}
+	{#snippet summary()}
 		<Summary assets={bs.assets} liabilities={bs.liabilities} {totalAssets} {totalLiab} />
-	{:else if mode === 'detail'}
+	{/snippet}
+
+	{#snippet detail()}
 		<Detail
 			assets={bs.assets}
 			liabilities={bs.liabilities}
@@ -116,7 +127,9 @@
 			{priorLiab}
 			priorShortLabel={bs.prior_short_label}
 		/>
-	{:else}
+	{/snippet}
+
+	{#snippet trend()}
 		<Trend assets={bs.assets} trails={assetTrails.trails} />
-	{/if}
-</div>
+	{/snippet}
+</StatementView>

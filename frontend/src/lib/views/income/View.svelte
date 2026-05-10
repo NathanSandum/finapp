@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import Area from './variants/Area.svelte';
-	// Alt chart style kept in repo: ./variants/Bars.svelte — swap import + tag below to use it.
-	import type { IncomeRaw } from './loader';
+	import MetricTile from '$lib/components/MetricTile.svelte';
+	import NetHero from '$lib/components/NetHero.svelte';
+	import StatementView from '$lib/components/StatementView.svelte';
 	import {
 		computeIncomeData,
+		computeIncomeTrails,
 		computeNetTrail,
 		defaultTrailCount,
 		latestActivityMonth,
@@ -12,6 +13,16 @@
 		snapToGranularity,
 		type Granularity
 	} from './compute';
+	import {
+		totalExpenses,
+		totalPriorExpenses,
+		totalPriorRevenue,
+		totalRevenue
+	} from './lib';
+	import type { IncomeRaw } from './loader';
+	import Detail from './variants/Detail.svelte';
+	import Summary from './variants/Summary.svelte';
+	import Trend from './variants/Trend.svelte';
 
 	let { data }: { data: IncomeRaw } = $props();
 
@@ -46,14 +57,97 @@
 			defaultTrailCount(granularity)
 		)
 	);
+	const trails = $derived(
+		computeIncomeTrails(
+			data.entries,
+			data.accounts,
+			selectedYear,
+			selectedMonth,
+			granularity,
+			defaultTrailCount(granularity)
+		)
+	);
+
+	const revenueTotal = $derived(totalRevenue(income));
+	const expenseTotal = $derived(totalExpenses(income));
+	const priorRevenueTotal = $derived(totalPriorRevenue(income));
+	const priorExpenseTotal = $derived(totalPriorExpenses(income));
+	const netIncome = $derived(revenueTotal - expenseTotal);
+	const priorNet = $derived(priorRevenueTotal - priorExpenseTotal);
+	const savingsRate = $derived(
+		revenueTotal > 0 ? ((netIncome / revenueTotal) * 100).toFixed(1) : '0'
+	);
 </script>
 
-<Area
-	data={income}
-	netTrail={trail.values}
-	months={trail.labels}
+<StatementView
+	title="Income"
+	periodLabel={income.period_label}
 	{granularity}
 	onPrev={() => shift(-1)}
 	onNext={() => shift(1)}
 	onGranularity={setGranularity}
-/>
+>
+	{#snippet hero()}
+		<NetHero
+			label="Net Income · {income.period_label}"
+			value={netIncome}
+			prior={priorNet}
+			priorShortLabel={income.prior_short_label}
+			trail={trail.values}
+			trailLabels={trail.labels}
+			gradientId="income-net-grad"
+			badgeSuffix="{savingsRate}% saved"
+		/>
+	{/snippet}
+
+	{#snippet tiles()}
+		<div class="grid grid-cols-2 gap-3">
+			<MetricTile
+				label="Revenue"
+				total={revenueTotal}
+				prior={priorRevenueTotal}
+				priorShortLabel={income.prior_short_label}
+				accent="emerald"
+				direction="higher"
+			/>
+			<MetricTile
+				label="Expenses"
+				total={expenseTotal}
+				prior={priorExpenseTotal}
+				priorShortLabel={income.prior_short_label}
+				accent="rose"
+				direction="lower"
+			/>
+		</div>
+	{/snippet}
+
+	{#snippet summary()}
+		<Summary
+			revenue={income.revenue}
+			expenses={income.expenses}
+			{revenueTotal}
+			{expenseTotal}
+		/>
+	{/snippet}
+
+	{#snippet detail()}
+		<Detail
+			revenue={income.revenue}
+			expenses={income.expenses}
+			{revenueTotal}
+			{expenseTotal}
+			{priorRevenueTotal}
+			{priorExpenseTotal}
+			priorShortLabel={income.prior_short_label}
+		/>
+	{/snippet}
+
+	{#snippet trend()}
+		<Trend
+			revenue={income.revenue}
+			expenses={income.expenses}
+			revenueTrails={trails.revenueTrails}
+			expenseTrails={trails.expenseTrails}
+		/>
+	{/snippet}
+</StatementView>

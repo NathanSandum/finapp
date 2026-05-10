@@ -1,6 +1,6 @@
 <script lang="ts">
+	import AccountColumn from '$lib/components/AccountColumn.svelte';
 	import type { Line } from '../compute';
-	import AccountColumn from './AccountColumn.svelte';
 
 	let {
 		assets,
