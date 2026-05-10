@@ -1,8 +1,8 @@
 @import 'tailwindcss';
 
 /*
- * Design tokens. Default theme = current visual exactly (pure refactor).
- * Variants live under [data-theme="..."] selectors (added in later phases).
+ * Design tokens.
+ * Variants live under [data-theme="..."] selectors when an A/B is in flight.
  *
  * Conventions:
  *   - surface-*       backgrounds for the light page chrome
@@ -21,69 +21,80 @@
  */
 
 @theme {
-	--font-display: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-	--font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-	--font-mono: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, monospace;
+	--spacing: 0.2rem;
 
-	--color-surface: oklch(98.5% 0 0);
-	--color-surface-card: #ffffff;
-	--color-surface-sunken: oklch(96.1% 0 0);
-	--color-surface-hover: oklch(96.1% 0 0);
-	--color-surface-hover-faint: oklch(98.5% 0 0);
+	--font-display: 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-body: 'Source Sans 3', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
-	--color-surface-inverse: oklch(20.5% 0 0);
-	--color-surface-inverse-hover: oklch(26.9% 0 0);
+	--color-surface: oklch(98.5% 0.005 250);
+	--color-surface-card: oklch(100% 0 0);
+	--color-surface-sunken: oklch(96.1% 0.008 250);
+	--color-surface-hover: oklch(96.1% 0.008 250);
+	--color-surface-hover-faint: oklch(98.5% 0.005 250);
 
-	--color-ink: oklch(20.5% 0 0);
-	--color-ink-body: oklch(37.1% 0 0);
-	--color-ink-muted: oklch(55.6% 0 0);
-	--color-ink-faint: oklch(70.8% 0 0);
+	--color-surface-inverse: oklch(22% 0.025 260);
+	--color-surface-inverse-hover: oklch(28% 0.03 260);
 
-	--color-ink-inverse: #ffffff;
-	--color-ink-inverse-body: oklch(92.2% 0 0);
-	--color-ink-inverse-muted: oklch(70.8% 0 0);
+	--color-ink: oklch(20.5% 0.02 260);
+	--color-ink-body: oklch(38% 0.018 260);
+	--color-ink-muted: oklch(56% 0.015 260);
+	--color-ink-faint: oklch(71% 0.012 260);
 
-	--color-border: oklch(92.2% 0 0);
-	--color-border-faint: oklch(96.1% 0 0);
+	--color-ink-inverse: oklch(100% 0 0);
+	--color-ink-inverse-body: oklch(92.2% 0.005 250);
+	--color-ink-inverse-muted: oklch(70.8% 0.01 250);
 
-	--color-positive: oklch(50.8% 0.118 165.612);
-	--color-positive-line: oklch(69.6% 0.17 162.48);
-	--color-positive-tint: color-mix(in oklch, oklch(95.1% 0.052 163.051) 50%, transparent);
-	--color-positive-tint-strong: oklch(95.1% 0.052 163.051);
-	--color-positive-bar-1: oklch(69.6% 0.17 162.48);
-	--color-positive-bar-2: oklch(76.5% 0.177 163.223);
-	--color-positive-bar-3: oklch(84.5% 0.143 164.978);
-	--color-positive-bar-4: oklch(92.5% 0.084 155.995);
+	--color-border: oklch(91% 0.012 250);
+	--color-border-faint: oklch(96.1% 0.008 250);
 
-	--color-negative: oklch(51.4% 0.222 16.935);
-	--color-negative-strong: oklch(57% 0.245 27.325);
-	--color-negative-line: oklch(64.5% 0.246 16.439);
-	--color-negative-tint: color-mix(in oklch, oklch(96.9% 0.015 12.422) 50%, transparent);
-	--color-negative-border: oklch(71.7% 0.197 22.12);
-	--color-negative-bar-1: oklch(64.5% 0.246 16.439);
-	--color-negative-bar-2: oklch(71.7% 0.197 22.12);
-	--color-negative-bar-3: oklch(81% 0.117 11.638);
-	--color-negative-bar-4: oklch(89.2% 0.058 10.001);
+	--color-positive: oklch(52% 0.11 175);
+	--color-positive-line: oklch(68% 0.13 180);
+	--color-positive-tint: color-mix(in oklch, oklch(95% 0.04 180) 50%, transparent);
+	--color-positive-tint-strong: oklch(95% 0.04 180);
+	--color-positive-bar-1: oklch(68% 0.13 180);
+	--color-positive-bar-2: oklch(76% 0.13 180);
+	--color-positive-bar-3: oklch(85% 0.1 180);
+	--color-positive-bar-4: oklch(92% 0.06 180);
 
-	--color-investing: oklch(50% 0.134 242.749);
-	--color-investing-line: oklch(68.5% 0.169 237.323);
-	--color-investing-tint: color-mix(in oklch, oklch(97.7% 0.014 254.604) 50%, transparent);
+	--color-negative: oklch(52% 0.2 18);
+	--color-negative-strong: oklch(57% 0.24 24);
+	--color-negative-line: oklch(64% 0.22 18);
+	--color-negative-tint: color-mix(in oklch, oklch(96.5% 0.018 12) 50%, transparent);
+	--color-negative-border: oklch(72% 0.19 22);
+	--color-negative-bar-1: oklch(64% 0.22 18);
+	--color-negative-bar-2: oklch(72% 0.18 22);
+	--color-negative-bar-3: oklch(81% 0.11 12);
+	--color-negative-bar-4: oklch(89% 0.06 10);
 
-	--color-financing: oklch(47.3% 0.137 46.201);
-	--color-financing-line: oklch(76.9% 0.188 70.08);
-	--color-financing-tint: color-mix(in oklch, oklch(98.7% 0.022 95.277) 50%, transparent);
-	--color-financing-border: oklch(82.8% 0.189 84.429);
+	--color-investing: oklch(50% 0.16 270);
+	--color-investing-line: oklch(66% 0.18 275);
+	--color-investing-tint: color-mix(in oklch, oklch(96% 0.025 270) 50%, transparent);
 
-	--color-brand: oklch(69.6% 0.17 162.48);
-	--color-brand-soft: oklch(76.5% 0.177 163.223);
+	--color-financing: oklch(50% 0.14 305);
+	--color-financing-line: oklch(70% 0.17 310);
+	--color-financing-tint: color-mix(in oklch, oklch(97% 0.022 305) 50%, transparent);
+	--color-financing-border: oklch(80% 0.16 308);
 
-	--color-avatar-from: oklch(67.3% 0.182 276.935);
-	--color-avatar-to: oklch(60.6% 0.25 292.717);
+	--color-brand: oklch(58% 0.2 268);
+	--color-brand-soft: oklch(72% 0.16 268);
 
-	--color-trend-zero: oklch(86.5% 0 0);
+	--color-avatar-from: oklch(67% 0.18 235);
+	--color-avatar-to: oklch(58% 0.22 270);
+
+	--color-trend-zero: oklch(86% 0.01 250);
 }
 
 body {
 	font-family: var(--font-body);
 }
+
+h1,
+h2,
+h3 {
+	font-family: var(--font-display);
+}
+
+
+
 
