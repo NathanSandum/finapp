@@ -93,4 +93,20 @@ h3 {
 	font-family: var(--font-display);
 }
 
+/*
+ * Variant B — IBM Plex Sans body.
+ * Humanist sans with corporate-precise warmth.
+ */
+[data-theme='b'] {
+	--font-body: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/*
+ * Variant C — Source Sans 3 body.
+ * Narrower editorial sans, classic.
+ */
+[data-theme='c'] {
+	--font-body: 'Source Sans 3', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
 
