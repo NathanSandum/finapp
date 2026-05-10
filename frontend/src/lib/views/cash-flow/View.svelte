@@ -21,7 +21,7 @@
 	import { tabState } from '$lib/tabs/state.svelte';
 
 	function newEntry() {
-		entryIntent.set({ verb: null, sourceTab: 'cash-flow' });
+		entryIntent.set({ verb: 'contributed', sourceTab: 'cash-flow' });
 		tabState.set('entries');
 	}
 
