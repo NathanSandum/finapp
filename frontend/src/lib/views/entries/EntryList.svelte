@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { Entry } from '../loader';
-	import { formatAmount } from '../loader';
+	import type { Entry } from './loader';
+	import { formatAmount } from './loader';
 
 	let {
 		entries,
