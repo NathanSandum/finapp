@@ -74,9 +74,6 @@
 	const priorExpenseTotal = $derived(totalPriorExpenses(income));
 	const netIncome = $derived(revenueTotal - expenseTotal);
 	const priorNet = $derived(priorRevenueTotal - priorExpenseTotal);
-	const savingsRate = $derived(
-		revenueTotal > 0 ? ((netIncome / revenueTotal) * 100).toFixed(1) : '0'
-	);
 </script>
 
 <StatementView
@@ -92,15 +89,14 @@
 			label="Net Income · {income.period_label}"
 			value={netIncome}
 			prior={priorNet}
-			priorShortLabel={income.prior_short_label}
 			trail={trail.values}
 			trailLabels={trail.labels}
 			gradientId="income-net-grad"
-			badgeSuffix="{savingsRate}% saved"
 		/>
 	{/snippet}
 
 	{#snippet tiles()}
+		<div class="mx-auto h-px w-[95%] bg-border"></div>
 		<div class="grid grid-cols-2 gap-3">
 			<MetricTile
 				label="Revenue"

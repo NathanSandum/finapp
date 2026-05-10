@@ -3,7 +3,6 @@
 	import MetricTile from '$lib/components/MetricTile.svelte';
 	import NetHero from '$lib/components/NetHero.svelte';
 	import StatementView from '$lib/components/StatementView.svelte';
-	import { delta } from '../income/lib';
 	import {
 		computeAssetTrails,
 		computeBalanceSheet,
@@ -84,15 +83,14 @@
 			label="Net Worth · {bs.as_of_label}"
 			value={netWorth}
 			prior={priorNet}
-			priorShortLabel={bs.prior_short_label}
 			trail={netTrail.values}
 			trailLabels={netTrail.labels}
 			gradientId="balance-sheet-net-grad"
-			badgeSuffix={delta(netWorth, priorNet)}
 		/>
 	{/snippet}
 
 	{#snippet tiles()}
+		<div class="mx-auto h-px w-[95%] bg-border"></div>
 		<div class="grid grid-cols-2 gap-3">
 			<MetricTile
 				label="Assets"
