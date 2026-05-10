@@ -2,16 +2,21 @@
 	import { cache } from '$lib/api/cache.svelte';
 	import type { Account } from './loader';
 	import { createEntry } from './api';
+	import { VERBS, verbConfig, buildVerbPostings, type VerbId } from './verbs';
 
 	let {
 		accounts,
+		initialVerb = 'spent',
 		onClose,
 		onCreated
 	}: {
 		accounts: Account[];
+		initialVerb?: VerbId;
 		onClose: () => void;
 		onCreated?: () => void;
 	} = $props();
+
+	const CHEQUING_NAME = 'Chequing';
 
 	function todayISO(): string {
 		const d = new Date();
@@ -21,17 +26,31 @@
 		return `${y}-${m}-${day}`;
 	}
 
+	const chequing = $derived(accounts.find((a) => a.name === CHEQUING_NAME));
+
+	let verb = $state<VerbId>(initialVerb);
+	let counterpartyId = $state('');
+	let amountText = $state('');
 	let date = $state(todayISO());
 	let description = $state('');
-	let debitAccountId = $state('');
-	let creditAccountId = $state('');
-	let amountText = $state('');
 	let note = $state('');
 	let submitting = $state(false);
 	let errorMessage = $state<string | null>(null);
 	let fieldErrors = $state<Record<string, string>>({});
 
-	const sortedAccounts = $derived([...accounts].sort((a, b) => a.name.localeCompare(b.name)));
+	const config = $derived(verbConfig(verb));
+
+	const counterparties = $derived(
+		accounts
+			.filter((a) => a.account_type === config.counterpartyType && a.id !== chequing?.id)
+			.sort((a, b) => a.name.localeCompare(b.name))
+	);
+
+	$effect(() => {
+		if (counterpartyId && !counterparties.some((a) => a.id === counterpartyId)) {
+			counterpartyId = '';
+		}
+	});
 
 	function parseAmount(text: string): number | null {
 		const cleaned = text.replace(/[^0-9.\-]/g, '');
@@ -46,28 +65,29 @@
 		errorMessage = null;
 		fieldErrors = {};
 
+		if (!chequing) {
+			errorMessage = `No "${CHEQUING_NAME}" account found. Set one up first.`;
+			return;
+		}
+
 		const cents = parseAmount(amountText);
 		if (cents === null) {
 			fieldErrors = { amount: 'enter a positive amount' };
 			return;
 		}
-		if (!debitAccountId || !creditAccountId) {
-			fieldErrors = { account: 'pick both accounts' };
+		if (!counterpartyId) {
+			fieldErrors = { counterparty: 'pick a category' };
 			return;
 		}
-		if (debitAccountId === creditAccountId) {
-			fieldErrors = { account: 'debit and credit must differ' };
-			return;
-		}
+
+		const postings = buildVerbPostings(verb, counterpartyId, chequing.id, cents);
 
 		submitting = true;
 		try {
 			const result = await createEntry({
 				date,
-				description: description.trim(),
-				debitAccountId,
-				creditAccountId,
-				amountCents: cents,
+				description: description.trim() || config.label,
+				postings,
 				note: note.trim() || undefined
 			});
 
@@ -87,7 +107,22 @@
 </script>
 
 <form onsubmit={submit} class="flex flex-col gap-4 text-sm">
-	<div class="grid grid-cols-2 gap-3">
+	<div class="flex flex-wrap gap-1 border border-border bg-surface-sunken p-1">
+		{#each VERBS as v (v.id)}
+			{@const active = v.id === verb}
+			<button
+				type="button"
+				onclick={() => (verb = v.id)}
+				class="flex-1 px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] transition-colors {active
+					? 'bg-surface-card text-ink shadow-sm'
+					: 'text-ink-muted hover:text-ink-body'}"
+			>
+				{v.label}
+			</button>
+		{/each}
+	</div>
+
+	<div class="grid grid-cols-[auto_1fr] gap-3">
 		<label class="flex flex-col gap-1">
 			<span class="text-xs uppercase tracking-wide text-ink-muted">Date</span>
 			<input
@@ -114,49 +149,36 @@
 	</div>
 
 	<label class="flex flex-col gap-1">
-		<span class="text-xs uppercase tracking-wide text-ink-muted">Description</span>
-		<input
-			type="text"
-			bind:value={description}
+		<span class="text-xs uppercase tracking-wide text-ink-muted">
+			{config.label} {config.counterpartyPreposition}
+		</span>
+		<select
+			bind:value={counterpartyId}
 			class="border border-border bg-surface-card px-2 py-1.5"
 			required
+		>
+			<option value="" disabled>select…</option>
+			{#each counterparties as account (account.id)}
+				<option value={account.id}>{account.name}</option>
+			{/each}
+		</select>
+		{#if fieldErrors.counterparty}
+			<span class="text-xs text-negative">{fieldErrors.counterparty}</span>
+		{/if}
+	</label>
+
+	<label class="flex flex-col gap-1">
+		<span class="text-xs uppercase tracking-wide text-ink-muted">Description (optional)</span>
+		<input
+			type="text"
+			placeholder={config.label}
+			bind:value={description}
+			class="border border-border bg-surface-card px-2 py-1.5"
 		/>
 		{#if fieldErrors.description}
 			<span class="text-xs text-negative">{fieldErrors.description}</span>
 		{/if}
 	</label>
-
-	<div class="grid grid-cols-2 gap-3">
-		<label class="flex flex-col gap-1">
-			<span class="text-xs font-semibold uppercase tracking-[0.08em] text-positive">Debit</span>
-			<select
-				bind:value={debitAccountId}
-				class="border border-border bg-surface-card px-2 py-1.5"
-				required
-			>
-				<option value="" disabled>select account</option>
-				{#each sortedAccounts as account (account.id)}
-					<option value={account.id}>{account.name}</option>
-				{/each}
-			</select>
-		</label>
-		<label class="flex flex-col gap-1">
-			<span class="text-xs font-semibold uppercase tracking-[0.08em] text-negative-strong">Credit</span>
-			<select
-				bind:value={creditAccountId}
-				class="border border-border bg-surface-card px-2 py-1.5"
-				required
-			>
-				<option value="" disabled>select account</option>
-				{#each sortedAccounts as account (account.id)}
-					<option value={account.id}>{account.name}</option>
-				{/each}
-			</select>
-		</label>
-	</div>
-	{#if fieldErrors.account}
-		<span class="-mt-2 text-xs text-negative">{fieldErrors.account}</span>
-	{/if}
 
 	<label class="flex flex-col gap-1">
 		<span class="text-xs uppercase tracking-wide text-ink-muted">Note (optional)</span>
@@ -176,7 +198,7 @@
 	<div class="flex gap-2 pt-2">
 		<button
 			type="submit"
-			disabled={submitting}
+			disabled={submitting || !chequing}
 			class="bg-surface-inverse px-4 py-2 text-sm font-medium text-ink-inverse transition-colors hover:bg-surface-inverse-hover disabled:opacity-50"
 		>
 			{submitting ? 'Saving…' : 'Save entry'}

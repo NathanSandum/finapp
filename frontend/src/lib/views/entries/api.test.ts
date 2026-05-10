@@ -25,7 +25,7 @@ describe('createEntry', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('builds DR/CR postings from single-leg input', async () => {
+	it('POSTs date, description, and postings to entries endpoint', async () => {
 		const calls = mockFetch({
 			status: 201,
 			body: { status: 'success', data: { id: 'e1', date: '2026-05-10', description: 'rent', postings: [] } }
@@ -34,24 +34,26 @@ describe('createEntry', () => {
 		await createEntry({
 			date: '2026-05-10',
 			description: 'rent',
-			debitAccountId: 'acct-rent',
-			creditAccountId: 'acct-cash',
-			amountCents: 120000,
-			note: 'may'
+			postings: [
+				{ accountId: 'acct-rent', amount: 120000 },
+				{ accountId: 'acct-cash', amount: -120000 }
+			]
 		});
 
 		expect(calls).toHaveLength(1);
 		expect(calls[0].init.method).toBe('POST');
 		const body = JSON.parse(calls[0].init.body as string);
-		expect(body.date).toBe('2026-05-10');
-		expect(body.description).toBe('rent');
-		expect(body.postings).toEqual([
-			{ account_id: 'acct-rent', amount: 120000, note: 'may' },
-			{ account_id: 'acct-cash', amount: -120000, note: 'may' }
-		]);
+		expect(body).toEqual({
+			date: '2026-05-10',
+			description: 'rent',
+			postings: [
+				{ account_id: 'acct-rent', amount: 120000 },
+				{ account_id: 'acct-cash', amount: -120000 }
+			]
+		});
 	});
 
-	it('omits note when empty', async () => {
+	it('attaches note to every posting when provided', async () => {
 		const calls = mockFetch({
 			status: 201,
 			body: { status: 'success', data: { id: 'e1', date: '2026-05-10', description: 'x', postings: [] } }
@@ -60,14 +62,38 @@ describe('createEntry', () => {
 		await createEntry({
 			date: '2026-05-10',
 			description: 'x',
-			debitAccountId: 'a',
-			creditAccountId: 'b',
-			amountCents: 500
+			postings: [
+				{ accountId: 'a', amount: 500 },
+				{ accountId: 'b', amount: -500 }
+			],
+			note: 'may'
+		});
+
+		const body = JSON.parse(calls[0].init.body as string);
+		expect(body.postings).toEqual([
+			{ account_id: 'a', amount: 500, note: 'may' },
+			{ account_id: 'b', amount: -500, note: 'may' }
+		]);
+	});
+
+	it('omits note key when not provided or empty', async () => {
+		const calls = mockFetch({
+			status: 201,
+			body: { status: 'success', data: { id: 'e1', date: '2026-05-10', description: 'x', postings: [] } }
+		});
+
+		await createEntry({
+			date: '2026-05-10',
+			description: 'x',
+			postings: [
+				{ accountId: 'a', amount: 1 },
+				{ accountId: 'b', amount: -1 }
+			],
+			note: '  '
 		});
 
 		const body = JSON.parse(calls[0].init.body as string);
 		expect(body.postings[0].note).toBeUndefined();
-		expect(body.postings[1].note).toBeUndefined();
 	});
 
 	it('returns JSend success envelope on 201', async () => {
@@ -79,9 +105,10 @@ describe('createEntry', () => {
 		const result = await createEntry({
 			date: '2026-05-10',
 			description: 'x',
-			debitAccountId: 'a',
-			creditAccountId: 'b',
-			amountCents: 100
+			postings: [
+				{ accountId: 'a', amount: 1 },
+				{ accountId: 'b', amount: -1 }
+			]
 		});
 
 		expect(result.status).toBe('success');
@@ -96,9 +123,10 @@ describe('createEntry', () => {
 		const result = await createEntry({
 			date: '2026-05-10',
 			description: '',
-			debitAccountId: 'a',
-			creditAccountId: 'b',
-			amountCents: 100
+			postings: [
+				{ accountId: 'a', amount: 1 },
+				{ accountId: 'b', amount: -1 }
+			]
 		});
 
 		expect(result.status).toBe('fail');
