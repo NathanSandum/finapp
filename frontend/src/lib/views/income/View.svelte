@@ -23,6 +23,13 @@
 	import Detail from './variants/Detail.svelte';
 	import Summary from './variants/Summary.svelte';
 	import Trend from './variants/Trend.svelte';
+	import { entryIntent } from '$lib/views/entries/intent.svelte';
+	import { tabState } from '$lib/tabs/state.svelte';
+
+	function newEntry() {
+		entryIntent.set({ verb: 'spent', sourceTab: 'income' });
+		tabState.set('entries');
+	}
 
 	let { data }: { data: IncomeRaw } = $props();
 
@@ -84,6 +91,15 @@
 	onNext={() => shift(1)}
 	onGranularity={setGranularity}
 >
+	{#snippet actions()}
+		<button
+			type="button"
+			onclick={newEntry}
+			class="bg-surface-inverse px-3 py-1.5 text-xs font-medium uppercase tracking-[0.08em] text-ink-inverse transition-colors hover:bg-surface-inverse-hover"
+		>
+			+ New
+		</button>
+	{/snippet}
 	{#snippet hero()}
 		<NetHero
 			label="Net Income · {income.period_label}"

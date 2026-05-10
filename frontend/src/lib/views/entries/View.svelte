@@ -11,6 +11,9 @@
 	} from '$lib/views/period';
 	import { entryAmount, formatAmount, type EntriesData } from './loader';
 	import EntryForm from './EntryForm.svelte';
+	import { entryIntent } from './intent.svelte';
+	import { tabState } from '$lib/tabs/state.svelte';
+	import type { VerbId } from './verbs';
 
 	let { data }: { data: EntriesData } = $props();
 
@@ -20,6 +23,29 @@
 	let granularity = $state<Granularity>('month');
 	let selectedId = $state<string | null>(null);
 	let creating = $state(false);
+	let formVerb = $state<VerbId>('spent');
+
+	const incomingIntent = $derived(entryIntent.get());
+	$effect(() => {
+		const intent = incomingIntent;
+		if (intent) {
+			creating = true;
+			if (intent.verb) formVerb = intent.verb;
+		}
+	});
+
+	function returnToSourceTab() {
+		const intent = entryIntent.get();
+		if (intent) {
+			tabState.set(intent.sourceTab);
+			entryIntent.clear();
+		}
+	}
+
+	function closeForm() {
+		creating = false;
+		returnToSourceTab();
+	}
 
 	function shift(direction: 1 | -1) {
 		const next = shiftPeriod(selectedYear, selectedMonth, granularity, direction);
@@ -49,26 +75,28 @@
 </script>
 
 <div class="flex h-full flex-col gap-4">
-	<div class="flex items-center justify-between gap-3">
-		<div class="flex-1">
-			<PeriodHeader
-				title="Entries"
-				periodLabel={periodLabel(selectedYear, selectedMonth, granularity)}
-				{granularity}
-				onPrev={() => shift(-1)}
-				onNext={() => shift(1)}
-				onGranularity={setGranularity}
-			/>
-		</div>
-		<button
-			type="button"
-			onclick={() => (creating = true)}
-			disabled={creating}
-			class="bg-surface-inverse px-3 py-1.5 text-xs font-medium uppercase tracking-[0.08em] text-ink-inverse transition-colors hover:bg-surface-inverse-hover disabled:opacity-50"
-		>
-			+ New
-		</button>
-	</div>
+	<PeriodHeader
+		title="Entries"
+		periodLabel={periodLabel(selectedYear, selectedMonth, granularity)}
+		{granularity}
+		onPrev={() => shift(-1)}
+		onNext={() => shift(1)}
+		onGranularity={setGranularity}
+	>
+		{#snippet actions()}
+			<button
+				type="button"
+				onclick={() => {
+					formVerb = 'spent';
+					creating = true;
+				}}
+				disabled={creating}
+				class="bg-surface-inverse px-3 py-1.5 text-xs font-medium uppercase tracking-[0.08em] text-ink-inverse transition-colors hover:bg-surface-inverse-hover disabled:opacity-50"
+			>
+				+ New
+			</button>
+		{/snippet}
+	</PeriodHeader>
 
 	<div class="grid min-h-0 flex-1 grid-cols-[320px_1fr] gap-0 overflow-hidden border border-border bg-surface-card">
 		<ul class="h-full divide-y divide-border-faint overflow-y-auto border-r border-ink-faint">
@@ -103,10 +131,13 @@
 				<header class="mb-4 flex items-baseline justify-between">
 					<h3 class="text-lg font-semibold text-ink">New entry</h3>
 				</header>
-				<EntryForm
-					accounts={data.accounts}
-					onClose={() => (creating = false)}
-				/>
+				{#key formVerb}
+					<EntryForm
+						accounts={data.accounts}
+						initialVerb={formVerb}
+						onClose={closeForm}
+					/>
+				{/key}
 			{:else if selected}
 				<header class="mb-4 flex items-baseline justify-between">
 					<div>
