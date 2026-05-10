@@ -3,18 +3,34 @@
 	import { computeOverview } from './compute';
 	import type { OverviewRaw } from './loader';
 	import Ratios from './variants/Ratios.svelte';
+	import { entryIntent } from '$lib/views/entries/intent.svelte';
+	import { tabState } from '$lib/tabs/state.svelte';
 
 	let { data }: { data: OverviewRaw } = $props();
 
 	const metrics = $derived(computeOverview(data.entries, data.accounts));
+
+	function newEntry() {
+		entryIntent.set({ verb: 'spent', sourceTab: 'overview' });
+		tabState.set('entries');
+	}
 </script>
 
 <div class="px-8 py-8">
-	<header class="mb-8 flex items-baseline justify-between">
+	<header class="mb-8 flex items-baseline justify-between gap-3">
 		<h1 class="font-display text-2xl font-semibold text-ink">Overview</h1>
-		<p class="font-mono text-[11px] uppercase tracking-wider text-ink-muted">
-			as of {metrics.asOfLabel}
-		</p>
+		<div class="flex items-baseline gap-3">
+			<button
+				type="button"
+				onclick={newEntry}
+				class="bg-surface-inverse px-3 py-1.5 text-xs font-medium uppercase tracking-[0.08em] text-ink-inverse transition-colors hover:bg-surface-inverse-hover"
+			>
+				+ New
+			</button>
+			<p class="font-mono text-[11px] uppercase tracking-wider text-ink-muted">
+				as of {metrics.asOfLabel}
+			</p>
+		</div>
 	</header>
 
 	<section class="mb-12 grid grid-cols-2 gap-12">
