@@ -98,6 +98,8 @@
 				prior={cf.prior_operating_total}
 				priorShortLabel={cf.prior_short_label}
 				accent="emerald"
+				verbPositive="Earned"
+				verbNegative="Spent"
 			/>
 			<CashFlowTile
 				noun="Investments"
@@ -105,6 +107,8 @@
 				prior={cf.prior_investing_total}
 				priorShortLabel={cf.prior_short_label}
 				accent="sky"
+				verbPositive="Withdrew"
+				verbNegative="Contributed"
 			/>
 			<CashFlowTile
 				noun="Financing"
@@ -112,6 +116,8 @@
 				prior={cf.prior_financing_total}
 				priorShortLabel={cf.prior_short_label}
 				accent="amber"
+				verbPositive="Borrowed"
+				verbNegative="Repaid"
 			/>
 		</div>
 	{/snippet}

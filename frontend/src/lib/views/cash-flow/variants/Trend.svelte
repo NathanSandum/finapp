@@ -45,12 +45,11 @@
 		<div class="rounded-xl border border-neutral-200 bg-white p-3">
 			<div class="flex items-baseline justify-between">
 				<span class="text-xs font-medium text-neutral-700">{title}</span>
-				<span
-					class="font-mono text-sm font-semibold tabular-nums {latest >= 0
-						? 'text-neutral-900'
-						: 'text-rose-700'}"
-				>
-					{fmt(latest)}
+				<span class="font-mono text-sm font-semibold tabular-nums text-neutral-900">
+					<span class="text-[10px] font-bold text-neutral-500">
+						{latest >= 0 ? 'From' : 'To'}
+					</span>
+					{fmt(Math.abs(latest))}
 				</span>
 			</div>
 			<svg viewBox="0 0 240 40" class="mt-1 h-10 w-full" preserveAspectRatio="none">

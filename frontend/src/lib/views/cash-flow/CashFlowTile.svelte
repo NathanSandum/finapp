@@ -1,18 +1,22 @@
 <script lang="ts">
-	import { delta, fmt } from '../income/lib';
+	import { fmt } from '../income/lib';
 
 	let {
 		noun,
 		total,
 		prior,
 		priorShortLabel,
-		accent
+		accent,
+		verbPositive,
+		verbNegative
 	}: {
 		noun: string;
 		total: number;
 		prior: number;
 		priorShortLabel: string;
 		accent: 'emerald' | 'sky' | 'amber';
+		verbPositive: string;
+		verbNegative: string;
 	} = $props();
 
 	const bg = $derived(
@@ -30,6 +34,7 @@
 				: 'text-amber-700'
 	);
 	const verb = $derived(total >= 0 ? 'From' : 'To');
+	const priorVerb = $derived(prior >= 0 ? verbPositive : verbNegative);
 </script>
 
 <div class="rounded-lg {bg} p-3">
@@ -40,6 +45,6 @@
 		{fmt(Math.abs(total))}
 	</p>
 	<p class="mt-0.5 font-mono text-[10px] tabular-nums text-neutral-500">
-		{delta(total, prior)} vs {priorShortLabel}
+		vs {priorShortLabel}: {priorVerb} {fmt(Math.abs(prior))}
 	</p>
 </div>

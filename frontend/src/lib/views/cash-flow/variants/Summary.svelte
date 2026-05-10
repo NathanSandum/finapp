@@ -43,12 +43,9 @@
 				<li>
 					<div class="flex items-baseline justify-between text-xs">
 						<span class="text-neutral-700">{row.label}</span>
-						<span
-							class="font-mono tabular-nums {positive
-								? 'text-neutral-900'
-								: 'text-rose-700'}"
-						>
-							{fmt(row.total)}
+						<span class="font-mono tabular-nums text-neutral-900">
+							<span class="font-bold text-neutral-500">{positive ? 'From' : 'To'}</span>
+							{fmt(Math.abs(row.total))}
 						</span>
 					</div>
 					<div class="mt-1 flex h-1.5 items-center">

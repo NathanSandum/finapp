@@ -30,12 +30,11 @@
 		<div class="rounded-xl border border-neutral-200 bg-white p-4">
 			<div class="mb-2 flex items-baseline justify-between">
 				<h4 class="text-xs font-semibold uppercase tracking-wide {accentText}">{title}</h4>
-				<span
-					class="font-mono text-base font-semibold tabular-nums {section.total >= 0
-						? 'text-neutral-900'
-						: 'text-rose-700'}"
-				>
-					{fmt(section.total)}
+				<span class="font-mono text-base font-semibold tabular-nums text-neutral-900">
+					<span class="text-xs font-bold text-neutral-500">
+						{section.total >= 0 ? 'From' : 'To'}
+					</span>
+					{fmt(Math.abs(section.total))}
 				</span>
 			</div>
 			{#if section.lines.length === 0}
