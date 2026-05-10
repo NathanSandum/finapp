@@ -20,11 +20,11 @@ pub enum Currency {
     CAD,
 }
 
-impl Currency {
-    pub fn as_str(&self) -> &'static str {
-        match self {
+impl std::fmt::Display for Currency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
             Currency::CAD => "CAD",
-        }
+        })
     }
 }
 
@@ -758,7 +758,7 @@ impl NewCustomAccount {
                 parent_id: Some(self.parent_id),
                 name: Some(self.name.clone()),
                 account_type: "Custom".to_string(),
-                currency: self.currency.as_str().to_string(),
+                currency: self.currency.to_string(),
                 created_at: now,
                 updated_at: now,
             })
@@ -795,7 +795,7 @@ fn insert_system(
             parent_id: parent_id.cloned(),
             name: None,
             account_type: system.as_str().to_string(),
-            currency: Currency::CAD.as_str().to_string(),
+            currency: Currency::CAD.to_string(),
             created_at: now,
             updated_at: now,
         })
