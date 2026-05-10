@@ -26,10 +26,12 @@
 	);
 </script>
 
-<div class="grid h-[calc(100vh-160px)] grid-cols-[320px_1fr] gap-4 overflow-hidden">
-	<EntryList {entries} selectedId={selected?.id ?? null} onSelect={(id) => (selectedId = id)} />
+<div class="grid h-[calc(100vh-160px)] grid-cols-[320px_1fr] gap-0 overflow-hidden rounded-lg border border-border bg-surface-card">
+	<aside class="overflow-hidden border-r border-border">
+		<EntryList {entries} selectedId={selected?.id ?? null} onSelect={(id) => (selectedId = id)} />
+	</aside>
 
-	<section class="overflow-y-auto rounded-lg border border-border bg-surface-card p-6">
+	<section class="overflow-y-auto p-6">
 		{#if selected}
 			<header class="mb-4 flex items-baseline justify-between">
 				<div>

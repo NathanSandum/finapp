@@ -21,7 +21,9 @@
 </script>
 
 <div class="grid h-[calc(100vh-160px)] grid-cols-[320px_1fr] gap-4 overflow-hidden">
-	<EntryList {entries} selectedId={selected?.id ?? null} onSelect={(id) => (selectedId = id)} />
+	<aside class="overflow-hidden rounded-lg border border-border bg-surface-card">
+		<EntryList {entries} selectedId={selected?.id ?? null} onSelect={(id) => (selectedId = id)} />
+	</aside>
 
 	<section class="overflow-y-auto rounded-lg border border-border bg-surface-card p-6">
 		{#if selected}
