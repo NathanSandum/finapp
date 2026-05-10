@@ -174,6 +174,8 @@ fn insert_fixture_entries(
 ) -> Result<(), AppError> {
     let chequing = account_by_name(workspace_ref, "Chequing", conn)?;
     let savings = account_by_name(workspace_ref, "Savings", conn)?;
+    let tfsa = account_by_name(workspace_ref, "TFSA", conn)?;
+    let rrsp = account_by_name(workspace_ref, "RRSP", conn)?;
     let credit_card = account_by_name(workspace_ref, "Credit Card", conn)?;
     let employment = account_by_name(workspace_ref, "Employment", conn)?;
     let rent = account_by_name(workspace_ref, "Rent", conn)?;
@@ -182,108 +184,209 @@ fn insert_fixture_entries(
     let transit = account_by_name(workspace_ref, "Transit", conn)?;
     let utilities = account_by_name(workspace_ref, "Utilities", conn)?;
     let entertainment = account_by_name(workspace_ref, "Entertainment", conn)?;
+    let opening = account_by_name(workspace_ref, "Opening Balances", conn)?;
 
-    let entries: Vec<(&str, &str, Vec<PostingInput>)> = vec![
-        (
-            "2026-05-01",
-            "Salary — May",
-            vec![
-                PostingInput::new(chequing.clone(), 540000),
-                PostingInput::new(employment.clone(), -540000),
-            ],
-        ),
-        (
-            "2026-05-01",
-            "Rent — May",
-            vec![
-                PostingInput::new(rent.clone(), 180000),
-                PostingInput::new(chequing.clone(), -180000),
-            ],
-        ),
-        (
-            "2026-05-02",
-            "Whole Foods",
-            vec![
-                PostingInput::new(groceries.clone(), 8742).note("weekly shop"),
-                PostingInput::new(credit_card.clone(), -8742),
-            ],
-        ),
-        (
-            "2026-05-03",
-            "Subway pass",
-            vec![
-                PostingInput::new(transit.clone(), 13500),
-                PostingInput::new(chequing.clone(), -13500),
-            ],
-        ),
-        (
-            "2026-05-04",
-            "Coffee",
-            vec![
-                PostingInput::new(dining.clone(), 425),
-                PostingInput::new(credit_card.clone(), -425),
-            ],
-        ),
-        (
-            "2026-05-05",
-            "Hydro bill",
-            vec![
-                PostingInput::new(utilities.clone(), 7820),
-                PostingInput::new(chequing.clone(), -7820),
-            ],
-        ),
-        (
-            "2026-05-08",
-            "Movie night",
-            vec![
-                PostingInput::new(entertainment.clone(), 4400),
-                PostingInput::new(credit_card.clone(), -4400),
-            ],
-        ),
-        (
-            "2026-05-10",
-            "Trader Joe's",
-            vec![
-                PostingInput::new(groceries.clone(), 6235),
-                PostingInput::new(credit_card.clone(), -6235),
-            ],
-        ),
-        (
-            "2026-05-12",
-            "Transfer to savings",
-            vec![
-                PostingInput::new(savings.clone(), 50000),
-                PostingInput::new(chequing.clone(), -50000),
-            ],
-        ),
-        (
-            "2026-05-15",
-            "Credit card payment",
-            vec![
-                PostingInput::new(credit_card.clone(), 25000),
-                PostingInput::new(chequing.clone(), -25000),
-            ],
-        ),
-        (
-            "2026-05-18",
-            "Dinner — Trattoria",
-            vec![
-                PostingInput::new(dining.clone(), 9450),
-                PostingInput::new(credit_card.clone(), -9450),
-            ],
-        ),
-        (
-            "2026-05-22",
-            "Costco",
-            vec![
-                PostingInput::new(groceries.clone(), 14200),
-                PostingInput::new(credit_card.clone(), -14200),
-            ],
-        ),
+    let mut entries: Vec<(String, String, Vec<PostingInput>)> = Vec::new();
+
+    let opening_chequing: i32 = 500_000;
+    let opening_savings: i32 = 1_000_000;
+    let opening_tfsa: i32 = 2_000_000;
+    let opening_rrsp: i32 = 3_000_000;
+    let opening_credit_card: i32 = -120_000;
+    let opening_offset: i32 = -(opening_chequing
+        + opening_savings
+        + opening_tfsa
+        + opening_rrsp
+        + opening_credit_card);
+
+    entries.push((
+        "2025-04-30".to_string(),
+        "Opening balances".to_string(),
+        vec![
+            PostingInput::new(chequing.clone(), opening_chequing),
+            PostingInput::new(savings.clone(), opening_savings),
+            PostingInput::new(tfsa.clone(), opening_tfsa),
+            PostingInput::new(rrsp.clone(), opening_rrsp),
+            PostingInput::new(credit_card.clone(), opening_credit_card),
+            PostingInput::new(opening.clone(), opening_offset),
+        ],
+    ));
+
+    let months: [(i32, u32); 13] = [
+        (2025, 5),
+        (2025, 6),
+        (2025, 7),
+        (2025, 8),
+        (2025, 9),
+        (2025, 10),
+        (2025, 11),
+        (2025, 12),
+        (2026, 1),
+        (2026, 2),
+        (2026, 3),
+        (2026, 4),
+        (2026, 5),
     ];
 
+    for &(year, month) in months.iter() {
+        let raise = if year == 2026 { 20_000 } else { 0 };
+        let bonus = if year == 2025 && month == 12 { 150_000 } else { 0 };
+        let salary = 540_000 + raise + bonus;
+        entries.push((
+            format!("{year:04}-{month:02}-01"),
+            "Salary".to_string(),
+            vec![
+                PostingInput::new(chequing.clone(), salary),
+                PostingInput::new(employment.clone(), -salary),
+            ],
+        ));
+
+        entries.push((
+            format!("{year:04}-{month:02}-01"),
+            "Rent".to_string(),
+            vec![
+                PostingInput::new(rent.clone(), 180_000),
+                PostingInput::new(chequing.clone(), -180_000),
+            ],
+        ));
+
+        entries.push((
+            format!("{year:04}-{month:02}-03"),
+            "Transit pass".to_string(),
+            vec![
+                PostingInput::new(transit.clone(), 13_500),
+                PostingInput::new(chequing.clone(), -13_500),
+            ],
+        ));
+
+        let hydro = match month {
+            12 | 1 | 2 => 11_500,
+            3 | 11 => 9_200,
+            6 | 7 | 8 => 6_400,
+            _ => 7_800,
+        };
+        entries.push((
+            format!("{year:04}-{month:02}-05"),
+            "Hydro".to_string(),
+            vec![
+                PostingInput::new(utilities.clone(), hydro),
+                PostingInput::new(chequing.clone(), -hydro),
+            ],
+        ));
+
+        entries.push((
+            format!("{year:04}-{month:02}-12"),
+            "Internet & phone".to_string(),
+            vec![
+                PostingInput::new(utilities.clone(), 14_500),
+                PostingInput::new(chequing.clone(), -14_500),
+            ],
+        ));
+
+        let grocery_runs: [(u32, i32, &str); 4] = [
+            (7, 8_742, "Whole Foods"),
+            (14, 6_235, "Trader Joe's"),
+            (21, 14_200, "Costco"),
+            (27, 7_860, "Loblaws"),
+        ];
+        for (day, amount, vendor) in grocery_runs {
+            entries.push((
+                format!("{year:04}-{month:02}-{day:02}"),
+                vendor.to_string(),
+                vec![
+                    PostingInput::new(groceries.clone(), amount),
+                    PostingInput::new(credit_card.clone(), -amount),
+                ],
+            ));
+        }
+
+        let dining_runs: &[(u32, i32, &str)] = match month {
+            6 | 7 | 8 => &[
+                (8, 4_250, "Patio coffee"),
+                (16, 6_800, "Brunch"),
+                (22, 9_450, "Trattoria"),
+                (26, 5_200, "Sushi takeout"),
+            ],
+            _ => &[(8, 4_250, "Coffee"), (22, 9_450, "Trattoria")],
+        };
+        for &(day, amount, vendor) in dining_runs {
+            entries.push((
+                format!("{year:04}-{month:02}-{day:02}"),
+                vendor.to_string(),
+                vec![
+                    PostingInput::new(dining.clone(), amount),
+                    PostingInput::new(credit_card.clone(), -amount),
+                ],
+            ));
+        }
+
+        let entertainment_amount = if month % 3 == 0 { 9_800 } else { 4_400 };
+        let entertainment_label = if entertainment_amount > 5_000 {
+            "Concert"
+        } else {
+            "Movie night"
+        };
+        entries.push((
+            format!("{year:04}-{month:02}-19"),
+            entertainment_label.to_string(),
+            vec![
+                PostingInput::new(entertainment.clone(), entertainment_amount),
+                PostingInput::new(credit_card.clone(), -entertainment_amount),
+            ],
+        ));
+
+        entries.push((
+            format!("{year:04}-{month:02}-15"),
+            "Transfer to savings".to_string(),
+            vec![
+                PostingInput::new(savings.clone(), 50_000),
+                PostingInput::new(chequing.clone(), -50_000),
+            ],
+        ));
+        entries.push((
+            format!("{year:04}-{month:02}-15"),
+            "TFSA contribution".to_string(),
+            vec![
+                PostingInput::new(tfsa.clone(), 30_000),
+                PostingInput::new(chequing.clone(), -30_000),
+            ],
+        ));
+        entries.push((
+            format!("{year:04}-{month:02}-15"),
+            "RRSP contribution".to_string(),
+            vec![
+                PostingInput::new(rrsp.clone(), 40_000),
+                PostingInput::new(chequing.clone(), -40_000),
+            ],
+        ));
+
+        if year == 2025 && month == 12 {
+            entries.push((
+                format!("{year:04}-{month:02}-28"),
+                "Year-end RRSP top-up".to_string(),
+                vec![
+                    PostingInput::new(rrsp.clone(), 200_000),
+                    PostingInput::new(chequing.clone(), -200_000),
+                ],
+            ));
+        }
+
+        let cc_payment = match month {
+            6 | 7 | 8 => 50_000,
+            _ => 35_000,
+        };
+        entries.push((
+            format!("{year:04}-{month:02}-25"),
+            "Credit card payment".to_string(),
+            vec![
+                PostingInput::new(credit_card.clone(), cc_payment),
+                PostingInput::new(chequing.clone(), -cc_payment),
+            ],
+        ));
+    }
+
     for (date, description, postings) in entries {
-        NewEntry::new(workspace_ref.clone(), date, description, postings).insert(conn)?;
+        NewEntry::new(workspace_ref.clone(), &date, &description, postings).insert(conn)?;
     }
 
     Ok(())
@@ -386,7 +489,50 @@ mod tests {
             .count()
             .get_result(&mut conn)
             .unwrap();
-        assert!(count > 0, "fixture entries should be inserted");
+        assert!(count >= 100, "expected rich fixture set, got {count}");
+    }
+
+    #[test]
+    fn fixture_entries_span_at_least_twelve_months() {
+        use crate::schema::entries;
+        let db = populate_via_db(&dev_config());
+        let mut conn = db.get().unwrap();
+
+        let dates: Vec<String> = entries::table
+            .filter(entries::workspace_id.eq(DEV_WORKSPACE_ID))
+            .select(entries::date)
+            .load(&mut conn)
+            .unwrap();
+
+        let mut months = std::collections::BTreeSet::new();
+        for date in &dates {
+            months.insert(date[..7].to_string());
+        }
+        assert!(
+            months.len() >= 12,
+            "fixture should cover at least 12 distinct months, got {}: {:?}",
+            months.len(),
+            months
+        );
+    }
+
+    #[test]
+    fn fixture_entries_touch_investment_and_opening_accounts() {
+        use crate::schema::{accounts, entries, postings};
+        let db = populate_via_db(&dev_config());
+        let mut conn = db.get().unwrap();
+
+        for name in ["TFSA", "RRSP", "Opening Balances"] {
+            let count: i64 = postings::table
+                .inner_join(accounts::table.on(postings::account_id.eq(accounts::id)))
+                .inner_join(entries::table.on(postings::entry_id.eq(entries::id)))
+                .filter(entries::workspace_id.eq(DEV_WORKSPACE_ID))
+                .filter(accounts::name.eq(name))
+                .count()
+                .get_result(&mut conn)
+                .unwrap();
+            assert!(count > 0, "expected fixture postings touching '{name}'");
+        }
     }
 
     #[test]
