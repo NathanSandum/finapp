@@ -781,40 +781,58 @@ impl NewCustomAccount {
     }
 }
 
-fn insert_system(
-    workspace: &WorkspaceRef,
+// ── NewSystemAccount ─────────────────────────────────────────────────────────
+
+pub struct NewSystemAccount {
+    workspace: WorkspaceRef,
     system: SystemAccount,
-    parent_id: Option<&AccountRef>,
-    conn: &mut SqliteConnection,
-) -> Result<Account, AppError> {
-    let now = chrono::Utc::now().naive_utc();
-    let id = Uuid::new_v4().to_string();
-    let account_ref = AccountRef(id.clone());
+    parent_id: Option<AccountRef>,
+}
 
-    diesel::insert_into(accounts::table)
-        .values(NewAccountRow {
-            id,
-            workspace_id: workspace.clone(),
-            parent_id: parent_id.cloned(),
-            name: None,
-            account_type: system.as_str().to_string(),
-            currency: Currency::CAD.to_string(),
-            created_at: now,
-            updated_at: now,
-        })
-        .execute(conn)
-        .map_err(|err| match err {
-            DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
-                AppError::Conflict(format!(
-                    "system account {:?} already exists in this workspace",
-                    system
-                ))
-            }
-            other => AppError::Internal(format!("system insert failed: {other}")),
-        })?;
+impl NewSystemAccount {
+    pub fn new(workspace: &WorkspaceRef, system: SystemAccount) -> Self {
+        Self {
+            workspace: workspace.clone(),
+            system,
+            parent_id: None,
+        }
+    }
 
-    Account::from_ref(&account_ref, conn)?
-        .ok_or_else(|| AppError::Internal("system account disappeared after insert".into()))
+    pub fn parent(mut self, parent: &Account) -> Self {
+        self.parent_id = Some(parent.id.clone());
+        self
+    }
+
+    pub fn insert(self, conn: &mut SqliteConnection) -> Result<Account, AppError> {
+        let now = chrono::Utc::now().naive_utc();
+        let id = Uuid::new_v4().to_string();
+        let account_ref = AccountRef(id.clone());
+
+        diesel::insert_into(accounts::table)
+            .values(NewAccountRow {
+                id,
+                workspace_id: self.workspace,
+                parent_id: self.parent_id,
+                name: None,
+                account_type: self.system.as_str().to_string(),
+                currency: Currency::CAD.to_string(),
+                created_at: now,
+                updated_at: now,
+            })
+            .execute(conn)
+            .map_err(|err| match err {
+                DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
+                    AppError::Conflict(format!(
+                        "system account {:?} already exists in this workspace",
+                        self.system
+                    ))
+                }
+                other => AppError::Internal(format!("system insert failed: {other}")),
+            })?;
+
+        Account::from_ref(&account_ref, conn)?
+            .ok_or_else(|| AppError::Internal("system account disappeared after insert".into()))
+    }
 }
 
 // ── Default Account Tree ─────────────────────────────────────────────────────
@@ -823,36 +841,25 @@ pub fn create_default_tree(
     workspace: &WorkspaceRef,
     conn: &mut SqliteConnection,
 ) -> Result<(), AppError> {
-    let assets = insert_system(workspace, SystemAccount::AssetsRoot, None, conn)?;
-    let liabilities = insert_system(workspace, SystemAccount::LiabilitiesRoot, None, conn)?;
-    let equity = insert_system(workspace, SystemAccount::EquityRoot, None, conn)?;
-    let revenue = insert_system(workspace, SystemAccount::RevenueRoot, None, conn)?;
-    let expenses = insert_system(workspace, SystemAccount::ExpensesRoot, None, conn)?;
+    let assets = NewSystemAccount::new(workspace, SystemAccount::AssetsRoot).insert(conn)?;
+    let liabilities =
+        NewSystemAccount::new(workspace, SystemAccount::LiabilitiesRoot).insert(conn)?;
+    let equity = NewSystemAccount::new(workspace, SystemAccount::EquityRoot).insert(conn)?;
+    let revenue = NewSystemAccount::new(workspace, SystemAccount::RevenueRoot).insert(conn)?;
+    let expenses = NewSystemAccount::new(workspace, SystemAccount::ExpensesRoot).insert(conn)?;
 
-    insert_system(
-        workspace,
-        SystemAccount::Chequing,
-        Some(&assets.id),
-        conn,
-    )?;
-    insert_system(
-        workspace,
-        SystemAccount::Savings,
-        Some(&assets.id),
-        conn,
-    )?;
-    insert_system(
-        workspace,
-        SystemAccount::RetainedEarnings,
-        Some(&equity.id),
-        conn,
-    )?;
-    insert_system(
-        workspace,
-        SystemAccount::OpeningBalances,
-        Some(&equity.id),
-        conn,
-    )?;
+    NewSystemAccount::new(workspace, SystemAccount::Chequing)
+        .parent(&assets)
+        .insert(conn)?;
+    NewSystemAccount::new(workspace, SystemAccount::Savings)
+        .parent(&assets)
+        .insert(conn)?;
+    NewSystemAccount::new(workspace, SystemAccount::RetainedEarnings)
+        .parent(&equity)
+        .insert(conn)?;
+    NewSystemAccount::new(workspace, SystemAccount::OpeningBalances)
+        .parent(&equity)
+        .insert(conn)?;
 
     NewCustomAccount::child(&assets, "TFSA").insert(conn)?;
     NewCustomAccount::child(&assets, "RRSP").insert(conn)?;
@@ -958,14 +965,11 @@ mod tests {
     #[test]
     fn duplicate_system_account_rejected() {
         let (mut conn, workspace) = setup();
-        let assets_id = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn).id;
-        let err = insert_system(
-            workspace.as_ref(),
-            SystemAccount::Chequing,
-            Some(&assets_id),
-            &mut conn,
-        )
-        .expect_err("duplicate system insert should fail");
+        let assets = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn);
+        let err = NewSystemAccount::new(workspace.as_ref(), SystemAccount::Chequing)
+            .parent(&assets)
+            .insert(&mut conn)
+            .expect_err("duplicate system insert should fail");
         assert!(matches!(err, AppError::Conflict(_)));
     }
 
