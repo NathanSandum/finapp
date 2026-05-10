@@ -82,3 +82,8 @@
 
 	--color-trend-zero: oklch(86.5% 0 0);
 }
+
+body {
+	font-family: var(--font-body);
+}
+

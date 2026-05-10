@@ -22,20 +22,20 @@
 </script>
 
 <div class="grid h-[calc(100vh-160px)] grid-cols-[320px_1fr] gap-4 overflow-hidden">
-	<aside class="overflow-y-auto rounded-lg border border-neutral-200 bg-white">
-		<ul class="divide-y divide-neutral-100">
+	<aside class="overflow-y-auto rounded-lg border border-border bg-surface-card">
+		<ul class="divide-y divide-border-faint">
 			{#each entries as entry (entry.id)}
 				<li>
 					<button
 						type="button"
 						onclick={() => (selectedId = entry.id)}
 						class="flex w-full flex-col items-start gap-0.5 px-4 py-3 text-left transition-colors {selected?.id === entry.id
-							? 'bg-neutral-900 text-white'
-							: 'hover:bg-neutral-50'}"
+							? 'bg-surface-inverse text-ink-inverse'
+							: 'hover:bg-surface-hover-faint'}"
 					>
 						<span class="flex w-full items-baseline justify-between">
-							<span class="font-mono text-xs {selected?.id === entry.id ? 'text-neutral-300' : 'text-neutral-500'}">{entry.date}</span>
-							<span class="font-mono text-xs tabular-nums {selected?.id === entry.id ? 'text-white' : 'text-neutral-700'}">
+							<span class="font-mono text-xs {selected?.id === entry.id ? 'text-ink-inverse-muted' : 'text-ink-muted'}">{entry.date}</span>
+							<span class="font-mono text-xs tabular-nums {selected?.id === entry.id ? 'text-ink-inverse' : 'text-ink-body'}">
 								{formatAmount(entryAmount(entry))}
 							</span>
 						</span>
@@ -46,30 +46,30 @@
 		</ul>
 	</aside>
 
-	<section class="overflow-y-auto rounded-lg border border-neutral-200 bg-white p-6">
+	<section class="overflow-y-auto rounded-lg border border-border bg-surface-card p-6">
 		{#if selected}
 			<header class="mb-4 flex items-baseline justify-between">
 				<div>
-					<h3 class="text-lg font-semibold text-neutral-900">{selected.description}</h3>
-					<p class="font-mono text-xs text-neutral-500">{selected.date} · {selected.id}</p>
+					<h3 class="text-lg font-semibold text-ink">{selected.description}</h3>
+					<p class="font-mono text-xs text-ink-muted">{selected.date} · {selected.id}</p>
 				</div>
-				<span class="font-mono text-xl tabular-nums text-neutral-900">{formatAmount(entryAmount(selected))}</span>
+				<span class="font-mono text-xl tabular-nums text-ink">{formatAmount(entryAmount(selected))}</span>
 			</header>
 
 			<table class="w-full text-sm">
-				<thead class="text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
+				<thead class="text-left text-xs font-medium uppercase tracking-wide text-ink-muted">
 					<tr>
 						<th class="py-2 pr-4">Account</th>
 						<th class="py-2 pr-4">Note</th>
 						<th class="py-2 text-right">Amount</th>
 					</tr>
 				</thead>
-				<tbody class="divide-y divide-neutral-100">
+				<tbody class="divide-y divide-border-faint">
 					{#each selected.postings as posting (posting.id)}
 						<tr>
-							<td class="py-2 pr-4 text-neutral-700">{accountLabel(posting.account_id)}</td>
-							<td class="py-2 pr-4 text-neutral-500">{posting.note}</td>
-							<td class="py-2 text-right font-mono tabular-nums {posting.amount < 0 ? 'text-rose-600' : 'text-emerald-700'}">
+							<td class="py-2 pr-4 text-ink-body">{accountLabel(posting.account_id)}</td>
+							<td class="py-2 pr-4 text-ink-muted">{posting.note}</td>
+							<td class="py-2 text-right font-mono tabular-nums {posting.amount < 0 ? 'text-negative-strong' : 'text-positive'}">
 								{formatAmount(posting.amount)}
 							</td>
 						</tr>

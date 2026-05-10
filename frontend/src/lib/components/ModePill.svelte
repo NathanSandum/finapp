@@ -19,13 +19,13 @@
 </script>
 
 <div class="flex justify-center">
-	<div class="flex gap-1 rounded-full bg-neutral-100 p-1 text-xs">
+	<div class="flex gap-1 rounded-full bg-surface-sunken p-1 text-xs">
 		{#each items as item}
 			<button
 				onclick={() => onSelect(item.id)}
 				class="flex items-center gap-1.5 rounded-full px-4 py-1.5 {mode === item.id
-					? 'bg-white font-semibold shadow-sm'
-					: 'text-neutral-500'}"
+					? 'bg-surface-card font-semibold shadow-sm'
+					: 'text-ink-muted'}"
 			>
 				<span aria-hidden="true" class="font-mono text-[10px]">{item.glyph}</span>{item.label}
 			</button>

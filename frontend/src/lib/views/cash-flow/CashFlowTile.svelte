@@ -21,17 +21,17 @@
 
 	const bg = $derived(
 		accent === 'emerald'
-			? 'bg-emerald-50/50'
+			? 'bg-positive-tint'
 			: accent === 'sky'
-				? 'bg-sky-50/50'
-				: 'bg-amber-50/50'
+				? 'bg-investing-tint'
+				: 'bg-financing-tint'
 	);
 	const accentText = $derived(
 		accent === 'emerald'
-			? 'text-emerald-700'
+			? 'text-positive'
 			: accent === 'sky'
-				? 'text-sky-700'
-				: 'text-amber-700'
+				? 'text-investing'
+				: 'text-financing'
 	);
 	const verb = $derived(total >= 0 ? 'From' : 'To');
 	const priorVerb = $derived(prior >= 0 ? verbPositive : verbNegative);
@@ -41,10 +41,10 @@
 	<p class="text-[10px] font-medium uppercase tracking-wide {accentText}">
 		<span class="font-bold">{verb}</span> {noun}
 	</p>
-	<p class="mt-1 font-mono text-2xl font-semibold tabular-nums text-neutral-900">
+	<p class="mt-1 font-mono text-2xl font-semibold tabular-nums text-ink">
 		{fmt(Math.abs(total))}
 	</p>
-	<p class="mt-0.5 font-mono text-[10px] tabular-nums text-neutral-500">
+	<p class="mt-0.5 font-mono text-[10px] tabular-nums text-ink-muted">
 		vs {priorShortLabel}: {priorVerb} {fmt(Math.abs(prior))}
 	</p>
 </div>
