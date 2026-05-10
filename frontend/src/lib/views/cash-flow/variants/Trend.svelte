@@ -17,12 +17,32 @@
 		title: string;
 		values: number[];
 		stroke: string;
+		verbPositive: string;
+		verbNegative: string;
 	};
 
 	const cards = $derived<Card[]>([
-		{ title: 'Income', values: operatingTrail, stroke: 'rgb(16 185 129)' },
-		{ title: 'Investing', values: investingTrail, stroke: 'rgb(14 165 233)' },
-		{ title: 'Financing', values: financingTrail, stroke: 'rgb(245 158 11)' }
+		{
+			title: 'Income',
+			values: operatingTrail,
+			stroke: 'rgb(16 185 129)',
+			verbPositive: 'Earned',
+			verbNegative: 'Spent'
+		},
+		{
+			title: 'Investing',
+			values: investingTrail,
+			stroke: 'rgb(14 165 233)',
+			verbPositive: 'Withdrew',
+			verbNegative: 'Contributed'
+		},
+		{
+			title: 'Financing',
+			values: financingTrail,
+			stroke: 'rgb(245 158 11)',
+			verbPositive: 'Borrowed',
+			verbNegative: 'Repaid'
+		}
 	]);
 
 	function plot(values: number[], width: number, height: number) {
@@ -39,7 +59,7 @@
 </script>
 
 <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-	{#each cards as { title, values, stroke }}
+	{#each cards as { title, values, stroke, verbPositive, verbNegative }}
 		{@const latest = values[values.length - 1] ?? 0}
 		{@const sl = plot(values, 240, 40)}
 		<div class="rounded-xl border border-neutral-200 bg-white p-3">
@@ -47,7 +67,7 @@
 				<span class="text-xs font-medium text-neutral-700">{title}</span>
 				<span class="font-mono text-sm font-semibold tabular-nums text-neutral-900">
 					<span class="text-[10px] font-bold text-neutral-500">
-						{latest >= 0 ? 'From' : 'To'}
+						{latest >= 0 ? verbPositive : verbNegative}
 					</span>
 					{fmt(Math.abs(latest))}
 				</span>
