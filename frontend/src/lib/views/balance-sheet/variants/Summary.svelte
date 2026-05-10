@@ -1,6 +1,6 @@
 <script lang="ts">
+	import CompositionSection from '$lib/components/CompositionSection.svelte';
 	import type { Line } from '../compute';
-	import CompositionSection from './CompositionSection.svelte';
 
 	let {
 		assets,

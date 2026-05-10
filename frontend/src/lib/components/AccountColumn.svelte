@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { fmt, pct } from '../../income/lib';
-	import type { Line } from '../compute';
+	import { fmt, pct } from '$lib/views/income/lib';
+
+	type Line = { name: string; amount: number };
 
 	let {
 		title,

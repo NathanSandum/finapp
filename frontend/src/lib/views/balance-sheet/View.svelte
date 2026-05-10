@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import MetricTile from '$lib/components/MetricTile.svelte';
+	import ModePill, { type Mode } from '$lib/components/ModePill.svelte';
 	import NetHero from '$lib/components/NetHero.svelte';
 	import PeriodHeader from '$lib/components/PeriodHeader.svelte';
 	import { delta } from '../income/lib';
@@ -14,8 +16,6 @@
 		type Granularity
 	} from './compute';
 	import type { BalanceSheetRaw } from './loader';
-	import ModePill, { type Mode } from './ModePill.svelte';
-	import Tiles from './Tiles.svelte';
 	import Detail from './variants/Detail.svelte';
 	import Summary from './variants/Summary.svelte';
 	import Trend from './variants/Trend.svelte';
@@ -94,13 +94,24 @@
 		badgeSuffix={delta(netWorth, priorNet)}
 	/>
 
-	<Tiles
-		{totalAssets}
-		{priorAssets}
-		{totalLiab}
-		{priorLiab}
-		priorShortLabel={bs.prior_short_label}
-	/>
+	<div class="grid grid-cols-2 gap-3">
+		<MetricTile
+			label="Assets"
+			total={totalAssets}
+			prior={priorAssets}
+			priorShortLabel={bs.prior_short_label}
+			accent="emerald"
+			direction="higher"
+		/>
+		<MetricTile
+			label="Liabilities"
+			total={totalLiab}
+			prior={priorLiab}
+			priorShortLabel={bs.prior_short_label}
+			accent="rose"
+			direction="lower"
+		/>
+	</div>
 
 	<ModePill {mode} onSelect={(next) => (mode = next)} />
 
