@@ -2,6 +2,7 @@ import type { Account, Entry } from '../entries/loader';
 import {
 	asOfDate,
 	defaultTrailCount,
+	latestActivityPeriod,
 	periodBounds,
 	periodLabel,
 	priorPeriod,
@@ -13,7 +14,7 @@ import {
 	type Granularity
 } from '../period';
 
-export { defaultTrailCount, priorPeriod, shiftPeriod, snapToGranularity };
+export { defaultTrailCount, latestActivityPeriod, priorPeriod, shiftPeriod, snapToGranularity };
 export type { Granularity };
 
 export type CashFlowLine = { name: string; amount: number };
@@ -212,19 +213,6 @@ export function computeSectionTrails(
 		labels.push(trailLabel(period.year, period.month, granularity));
 	}
 	return { operating, investing, financing, labels };
-}
-
-export function latestActivityPeriod(entries: Entry[]): { year: number; month: number } {
-	let latest: string | null = null;
-	for (const entry of entries) {
-		if (latest === null || entry.date > latest) latest = entry.date;
-	}
-	if (latest) {
-		const [y, m] = latest.split('-');
-		return { year: Number(y), month: Number(m) };
-	}
-	const now = new Date();
-	return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
 }
 
 export { asOfDate };

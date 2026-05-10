@@ -1,7 +1,7 @@
 import { apiFetch, DEV_WORKSPACE } from '$lib/api/client';
 import type { JSend } from '$lib/tabs/types';
 
-export type Posting = {
+type Posting = {
 	id: string;
 	account_id: string;
 	amount: number;
@@ -46,6 +46,10 @@ export async function load(): Promise<JSend<EntriesData>> {
 		status: 'success',
 		data: { entries: entriesResult.data.entries, accountNames }
 	};
+}
+
+export function entryAmount(entry: Entry): number {
+	return entry.postings.filter((p) => p.amount > 0).reduce((sum, p) => sum + p.amount, 0);
 }
 
 export function formatAmount(cents: number): string {
