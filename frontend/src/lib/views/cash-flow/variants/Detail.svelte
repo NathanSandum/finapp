@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { fmt } from '../../income/lib';
+	import RankedRows, { type RankedRow } from '$lib/components/RankedRows.svelte';
+	import { fmt } from '$lib/views/income/lib';
 	import type { CashFlowSection } from '../compute';
 
 	let {
@@ -15,6 +16,8 @@
 	type SectionView = {
 		title: string;
 		section: CashFlowSection;
+		dot: string;
+		bar: string;
 		accentText: string;
 		verbPositive: string;
 		verbNegative: string;
@@ -24,6 +27,8 @@
 		{
 			title: 'Income',
 			section: operating,
+			dot: 'bg-positive',
+			bar: 'bg-positive-line',
 			accentText: 'text-positive',
 			verbPositive: 'Earned',
 			verbNegative: 'Spent'
@@ -31,6 +36,8 @@
 		{
 			title: 'Investing',
 			section: investing,
+			dot: 'bg-investing',
+			bar: 'bg-investing-line',
 			accentText: 'text-investing',
 			verbPositive: 'Withdrew',
 			verbNegative: 'Contributed'
@@ -38,41 +45,37 @@
 		{
 			title: 'Financing',
 			section: financing,
+			dot: 'bg-financing',
+			bar: 'bg-financing-line',
 			accentText: 'text-financing',
 			verbPositive: 'Borrowed',
 			verbNegative: 'Repaid'
 		}
 	]);
+
+	const signPrefix = { positive: 'From', negative: 'To' };
+
+	function buildRows(section: CashFlowSection, dot: string, bar: string): RankedRow[] {
+		return section.lines.map((l) => ({ name: l.name, amount: l.amount, dot, bar }));
+	}
 </script>
 
-<div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-	{#each sections as { title, section, accentText, verbPositive, verbNegative }}
-		<div class="rounded-xl border border-border bg-surface-card p-4">
-			<div class="mb-2 flex items-baseline justify-between">
-				<h4 class="text-xs font-semibold uppercase tracking-wide {accentText}">{title}</h4>
-				<span class="font-mono text-base font-semibold tabular-nums text-ink">
-					<span class="text-xs font-bold text-ink-muted">
+<div class="space-y-4">
+	{#each sections as { title, section, dot, bar, accentText, verbPositive, verbNegative }}
+		<div>
+			<div class="flex h-8 items-center justify-between border-b border-border">
+				<p class="text-[9px] font-semibold uppercase tracking-[0.1em] {accentText}">{title}</p>
+				<p class="font-mono text-sm font-semibold tabular-nums text-ink">
+					<span class="text-[9px] font-semibold uppercase text-ink-muted">
 						{section.total >= 0 ? verbPositive : verbNegative}
 					</span>
 					{fmt(Math.abs(section.total))}
-				</span>
+				</p>
 			</div>
 			{#if section.lines.length === 0}
-				<p class="font-mono text-[11px] text-ink-faint">No activity</p>
+				<p class="py-1.5 font-mono text-[10px] text-ink-faint">No activity</p>
 			{:else}
-				<ul class="space-y-1.5">
-					{#each section.lines as line}
-						<li class="flex items-baseline justify-between text-xs">
-							<span class="text-ink-body">
-								<span class="text-ink-faint">{line.amount >= 0 ? 'From' : 'To'}</span>
-								{line.name}
-							</span>
-							<span class="font-mono tabular-nums text-ink">
-								{fmt(Math.abs(line.amount))}
-							</span>
-						</li>
-					{/each}
-				</ul>
+				<RankedRows rows={buildRows(section, dot, bar)} {signPrefix} />
 			{/if}
 		</div>
 	{/each}

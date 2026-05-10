@@ -1,5 +1,5 @@
 <script lang="ts">
-	import AccountColumn from '$lib/components/AccountColumn.svelte';
+	import RankedFlow from '$lib/components/RankedFlow.svelte';
 	import type { Line } from '../compute';
 
 	let {
@@ -19,25 +19,16 @@
 		priorLiab: number;
 		priorShortLabel: string;
 	} = $props();
+
+	const net = $derived(totalAssets - totalLiab);
+	const priorNet = $derived(priorAssets - priorLiab);
 </script>
 
-<div class="grid grid-cols-2 gap-3">
-	<AccountColumn
-		title="Assets"
-		lines={assets}
-		total={totalAssets}
-		prior={priorAssets}
-		{priorShortLabel}
-		accent="emerald"
-		direction="higher"
-	/>
-	<AccountColumn
-		title="Liabilities"
-		lines={liabilities}
-		total={totalLiab}
-		prior={priorLiab}
-		{priorShortLabel}
-		accent="rose"
-		direction="lower"
-	/>
-</div>
+<RankedFlow
+	positive={assets}
+	negative={liabilities}
+	{net}
+	{priorNet}
+	{priorShortLabel}
+	netLabel="Net Worth"
+/>

@@ -4,6 +4,7 @@ import {
 	asOfLabel,
 	defaultTrailCount,
 	priorPeriod,
+	priorPeriodList,
 	priorShortLabel,
 	shiftPeriod,
 	snapToGranularity,
@@ -110,16 +111,7 @@ export function computeNetWorthTrail(
 	count: number
 ): { values: number[]; labels: string[] } {
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
-	const periods: { year: number; month: number }[] = [];
-	let y = year;
-	let m = month;
-	for (let i = 0; i < count; i++) {
-		periods.push({ year: y, month: m });
-		const p = priorPeriod(y, m, granularity);
-		y = p.year;
-		m = p.month;
-	}
-	periods.reverse();
+	const periods = priorPeriodList(year, month, granularity, count);
 
 	const values: number[] = [];
 	const labels: string[] = [];
@@ -142,26 +134,19 @@ export function computeNetWorthTrail(
 	return { values, labels };
 }
 
-export function computeAssetTrails(
+function computeBalanceTrails(
 	entries: Entry[],
 	accounts: Account[],
 	year: number,
 	month: number,
 	granularity: Granularity,
-	count: number
+	count: number,
+	type: 'asset' | 'liability'
 ): { trails: Map<string, number[]>; labels: string[] } {
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
-	const periods: { year: number; month: number }[] = [];
-	let y = year;
-	let m = month;
-	for (let i = 0; i < count; i++) {
-		periods.push({ year: y, month: m });
-		const p = priorPeriod(y, m, granularity);
-		y = p.year;
-		m = p.month;
-	}
-	periods.reverse();
+	const periods = priorPeriodList(year, month, granularity, count);
 
+	const sign = type === 'asset' ? 1 : -1;
 	const trails = new Map<string, number[]>();
 	const labels: string[] = [];
 	for (let pi = 0; pi < periods.length; pi++) {
@@ -172,8 +157,8 @@ export function computeAssetTrails(
 			if (entry.date > asOf) continue;
 			for (const posting of entry.postings) {
 				const bucket = bucketFor(posting.account_id, accountIndex);
-				if (!bucket || bucket.account_type !== 'asset') continue;
-				periodSums.set(bucket.name, (periodSums.get(bucket.name) ?? 0) + posting.amount);
+				if (!bucket || bucket.account_type !== type) continue;
+				periodSums.set(bucket.name, (periodSums.get(bucket.name) ?? 0) + sign * posting.amount);
 			}
 		}
 		for (const [name, sum] of periodSums) {
@@ -187,6 +172,28 @@ export function computeAssetTrails(
 		labels.push(trailLabel(period.year, period.month, granularity));
 	}
 	return { trails, labels };
+}
+
+export function computeAssetTrails(
+	entries: Entry[],
+	accounts: Account[],
+	year: number,
+	month: number,
+	granularity: Granularity,
+	count: number
+): { trails: Map<string, number[]>; labels: string[] } {
+	return computeBalanceTrails(entries, accounts, year, month, granularity, count, 'asset');
+}
+
+export function computeLiabilityTrails(
+	entries: Entry[],
+	accounts: Account[],
+	year: number,
+	month: number,
+	granularity: Granularity,
+	count: number
+): { trails: Map<string, number[]>; labels: string[] } {
+	return computeBalanceTrails(entries, accounts, year, month, granularity, count, 'liability');
 }
 
 export function latestActivityPeriod(
