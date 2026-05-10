@@ -27,5 +27,10 @@ export const cache = {
 	invalidate(key: string) {
 		delete store[key];
 		inFlight.delete(key);
+	},
+
+	invalidateAll() {
+		for (const key of Object.keys(store)) delete store[key];
+		inFlight.clear();
 	}
 };
