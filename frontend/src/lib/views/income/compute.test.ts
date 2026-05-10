@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	computeIncomeData,
+	computeIncomeTrails,
 	computeNetTrail,
 	latestActivityMonth,
 	priorPeriod,
@@ -136,6 +137,29 @@ describe('computeNetTrail', () => {
 		expect(result.labels).toEqual([`'25`, `'26`]);
 		expect(result.values[0]).toBe(460000);
 		expect(result.values[1]).toBe(980000 - 201000);
+	});
+});
+
+describe('computeIncomeTrails', () => {
+	it('returns per-bucket revenue and expense trails aligned with labels (month)', () => {
+		const result = computeIncomeTrails(entries, accounts, 2026, 4, 'month', 3);
+		expect(result.labels).toEqual(['Feb', 'Mar', 'Apr']);
+		expect(result.revenueTrails.get('Employment')).toEqual([0, 480000, 500000]);
+		expect(result.expenseTrails.get('Food')).toEqual([0, 9000, 12000]);
+		expect(result.expenseTrails.get('Rent')).toEqual([0, 0, 180000]);
+	});
+
+	it('omits asset/liability buckets', () => {
+		const result = computeIncomeTrails(entries, accounts, 2026, 4, 'month', 3);
+		expect(result.revenueTrails.has('Chequing')).toBe(false);
+		expect(result.expenseTrails.has('Chequing')).toBe(false);
+	});
+
+	it('aggregates within quarterly buckets', () => {
+		const result = computeIncomeTrails(entries, accounts, 2026, 4, 'quarter', 2);
+		expect(result.labels).toEqual(['Q1', 'Q2']);
+		expect(result.revenueTrails.get('Employment')).toEqual([480000, 500000]);
+		expect(result.expenseTrails.get('Food')).toEqual([9000, 12000]);
 	});
 });
 
