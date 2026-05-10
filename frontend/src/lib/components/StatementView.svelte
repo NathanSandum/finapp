@@ -31,6 +31,30 @@
 	} = $props();
 
 	let mode = $state<Mode>('summary');
+
+	let scrollEl: HTMLDivElement | undefined;
+	let atTop = $state(true);
+	let atBottom = $state(true);
+
+	function recompute() {
+		if (!scrollEl) return;
+		atTop = scrollEl.scrollTop <= 0;
+		atBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 1;
+	}
+
+	$effect(() => {
+		if (!scrollEl) return;
+		recompute();
+		const ro = new ResizeObserver(recompute);
+		ro.observe(scrollEl);
+		for (const child of scrollEl.children) ro.observe(child);
+		return () => ro.disconnect();
+	});
+
+	$effect(() => {
+		void mode;
+		queueMicrotask(recompute);
+	});
 </script>
 
 <div class="flex h-full flex-col gap-3 overflow-hidden">
@@ -41,31 +65,31 @@
 
 	<ModePill {mode} onSelect={(next) => (mode = next)} />
 
-	<div class="scroll-shadow min-h-0 flex-1 overflow-y-auto">
-		{#if mode === 'summary'}
-			{@render summary()}
-		{:else if mode === 'detail'}
-			{@render detail()}
-		{:else}
-			{@render trend()}
-		{/if}
+	<div class="relative min-h-0 flex-1">
+		<div
+			bind:this={scrollEl}
+			onscroll={recompute}
+			class="h-full overflow-y-auto"
+		>
+			{#if mode === 'summary'}
+				{@render summary()}
+			{:else if mode === 'detail'}
+				{@render detail()}
+			{:else}
+				{@render trend()}
+			{/if}
+		</div>
+		<div
+			aria-hidden="true"
+			class="pointer-events-none absolute inset-x-0 top-0 z-10 h-4 bg-gradient-to-b from-black/12 to-transparent transition-opacity duration-150 {atTop
+				? 'opacity-0'
+				: 'opacity-100'}"
+		></div>
+		<div
+			aria-hidden="true"
+			class="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-4 bg-gradient-to-t from-black/12 to-transparent transition-opacity duration-150 {atBottom
+				? 'opacity-0'
+				: 'opacity-100'}"
+		></div>
 	</div>
 </div>
-
-<style>
-	.scroll-shadow {
-		background:
-			linear-gradient(white 30%, rgba(255, 255, 255, 0)),
-			linear-gradient(rgba(255, 255, 255, 0), white 70%) 0 100%,
-			radial-gradient(farthest-side at 50% 0, rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0)),
-			radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0)) 0 100%;
-		background-color: white;
-		background-repeat: no-repeat;
-		background-size:
-			100% 32px,
-			100% 32px,
-			100% 12px,
-			100% 12px;
-		background-attachment: local, local, scroll, scroll;
-	}
-</style>
