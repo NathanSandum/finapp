@@ -3,13 +3,8 @@
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import TabPanel from '$lib/components/TabPanel.svelte';
 	import { tabs } from '$lib/tabs/registry';
-	import { page } from '$app/state';
 
-	const initialTab = (() => {
-		const id = page.url.searchParams.get('tab');
-		return tabs.find((t) => t.id === id) ?? tabs[0];
-	})();
-	let current = $state(initialTab);
+	let current = $state(tabs[0]);
 </script>
 
 <AppShell>
