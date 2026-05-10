@@ -14,8 +14,8 @@
 		totalLiab: number;
 	} = $props();
 
-	const assetPalette = ['bg-emerald-500', 'bg-emerald-400', 'bg-emerald-300', 'bg-emerald-200'];
-	const liabPalette = ['bg-rose-500', 'bg-rose-400', 'bg-rose-300'];
+	const assetPalette = ['bg-positive-bar-1', 'bg-positive-bar-2', 'bg-positive-bar-3', 'bg-positive-bar-4'];
+	const liabPalette = ['bg-negative-bar-1', 'bg-negative-bar-2', 'bg-negative-bar-3'];
 </script>
 
 <div class="space-y-4">

@@ -10,8 +10,8 @@
 	} = $props();
 </script>
 
-<div class="grid h-screen w-screen grid-cols-[240px_1fr] bg-white text-neutral-900">
-	<aside class="col-start-1 flex flex-col overflow-y-auto bg-neutral-900 p-3 text-neutral-200">
+<div class="grid h-screen w-screen grid-cols-[240px_1fr] bg-surface-card text-ink">
+	<aside class="col-start-1 flex flex-col overflow-y-auto bg-surface-inverse p-3 text-ink-inverse-body">
 		{@render sidebar()}
 	</aside>
 	<main class="col-start-2 overflow-y-auto">

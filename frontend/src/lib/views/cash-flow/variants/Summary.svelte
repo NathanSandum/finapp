@@ -28,21 +28,21 @@
 		{
 			label: 'Income',
 			total: operating.total,
-			bar: 'bg-emerald-400',
+			bar: 'bg-positive-bar-2',
 			verbPositive: 'Earned',
 			verbNegative: 'Spent'
 		},
 		{
 			label: 'Investing',
 			total: investing.total,
-			bar: 'bg-sky-400',
+			bar: 'bg-investing-line',
 			verbPositive: 'Withdrew',
 			verbNegative: 'Contributed'
 		},
 		{
 			label: 'Financing',
 			total: financing.total,
-			bar: 'bg-amber-400',
+			bar: 'bg-financing-line',
 			verbPositive: 'Borrowed',
 			verbNegative: 'Repaid'
 		}
@@ -55,10 +55,10 @@
 </script>
 
 <div class="space-y-4">
-	<div class="rounded-xl border border-neutral-200 bg-white p-4">
+	<div class="rounded-xl border border-border bg-surface-card p-4">
 		<div class="mb-3 flex items-baseline justify-between">
-			<h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-500">By section</h4>
-			<span class="font-mono text-[10px] text-neutral-400">cash out / in</span>
+			<h4 class="text-xs font-semibold uppercase tracking-wide text-ink-muted">By section</h4>
+			<span class="font-mono text-[10px] text-ink-faint">cash out / in</span>
 		</div>
 		<ul class="space-y-2.5">
 			{#each rows as row}
@@ -66,9 +66,9 @@
 				{@const positive = row.total >= 0}
 				<li>
 					<div class="flex items-baseline justify-between text-xs">
-						<span class="text-neutral-700">{row.label}</span>
-						<span class="font-mono tabular-nums text-neutral-900">
-							<span class="font-bold text-neutral-500">
+						<span class="text-ink-body">{row.label}</span>
+						<span class="font-mono tabular-nums text-ink">
+							<span class="font-bold text-ink-muted">
 								{positive ? row.verbPositive : row.verbNegative}
 							</span>
 							{fmt(Math.abs(row.total))}
@@ -83,7 +83,7 @@
 								></div>
 							{/if}
 						</div>
-						<div class="h-full w-px bg-neutral-300"></div>
+						<div class="h-full w-px bg-trend-zero"></div>
 						<div class="h-full w-1/2 overflow-hidden">
 							{#if positive}
 								<div
@@ -98,28 +98,28 @@
 		</ul>
 	</div>
 
-	<div class="rounded-xl border border-neutral-200 bg-white p-4">
-		<h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+	<div class="rounded-xl border border-border bg-surface-card p-4">
+		<h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
 			Reconciliation
 		</h4>
 		<div class="grid grid-cols-3 gap-3 text-center">
 			<div>
-				<p class="text-[10px] uppercase tracking-wide text-neutral-500">Opening</p>
-				<p class="mt-0.5 font-mono text-sm tabular-nums text-neutral-700">{fmt(openingCash)}</p>
+				<p class="text-[10px] uppercase tracking-wide text-ink-muted">Opening</p>
+				<p class="mt-0.5 font-mono text-sm tabular-nums text-ink-body">{fmt(openingCash)}</p>
 			</div>
 			<div>
-				<p class="text-[10px] uppercase tracking-wide text-neutral-500">Net Δ</p>
+				<p class="text-[10px] uppercase tracking-wide text-ink-muted">Net Δ</p>
 				<p
 					class="mt-0.5 font-mono text-sm font-semibold tabular-nums {netChange >= 0
-						? 'text-emerald-700'
-						: 'text-rose-700'}"
+						? 'text-positive'
+						: 'text-negative'}"
 				>
 					{fmt(netChange)}
 				</p>
 			</div>
 			<div>
-				<p class="text-[10px] uppercase tracking-wide text-neutral-500">Closing</p>
-				<p class="mt-0.5 font-mono text-sm tabular-nums text-neutral-900">{fmt(closingCash)}</p>
+				<p class="text-[10px] uppercase tracking-wide text-ink-muted">Closing</p>
+				<p class="mt-0.5 font-mono text-sm tabular-nums text-ink">{fmt(closingCash)}</p>
 			</div>
 		</div>
 	</div>

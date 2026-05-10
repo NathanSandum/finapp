@@ -25,21 +25,21 @@
 		{
 			title: 'Income',
 			values: operatingTrail,
-			stroke: 'rgb(16 185 129)',
+			stroke: 'var(--color-positive-line)',
 			verbPositive: 'Earned',
 			verbNegative: 'Spent'
 		},
 		{
 			title: 'Investing',
 			values: investingTrail,
-			stroke: 'rgb(14 165 233)',
+			stroke: 'var(--color-investing-line)',
 			verbPositive: 'Withdrew',
 			verbNegative: 'Contributed'
 		},
 		{
 			title: 'Financing',
 			values: financingTrail,
-			stroke: 'rgb(245 158 11)',
+			stroke: 'var(--color-financing-line)',
 			verbPositive: 'Borrowed',
 			verbNegative: 'Repaid'
 		}
@@ -62,11 +62,11 @@
 	{#each cards as { title, values, stroke, verbPositive, verbNegative }}
 		{@const latest = values[values.length - 1] ?? 0}
 		{@const sl = plot(values, 240, 40)}
-		<div class="rounded-xl border border-neutral-200 bg-white p-3">
+		<div class="rounded-xl border border-border bg-surface-card p-3">
 			<div class="flex items-baseline justify-between">
-				<span class="text-xs font-medium text-neutral-700">{title}</span>
-				<span class="font-mono text-sm font-semibold tabular-nums text-neutral-900">
-					<span class="text-[10px] font-bold text-neutral-500">
+				<span class="text-xs font-medium text-ink-body">{title}</span>
+				<span class="font-mono text-sm font-semibold tabular-nums text-ink">
+					<span class="text-[10px] font-bold text-ink-muted">
 						{latest >= 0 ? verbPositive : verbNegative}
 					</span>
 					{fmt(Math.abs(latest))}
@@ -78,14 +78,14 @@
 					y1={sl.zeroY}
 					x2="240"
 					y2={sl.zeroY}
-					stroke="rgb(212 212 216)"
+					class="stroke-trend-zero"
 					stroke-width="0.5"
 					stroke-dasharray="2 2"
 				/>
 				<polyline fill="none" {stroke} stroke-width="1.5" points={sl.path} />
 			</svg>
 			<div
-				class="mt-1 grid font-mono text-[9px] tabular-nums text-neutral-400"
+				class="mt-1 grid font-mono text-[9px] tabular-nums text-ink-faint"
 				style:grid-template-columns="repeat({labels.length}, 1fr)"
 			>
 				{#each labels as label}<span class="text-center">{label}</span>{/each}

@@ -22,7 +22,7 @@
 
 <header class="flex shrink-0 items-baseline justify-between">
 	<div class="flex items-baseline gap-3">
-		<h3 class="text-xl font-semibold text-neutral-900">{title}</h3>
+		<h3 class="text-xl font-semibold text-ink">{title}</h3>
 		<PeriodNav label={periodLabel} {onPrev} {onNext} />
 	</div>
 	<GranularityPill {granularity} onSelect={onGranularity} />

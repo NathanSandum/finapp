@@ -1,1 +1,89 @@
 @import 'tailwindcss';
+
+/*
+ * Design tokens. Default theme = current visual exactly (pure refactor).
+ * Variants live under [data-theme="..."] selectors (added in later phases).
+ *
+ * Conventions:
+ *   - surface-*       backgrounds for the light page chrome
+ *   - surface-inverse dark surfaces (sidebar, selected entry row)
+ *   - ink-*           foreground text on light surfaces
+ *   - ink-inverse-*   foreground text on dark surfaces
+ *   - border-*        hairlines / dividers
+ *   - positive-*      revenue, assets, gains
+ *   - negative-*      expenses, liabilities, losses
+ *   - investing-*     cash flow Investing section
+ *   - financing-*     cash flow Financing section
+ *   - brand-*         logo + active nav indicator
+ *   - avatar-*        user avatar gradient stops
+ *   - trend-zero      neutral zero-line in sparklines
+ *   - bar-N           composition bar tones (1 = strongest, 4 = lightest)
+ */
+
+@theme {
+	--font-display: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-mono: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, monospace;
+
+	--color-surface: oklch(98.5% 0 0);
+	--color-surface-card: #ffffff;
+	--color-surface-sunken: oklch(96.1% 0 0);
+	--color-surface-hover: oklch(96.1% 0 0);
+	--color-surface-hover-faint: oklch(98.5% 0 0);
+
+	--color-surface-inverse: oklch(20.5% 0 0);
+	--color-surface-inverse-hover: oklch(26.9% 0 0);
+
+	--color-ink: oklch(20.5% 0 0);
+	--color-ink-body: oklch(37.1% 0 0);
+	--color-ink-muted: oklch(55.6% 0 0);
+	--color-ink-faint: oklch(70.8% 0 0);
+
+	--color-ink-inverse: #ffffff;
+	--color-ink-inverse-body: oklch(92.2% 0 0);
+	--color-ink-inverse-muted: oklch(70.8% 0 0);
+
+	--color-border: oklch(92.2% 0 0);
+	--color-border-faint: oklch(96.1% 0 0);
+
+	--color-positive: oklch(50.8% 0.118 165.612);
+	--color-positive-line: oklch(69.6% 0.17 162.48);
+	--color-positive-tint: color-mix(in oklch, oklch(95.1% 0.052 163.051) 50%, transparent);
+	--color-positive-tint-strong: oklch(95.1% 0.052 163.051);
+	--color-positive-bar-1: oklch(69.6% 0.17 162.48);
+	--color-positive-bar-2: oklch(76.5% 0.177 163.223);
+	--color-positive-bar-3: oklch(84.5% 0.143 164.978);
+	--color-positive-bar-4: oklch(92.5% 0.084 155.995);
+
+	--color-negative: oklch(51.4% 0.222 16.935);
+	--color-negative-strong: oklch(57% 0.245 27.325);
+	--color-negative-line: oklch(64.5% 0.246 16.439);
+	--color-negative-tint: color-mix(in oklch, oklch(96.9% 0.015 12.422) 50%, transparent);
+	--color-negative-border: oklch(71.7% 0.197 22.12);
+	--color-negative-bar-1: oklch(64.5% 0.246 16.439);
+	--color-negative-bar-2: oklch(71.7% 0.197 22.12);
+	--color-negative-bar-3: oklch(81% 0.117 11.638);
+	--color-negative-bar-4: oklch(89.2% 0.058 10.001);
+
+	--color-investing: oklch(50% 0.134 242.749);
+	--color-investing-line: oklch(68.5% 0.169 237.323);
+	--color-investing-tint: color-mix(in oklch, oklch(97.7% 0.014 254.604) 50%, transparent);
+
+	--color-financing: oklch(47.3% 0.137 46.201);
+	--color-financing-line: oklch(76.9% 0.188 70.08);
+	--color-financing-tint: color-mix(in oklch, oklch(98.7% 0.022 95.277) 50%, transparent);
+	--color-financing-border: oklch(82.8% 0.189 84.429);
+
+	--color-brand: oklch(69.6% 0.17 162.48);
+	--color-brand-soft: oklch(76.5% 0.177 163.223);
+
+	--color-avatar-from: oklch(67.3% 0.182 276.935);
+	--color-avatar-to: oklch(60.6% 0.25 292.717);
+
+	--color-trend-zero: oklch(86.5% 0 0);
+}
+
+body {
+	font-family: var(--font-body);
+}
+

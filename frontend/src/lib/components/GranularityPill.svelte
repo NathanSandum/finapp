@@ -16,13 +16,13 @@
 	];
 </script>
 
-<div class="flex gap-1 rounded-full bg-neutral-100 p-1 text-xs">
+<div class="flex gap-1 rounded-full bg-surface-sunken p-1 text-xs">
 	{#each items as item}
 		<button
 			onclick={() => onSelect(item.id)}
 			class="rounded-full px-3 py-1 {granularity === item.id
-				? 'bg-white font-medium shadow-sm'
-				: 'text-neutral-500'}">{item.label}</button
+				? 'bg-surface-card font-medium shadow-sm'
+				: 'text-ink-muted'}">{item.label}</button
 		>
 	{/each}
 </div>

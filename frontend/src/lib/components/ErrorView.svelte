@@ -7,7 +7,7 @@
 	const message = $derived(friendlyError(result));
 </script>
 
-<div class="border-l-2 border-rose-400 bg-white py-2 pl-4">
-	<p class="text-xs uppercase tracking-wide text-neutral-500">Server error</p>
-	<p class="text-sm text-neutral-900">{message}</p>
+<div class="border-l-2 border-negative-border bg-surface-card py-2 pl-4">
+	<p class="text-xs uppercase tracking-wide text-ink-muted">Server error</p>
+	<p class="text-sm text-ink">{message}</p>
 </div>
