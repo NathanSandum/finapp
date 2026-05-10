@@ -206,26 +206,13 @@ impl AccountType {
             AccountType::Custom(c) => c.category(),
         }
     }
+}
 
-    pub fn label(&self) -> String {
+impl std::fmt::Display for AccountType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AccountType::System(s) => s.to_string(),
-            AccountType::Custom(c) => c.name.clone(),
-        }
-    }
-
-    pub fn is_system(&self) -> bool {
-        matches!(self, AccountType::System(_))
-    }
-
-    pub fn is_root(&self) -> bool {
-        matches!(self, AccountType::System(s) if s.is_root())
-    }
-
-    pub fn discriminator(&self) -> &'static str {
-        match self {
-            AccountType::System(s) => s.as_str(),
-            AccountType::Custom(_) => "Custom",
+            AccountType::System(s) => write!(f, "{s}"),
+            AccountType::Custom(c) => f.write_str(&c.name),
         }
     }
 }
@@ -311,19 +298,11 @@ impl Account {
     }
 
     pub fn name(&self) -> String {
-        self.account_type.label()
+        self.account_type.to_string()
     }
 
     pub fn category(&self) -> Category {
         self.account_type.category()
-    }
-
-    pub fn is_root(&self) -> bool {
-        self.account_type.is_root()
-    }
-
-    pub fn is_system(&self) -> bool {
-        self.account_type.is_system()
     }
 
     /// Returns the colon-delimited full path from root to this account.
@@ -919,7 +898,9 @@ mod tests {
 
         let roots = workspace.as_ref().root_accounts(&mut conn).unwrap();
         assert_eq!(roots.len(), 5);
-        assert!(roots.iter().all(|a| a.is_system() && a.is_root()));
+        assert!(roots
+            .iter()
+            .all(|a| matches!(a.account_type, AccountType::System(s) if s.is_root())));
 
         let all = workspace.as_ref().accounts(&mut conn).unwrap();
         // 5 system roots + 4 system children (Chequing, EmergencyFund, RetainedEarnings, OpeningBalances)
@@ -928,7 +909,7 @@ mod tests {
 
         let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
         assert_eq!(chequing.category(), Category::Asset);
-        assert!(chequing.is_system());
+        assert!(matches!(chequing.account_type, AccountType::System(_)));
     }
 
     #[test]
@@ -979,7 +960,7 @@ mod tests {
         assert_eq!(child.name(), "Brokerage");
         assert_eq!(child.category(), Category::Asset);
         assert_eq!(child.parent_id, Some(assets.id.clone()));
-        assert!(!child.is_system());
+        assert!(matches!(child.account_type, AccountType::Custom(_)));
     }
 
     #[test]
@@ -1184,7 +1165,9 @@ mod tests {
         let (mut conn, workspace) = setup();
 
         let roots = workspace.as_ref().root_accounts(&mut conn).unwrap();
-        assert!(roots.iter().all(|a| a.is_root()));
+        assert!(roots
+            .iter()
+            .all(|a| matches!(a.account_type, AccountType::System(s) if s.is_root())));
         assert_eq!(roots.len(), 5);
     }
 
