@@ -93,5 +93,22 @@ h3 {
 	font-family: var(--font-display);
 }
 
+/*
+ * Variant B — Tight density.
+ * Shrinks Tailwind's --spacing base 80%, retuning every p-/m-/gap-/w-/h-N
+ * utility proportionally.
+ */
+[data-theme='b'] {
+	--spacing: 0.2rem;
+}
+
+/*
+ * Variant C — Airy density.
+ * Expands --spacing 120% for more breathing room.
+ */
+[data-theme='c'] {
+	--spacing: 0.3rem;
+}
+
 
 

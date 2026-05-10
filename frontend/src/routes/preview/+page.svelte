@@ -1,8 +1,8 @@
 <script lang="ts">
 	const variants = [
-		{ key: 'a', label: 'A — Inter (current)' },
-		{ key: 'b', label: 'B — IBM Plex Sans' },
-		{ key: 'c', label: 'C — Source Sans 3' }
+		{ key: 'a', label: 'A — Default density' },
+		{ key: 'b', label: 'B — Tight (-20%)' },
+		{ key: 'c', label: 'C — Airy (+20%)' }
 	];
 
 	const tabs = [
@@ -23,10 +23,10 @@
 <div class="min-h-screen bg-neutral-100 p-6">
 	<header class="mb-6 flex items-center justify-between">
 		<div>
-			<h1 class="text-xl font-semibold">Body font A/B</h1>
+			<h1 class="text-xl font-semibold">Density A/B</h1>
 			<p class="mt-1 text-sm text-neutral-600">
-				Three body-sans variants rendered side-by-side. Body drives nav labels, account names,
-				descriptions, and small caption text.
+				Three density variants rendered side-by-side. Tight shrinks every p-/m-/gap-/w-/h-N
+				utility 80%; Airy expands 120%. Affects all whitespace + element sizing.
 			</p>
 		</div>
 		<nav class="flex gap-1 rounded-lg border border-neutral-300 bg-white p-1">
