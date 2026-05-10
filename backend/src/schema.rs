@@ -44,7 +44,7 @@ diesel::table! {
         id -> Text,
         workspace_id -> Text,
         parent_id -> Nullable<Text>,
-        name -> Text,
+        name -> Nullable<Text>,
         account_type -> Text,
         currency -> Text,
         deleted_at -> Nullable<Timestamp>,

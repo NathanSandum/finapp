@@ -435,7 +435,7 @@ impl NewEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::account::{Account, NewAccount};
+    use crate::domain::account::{Account, NewCustomAccount};
     use crate::domain::user::NewUser;
     use crate::domain::workspace::{NewWorkspace, Workspace};
     use crate::test_helpers::setup_test_db;
@@ -454,7 +454,7 @@ mod tests {
 
     fn find_account(name: &str, workspace: &Workspace, conn: &mut SqliteConnection) -> Account {
         let all = workspace.as_ref().accounts(conn).unwrap();
-        all.into_iter().find(|a| a.name == name).unwrap()
+        all.into_iter().find(|a| a.name() == name).unwrap()
     }
 
     fn simple_expense(
@@ -1037,7 +1037,7 @@ mod tests {
         let expenses = find_account("Expenses", &workspace, &mut conn);
 
         // Create sub-account under Food
-        let cafes = NewAccount::child(&food, "Cafes").insert(&mut conn).unwrap();
+        let cafes = NewCustomAccount::child(&food, "Cafes").insert(&mut conn).unwrap();
 
         // Post to Food directly
         simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);

@@ -1,6 +1,6 @@
 use diesel::SqliteConnection;
 
-use crate::domain::account::{Account, AccountRef, AccountType};
+use crate::domain::account::{Account, AccountRef, Category};
 use crate::domain::workspace::WorkspaceRef;
 use crate::error::AppError;
 
@@ -49,23 +49,23 @@ impl BalanceSheet {
         for root in &roots {
             let root_balance = root.balance_as_of_with_descendants(date, conn)?;
 
-            match root.account_type {
-                AccountType::Asset => {
+            match root.category() {
+                Category::Asset => {
                     total_assets = root_balance;
                     assets_detail = Self::children_balances(root, date, false, conn)?;
                 }
-                AccountType::Liability => {
+                Category::Liability => {
                     total_liabilities = -root_balance;
                     liabilities_detail = Self::children_balances(root, date, true, conn)?;
                 }
-                AccountType::Equity => {
+                Category::Equity => {
                     total_equity = -root_balance;
                     equity_detail = Self::children_balances(root, date, true, conn)?;
                 }
-                AccountType::Revenue => {
+                Category::Revenue => {
                     revenue_total = root_balance;
                 }
-                AccountType::Expense => {
+                Category::Expense => {
                     expense_total = root_balance;
                 }
             }
@@ -103,7 +103,7 @@ impl BalanceSheet {
             }
             result.push(AccountBalance {
                 account: child.id.clone(),
-                name: child.name.clone(),
+                name: child.name(),
                 balance,
             });
         }
@@ -139,14 +139,14 @@ impl IncomeStatement {
         let mut expense_detail = Vec::new();
 
         for root in &roots {
-            match root.account_type {
-                AccountType::Revenue => {
+            match root.category() {
+                Category::Revenue => {
                     revenue_balance =
                         root.balance_between_with_descendants(start_date, end_date, conn)?;
                     revenue_detail =
                         Self::children_balances(root, start_date, end_date, true, conn)?;
                 }
-                AccountType::Expense => {
+                Category::Expense => {
                     expense_balance =
                         root.balance_between_with_descendants(start_date, end_date, conn)?;
                     expense_detail =
@@ -190,7 +190,7 @@ impl IncomeStatement {
             }
             result.push(AccountBalance {
                 account: child.id.clone(),
-                name: child.name.clone(),
+                name: child.name(),
                 balance,
             });
         }
@@ -203,7 +203,7 @@ impl IncomeStatement {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::account::{Account, NewAccount};
+    use crate::domain::account::{Account, NewCustomAccount};
     use crate::domain::entry::{NewEntry, PostingInput};
     use crate::domain::user::NewUser;
     use crate::domain::workspace::{NewWorkspace, Workspace};
@@ -223,7 +223,7 @@ mod tests {
 
     fn find_account(name: &str, workspace: &Workspace, conn: &mut SqliteConnection) -> Account {
         let all = workspace.as_ref().accounts(conn).unwrap();
-        all.into_iter().find(|a| a.name == name).unwrap()
+        all.into_iter().find(|a| a.name() == name).unwrap()
     }
 
     fn make_entry(
@@ -472,7 +472,7 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        let cafes = NewAccount::child(&food, "Cafes").insert(&mut conn).unwrap();
+        let cafes = NewCustomAccount::child(&food, "Cafes").insert(&mut conn).unwrap();
 
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-05", &mut conn);
         make_entry(&workspace, &chequing, &cafes, 500, "2026-01-06", &mut conn);

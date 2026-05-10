@@ -3,7 +3,7 @@ use diesel::prelude::*;
 use sha2::{Digest, Sha256};
 
 use crate::config::Config;
-use crate::domain::account::{create_default_tree, Account, AccountRef};
+use crate::domain::account::{create_default_tree, AccountRef, SystemAccount};
 use crate::domain::entry::{NewEntry, PostingInput};
 use crate::domain::user::UserRef;
 use crate::domain::workspace::{Role, WorkspaceRef};
@@ -153,38 +153,47 @@ fn hash_token(token: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
-fn account_by_name(
+fn lookup_system(
+    workspace_ref: &WorkspaceRef,
+    system: SystemAccount,
+    conn: &mut SqliteConnection,
+) -> Result<AccountRef, AppError> {
+    workspace_ref
+        .system_account(system, conn)?
+        .map(|a| a.id)
+        .ok_or_else(|| AppError::Internal(format!("system account {:?} missing", system)))
+}
+
+fn lookup_custom(
     workspace_ref: &WorkspaceRef,
     name: &str,
     conn: &mut SqliteConnection,
 ) -> Result<AccountRef, AppError> {
-    use crate::schema::accounts;
-    accounts::table
-        .filter(accounts::workspace_id.eq(workspace_ref))
-        .filter(accounts::name.eq(name))
-        .select(Account::as_select())
-        .first(conn)
+    workspace_ref
+        .accounts(conn)?
+        .into_iter()
+        .find(|a| a.name() == name)
         .map(|a| a.id)
-        .map_err(|err| AppError::Internal(format!("account '{name}' lookup failed: {err}")))
+        .ok_or_else(|| AppError::Internal(format!("custom account '{name}' missing")))
 }
 
 fn insert_fixture_entries(
     workspace_ref: &WorkspaceRef,
     conn: &mut SqliteConnection,
 ) -> Result<(), AppError> {
-    let chequing = account_by_name(workspace_ref, "Chequing", conn)?;
-    let savings = account_by_name(workspace_ref, "Savings", conn)?;
-    let tfsa = account_by_name(workspace_ref, "TFSA", conn)?;
-    let rrsp = account_by_name(workspace_ref, "RRSP", conn)?;
-    let credit_card = account_by_name(workspace_ref, "Credit Card", conn)?;
-    let employment = account_by_name(workspace_ref, "Employment", conn)?;
-    let rent = account_by_name(workspace_ref, "Rent", conn)?;
-    let groceries = account_by_name(workspace_ref, "Groceries", conn)?;
-    let dining = account_by_name(workspace_ref, "Dining", conn)?;
-    let transit = account_by_name(workspace_ref, "Transit", conn)?;
-    let utilities = account_by_name(workspace_ref, "Utilities", conn)?;
-    let entertainment = account_by_name(workspace_ref, "Entertainment", conn)?;
-    let opening = account_by_name(workspace_ref, "Opening Balances", conn)?;
+    let chequing = lookup_system(workspace_ref, SystemAccount::Chequing, conn)?;
+    let opening = lookup_system(workspace_ref, SystemAccount::OpeningBalances, conn)?;
+    let savings = lookup_custom(workspace_ref, "Savings", conn)?;
+    let tfsa = lookup_custom(workspace_ref, "TFSA", conn)?;
+    let rrsp = lookup_custom(workspace_ref, "RRSP", conn)?;
+    let credit_card = lookup_custom(workspace_ref, "Credit Card", conn)?;
+    let employment = lookup_custom(workspace_ref, "Employment", conn)?;
+    let rent = lookup_custom(workspace_ref, "Rent", conn)?;
+    let groceries = lookup_custom(workspace_ref, "Groceries", conn)?;
+    let dining = lookup_custom(workspace_ref, "Dining", conn)?;
+    let transit = lookup_custom(workspace_ref, "Transit", conn)?;
+    let utilities = lookup_custom(workspace_ref, "Utilities", conn)?;
+    let entertainment = lookup_custom(workspace_ref, "Entertainment", conn)?;
 
     let mut entries: Vec<(String, String, Vec<PostingInput>)> = Vec::new();
 
@@ -522,7 +531,8 @@ mod tests {
         let db = populate_via_db(&dev_config());
         let mut conn = db.get().unwrap();
 
-        for name in ["TFSA", "RRSP", "Opening Balances"] {
+        // Custom by name
+        for name in ["TFSA", "RRSP"] {
             let count: i64 = postings::table
                 .inner_join(accounts::table.on(postings::account_id.eq(accounts::id)))
                 .inner_join(entries::table.on(postings::entry_id.eq(entries::id)))
@@ -533,6 +543,17 @@ mod tests {
                 .unwrap();
             assert!(count > 0, "expected fixture postings touching '{name}'");
         }
+
+        // System OpeningBalances by account_type tag
+        let count: i64 = postings::table
+            .inner_join(accounts::table.on(postings::account_id.eq(accounts::id)))
+            .inner_join(entries::table.on(postings::entry_id.eq(entries::id)))
+            .filter(entries::workspace_id.eq(DEV_WORKSPACE_ID))
+            .filter(accounts::account_type.eq("OpeningBalances"))
+            .count()
+            .get_result(&mut conn)
+            .unwrap();
+        assert!(count > 0, "expected fixture postings touching OpeningBalances");
     }
 
     #[test]

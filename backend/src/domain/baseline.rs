@@ -263,7 +263,7 @@ mod tests {
 
     fn find_account(name: &str, workspace: &Workspace, conn: &mut SqliteConnection) -> Account {
         let all = workspace.as_ref().accounts(conn).unwrap();
-        all.into_iter().find(|a| a.name == name).unwrap()
+        all.into_iter().find(|a| a.name() == name).unwrap()
     }
 
     fn make_entry(

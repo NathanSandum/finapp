@@ -13,15 +13,37 @@ use crate::domain::workspace::WorkspaceRef;
 use crate::error::AppError;
 use crate::schema::{accounts, entries, postings};
 
-// ── AccountType ──────────────────────────────────────────────────────────────
+// ── Currency ─────────────────────────────────────────────────────────────────
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize,
-    diesel::expression::AsExpression, diesel::deserialize::FromSqlRow,
-)]
-#[diesel(sql_type = Text)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum Currency {
+    CAD,
+}
+
+impl Currency {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Currency::CAD => "CAD",
+        }
+    }
+}
+
+impl std::str::FromStr for Currency {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "CAD" => Ok(Currency::CAD),
+            other => Err(format!("unknown currency: {other}")),
+        }
+    }
+}
+
+// ── Category ─────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum AccountType {
+pub enum Category {
     Asset,
     Liability,
     Equity,
@@ -29,46 +51,184 @@ pub enum AccountType {
     Expense,
 }
 
-impl AccountType {
+// ── SystemAccount ────────────────────────────────────────────────────────────
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    diesel::expression::AsExpression,
+    diesel::deserialize::FromSqlRow,
+)]
+#[diesel(sql_type = Text)]
+pub enum SystemAccount {
+    AssetsRoot,
+    LiabilitiesRoot,
+    EquityRoot,
+    RevenueRoot,
+    ExpensesRoot,
+    Chequing,
+    EmergencyFund,
+    RetainedEarnings,
+    OpeningBalances,
+}
+
+impl SystemAccount {
     pub fn as_str(&self) -> &'static str {
         match self {
-            AccountType::Asset => "asset",
-            AccountType::Liability => "liability",
-            AccountType::Equity => "equity",
-            AccountType::Revenue => "revenue",
-            AccountType::Expense => "expense",
+            SystemAccount::AssetsRoot => "AssetsRoot",
+            SystemAccount::LiabilitiesRoot => "LiabilitiesRoot",
+            SystemAccount::EquityRoot => "EquityRoot",
+            SystemAccount::RevenueRoot => "RevenueRoot",
+            SystemAccount::ExpensesRoot => "ExpensesRoot",
+            SystemAccount::Chequing => "Chequing",
+            SystemAccount::EmergencyFund => "EmergencyFund",
+            SystemAccount::RetainedEarnings => "RetainedEarnings",
+            SystemAccount::OpeningBalances => "OpeningBalances",
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn label(&self) -> &'static str {
+        match self {
+            SystemAccount::AssetsRoot => "Assets",
+            SystemAccount::LiabilitiesRoot => "Liabilities",
+            SystemAccount::EquityRoot => "Equity",
+            SystemAccount::RevenueRoot => "Revenue",
+            SystemAccount::ExpensesRoot => "Expenses",
+            SystemAccount::Chequing => "Chequing",
+            SystemAccount::EmergencyFund => "Emergency Fund",
+            SystemAccount::RetainedEarnings => "Retained Earnings",
+            SystemAccount::OpeningBalances => "Opening Balances",
+        }
+    }
+
+    pub fn category(&self) -> Category {
+        match self {
+            SystemAccount::AssetsRoot
+            | SystemAccount::Chequing
+            | SystemAccount::EmergencyFund => Category::Asset,
+            SystemAccount::LiabilitiesRoot => Category::Liability,
+            SystemAccount::EquityRoot
+            | SystemAccount::RetainedEarnings
+            | SystemAccount::OpeningBalances => Category::Equity,
+            SystemAccount::RevenueRoot => Category::Revenue,
+            SystemAccount::ExpensesRoot => Category::Expense,
+        }
+    }
+
+    pub fn parent_variant(&self) -> Option<SystemAccount> {
+        match self {
+            SystemAccount::AssetsRoot
+            | SystemAccount::LiabilitiesRoot
+            | SystemAccount::EquityRoot
+            | SystemAccount::RevenueRoot
+            | SystemAccount::ExpensesRoot => None,
+            SystemAccount::Chequing | SystemAccount::EmergencyFund => {
+                Some(SystemAccount::AssetsRoot)
+            }
+            SystemAccount::RetainedEarnings | SystemAccount::OpeningBalances => {
+                Some(SystemAccount::EquityRoot)
+            }
+        }
+    }
+
+    pub fn is_root(&self) -> bool {
+        self.parent_variant().is_none()
+    }
+}
+
+impl std::str::FromStr for SystemAccount {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "asset" => Some(AccountType::Asset),
-            "liability" => Some(AccountType::Liability),
-            "equity" => Some(AccountType::Equity),
-            "revenue" => Some(AccountType::Revenue),
-            "expense" => Some(AccountType::Expense),
-            _ => None,
+            "AssetsRoot" => Ok(SystemAccount::AssetsRoot),
+            "LiabilitiesRoot" => Ok(SystemAccount::LiabilitiesRoot),
+            "EquityRoot" => Ok(SystemAccount::EquityRoot),
+            "RevenueRoot" => Ok(SystemAccount::RevenueRoot),
+            "ExpensesRoot" => Ok(SystemAccount::ExpensesRoot),
+            "Chequing" => Ok(SystemAccount::Chequing),
+            "EmergencyFund" => Ok(SystemAccount::EmergencyFund),
+            "RetainedEarnings" => Ok(SystemAccount::RetainedEarnings),
+            "OpeningBalances" => Ok(SystemAccount::OpeningBalances),
+            other => Err(format!("unknown system account: {other}")),
         }
     }
 }
 
-impl FromSql<Text, Sqlite> for AccountType {
-    fn from_sql(
-        bytes: <Sqlite as Backend>::RawValue<'_>,
-    ) -> deserialize::Result<Self> {
+impl FromSql<Text, Sqlite> for SystemAccount {
+    fn from_sql(bytes: <Sqlite as Backend>::RawValue<'_>) -> deserialize::Result<Self> {
         let s = <String as FromSql<Text, Sqlite>>::from_sql(bytes)?;
-        AccountType::from_str(&s).ok_or_else(|| format!("unknown account type: {s}").into())
+        s.parse().map_err(|e: String| e.into())
     }
 }
 
-impl ToSql<Text, Sqlite> for AccountType {
+impl ToSql<Text, Sqlite> for SystemAccount {
     fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> serialize::Result {
         <str as ToSql<Text, Sqlite>>::to_sql(self.as_str(), out)
     }
 }
 
+// ── CustomAccount ────────────────────────────────────────────────────────────
 
-// ── Models ────────────────────────────────────────────────────────────────────
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct CustomAccount {
+    pub parent: Box<AccountType>,
+    pub name: String,
+}
+
+impl CustomAccount {
+    pub fn category(&self) -> Category {
+        self.parent.category()
+    }
+}
+
+// ── AccountType ──────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(untagged)]
+pub enum AccountType {
+    System(SystemAccount),
+    Custom(CustomAccount),
+}
+
+impl AccountType {
+    pub fn category(&self) -> Category {
+        match self {
+            AccountType::System(s) => s.category(),
+            AccountType::Custom(c) => c.category(),
+        }
+    }
+
+    pub fn label(&self) -> String {
+        match self {
+            AccountType::System(s) => s.label().to_string(),
+            AccountType::Custom(c) => c.name.clone(),
+        }
+    }
+
+    pub fn is_system(&self) -> bool {
+        matches!(self, AccountType::System(_))
+    }
+
+    pub fn is_root(&self) -> bool {
+        matches!(self, AccountType::System(s) if s.is_root())
+    }
+
+    pub fn discriminator(&self) -> &'static str {
+        match self {
+            AccountType::System(s) => s.as_str(),
+            AccountType::Custom(_) => "Custom",
+        }
+    }
+}
+
+// ── AccountRef ───────────────────────────────────────────────────────────────
 
 #[derive(
     Hash, Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType,
@@ -82,17 +242,45 @@ impl std::fmt::Display for AccountRef {
     }
 }
 
-#[derive(Debug, Queryable, Selectable)]
+// ── Diesel row (internal) ────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Queryable, Selectable)]
 #[diesel(table_name = accounts)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+struct AccountRow {
+    id: AccountRef,
+    workspace_id: WorkspaceRef,
+    parent_id: Option<AccountRef>,
+    name: Option<String>,
+    account_type: String,
+    currency: String,
+    deleted_at: Option<NaiveDateTime>,
+    created_at: NaiveDateTime,
+    updated_at: NaiveDateTime,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = accounts)]
+struct NewAccountRow {
+    id: String,
+    workspace_id: WorkspaceRef,
+    parent_id: Option<AccountRef>,
+    name: Option<String>,
+    account_type: String,
+    currency: String,
+    created_at: NaiveDateTime,
+    updated_at: NaiveDateTime,
+}
+
+// ── Account (domain) ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
 pub struct Account {
     pub id: AccountRef,
-    #[diesel(column_name = workspace_id)]
     pub workspace: WorkspaceRef,
     pub parent_id: Option<AccountRef>,
-    pub name: String,
     pub account_type: AccountType,
-    pub currency: String,
+    pub currency: Currency,
     pub deleted_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
@@ -107,23 +295,40 @@ impl Account {
         account_ref: &AccountRef,
         conn: &mut SqliteConnection,
     ) -> Result<Option<Account>, AppError> {
-        accounts::table
+        let row: Option<AccountRow> = accounts::table
             .find(account_ref)
-            .select(Account::as_select())
+            .select(AccountRow::as_select())
             .first(conn)
             .optional()
-            .map_err(|err| AppError::Internal(format!("account lookup failed: {err}")))
+            .map_err(|err| AppError::Internal(format!("account lookup failed: {err}")))?;
+
+        match row {
+            Some(r) => Ok(Some(hydrate(r, conn)?)),
+            None => Ok(None),
+        }
+    }
+
+    pub fn name(&self) -> String {
+        self.account_type.label()
+    }
+
+    pub fn category(&self) -> Category {
+        self.account_type.category()
     }
 
     pub fn is_root(&self) -> bool {
-        self.parent_id.is_none()
+        self.account_type.is_root()
+    }
+
+    pub fn is_system(&self) -> bool {
+        self.account_type.is_system()
     }
 
     /// Returns the colon-delimited full path from root to this account.
     pub fn full_name(&self, conn: &mut SqliteConnection) -> Result<String, AppError> {
         let ancestors = self.ancestors(conn)?;
-        let mut parts: Vec<&str> = ancestors.iter().map(|a| a.name.as_str()).collect();
-        parts.push(&self.name);
+        let mut parts: Vec<String> = ancestors.iter().map(|a| a.name()).collect();
+        parts.push(self.name());
         Ok(parts.join(":"))
     }
 
@@ -145,12 +350,14 @@ impl Account {
 
     /// Returns direct children of this account.
     pub fn children(&self, conn: &mut SqliteConnection) -> Result<Vec<Account>, AppError> {
-        accounts::table
+        let rows: Vec<AccountRow> = accounts::table
             .filter(accounts::parent_id.eq(&self.id))
             .filter(accounts::deleted_at.is_null())
-            .select(Account::as_select())
+            .select(AccountRow::as_select())
             .load(conn)
-            .map_err(|err| AppError::Internal(format!("children query failed: {err}")))
+            .map_err(|err| AppError::Internal(format!("children query failed: {err}")))?;
+
+        rows.into_iter().map(|r| hydrate(r, conn)).collect()
     }
 
     /// Returns all transitive descendants (BFS).
@@ -159,14 +366,15 @@ impl Account {
         let mut queue = vec![self.id.clone()];
 
         while let Some(parent_id) = queue.pop() {
-            let children: Vec<Account> = accounts::table
+            let rows: Vec<AccountRow> = accounts::table
                 .filter(accounts::parent_id.eq(&parent_id))
                 .filter(accounts::deleted_at.is_null())
-                .select(Account::as_select())
+                .select(AccountRow::as_select())
                 .load(conn)
                 .map_err(|err| AppError::Internal(format!("descendants query failed: {err}")))?;
 
-            for child in children {
+            for row in rows {
+                let child = hydrate(row, conn)?;
                 queue.push(child.id.clone());
                 result.push(child);
             }
@@ -180,13 +388,28 @@ impl Account {
         new_name: &str,
         conn: &mut SqliteConnection,
     ) -> Result<Account, AppError> {
+        if !matches!(self.account_type, AccountType::Custom(_)) {
+            return Err(AppError::Validation(vec![crate::error::FieldError {
+                field: "name".into(),
+                message: "system accounts cannot be renamed".into(),
+            }]));
+        }
+
         let now = chrono::Utc::now().naive_utc();
         diesel::update(accounts::table.find(&self.id))
             .set((
-                accounts::name.eq(new_name),
+                accounts::name.eq(Some(new_name)),
                 accounts::updated_at.eq(now),
             ))
-            .execute(conn)?;
+            .execute(conn)
+            .map_err(|err| match err {
+                DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
+                    AppError::Conflict(format!(
+                        "account '{new_name}' already exists under this parent"
+                    ))
+                }
+                other => AppError::Internal(format!("account rename failed: {other}")),
+            })?;
 
         Account::from_ref(&self.id, conn)?
             .ok_or_else(|| AppError::Internal("account disappeared after rename".to_string()))
@@ -197,10 +420,10 @@ impl Account {
         new_parent: &AccountRef,
         conn: &mut SqliteConnection,
     ) -> Result<Account, AppError> {
-        if self.is_root() {
+        if !matches!(self.account_type, AccountType::Custom(_)) {
             return Err(AppError::Validation(vec![crate::error::FieldError {
                 field: "parent_id".into(),
-                message: "root accounts cannot be reparented".into(),
+                message: "system accounts cannot be reparented".into(),
             }]));
         }
 
@@ -221,13 +444,13 @@ impl Account {
             }]));
         }
 
-        if parent.account_type != self.account_type {
+        if parent.category() != self.category() {
             return Err(AppError::Validation(vec![crate::error::FieldError {
                 field: "parent_id".into(),
                 message: format!(
-                    "cannot reparent {} account under {} account",
-                    self.account_type.as_str(),
-                    parent.account_type.as_str()
+                    "cannot reparent {:?} account under {:?} account",
+                    self.category(),
+                    parent.category()
                 ),
             }]));
         }
@@ -253,7 +476,6 @@ impl Account {
     }
 
     pub fn soft_delete(&self, conn: &mut SqliteConnection) -> Result<(), AppError> {
-        // Prevent deleting accounts with active children
         let active_children_count: i64 = accounts::table
             .filter(accounts::parent_id.eq(&self.id))
             .filter(accounts::deleted_at.is_null())
@@ -267,7 +489,6 @@ impl Account {
             ));
         }
 
-        // Prevent deleting accounts with postings on active entries
         let active_posting_count: i64 = postings::table
             .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
             .filter(postings::account_id.eq(&self.id))
@@ -290,7 +511,6 @@ impl Account {
         Ok(())
     }
 
-    /// Sum of postings for this account on non-deleted entries.
     pub fn balance(&self, conn: &mut SqliteConnection) -> Result<i64, AppError> {
         let result: Option<i64> = postings::table
             .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
@@ -303,7 +523,6 @@ impl Account {
         Ok(result.unwrap_or(0))
     }
 
-    /// Balance including all descendant accounts.
     pub fn balance_with_descendants(&self, conn: &mut SqliteConnection) -> Result<i64, AppError> {
         let descendants = self.descendants(conn)?;
         let mut account_ids: Vec<&AccountRef> = descendants.iter().map(|a| &a.id).collect();
@@ -322,7 +541,6 @@ impl Account {
         Ok(result.unwrap_or(0))
     }
 
-    /// Balance filtered by entry date <= given date.
     pub fn balance_as_of(&self, date: &str, conn: &mut SqliteConnection) -> Result<i64, AppError> {
         let result: Option<i64> = postings::table
             .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
@@ -336,7 +554,6 @@ impl Account {
         Ok(result.unwrap_or(0))
     }
 
-    /// Balance including descendants, filtered by entry date <= given date.
     pub fn balance_as_of_with_descendants(
         &self,
         date: &str,
@@ -362,7 +579,6 @@ impl Account {
         Ok(result.unwrap_or(0))
     }
 
-    /// Balance for a date range (inclusive on both ends).
     pub fn balance_between(
         &self,
         start_date: &str,
@@ -382,7 +598,6 @@ impl Account {
         Ok(result.unwrap_or(0))
     }
 
-    /// Balance for a date range, including all descendant accounts.
     pub fn balance_between_with_descendants(
         &self,
         start_date: &str,
@@ -413,113 +628,141 @@ impl Account {
 
 impl WorkspaceRef {
     pub fn accounts(&self, conn: &mut SqliteConnection) -> Result<Vec<Account>, AppError> {
-        accounts::table
+        let rows: Vec<AccountRow> = accounts::table
             .filter(accounts::workspace_id.eq(self))
             .filter(accounts::deleted_at.is_null())
-            .select(Account::as_select())
+            .select(AccountRow::as_select())
             .load(conn)
-            .map_err(|err| AppError::Internal(format!("account list failed: {err}")))
+            .map_err(|err| AppError::Internal(format!("account list failed: {err}")))?;
+
+        rows.into_iter().map(|r| hydrate(r, conn)).collect()
     }
 
     pub fn root_accounts(&self, conn: &mut SqliteConnection) -> Result<Vec<Account>, AppError> {
-        accounts::table
+        let rows: Vec<AccountRow> = accounts::table
             .filter(accounts::workspace_id.eq(self))
             .filter(accounts::parent_id.is_null())
             .filter(accounts::deleted_at.is_null())
-            .select(Account::as_select())
+            .select(AccountRow::as_select())
             .load(conn)
-            .map_err(|err| AppError::Internal(format!("root accounts query failed: {err}")))
+            .map_err(|err| AppError::Internal(format!("root accounts query failed: {err}")))?;
+
+        rows.into_iter().map(|r| hydrate(r, conn)).collect()
     }
-}
 
-// ── NewAccount ───────────────────────────────────────────────────────────────
+    pub fn system_account(
+        &self,
+        system: SystemAccount,
+        conn: &mut SqliteConnection,
+    ) -> Result<Option<Account>, AppError> {
+        let row: Option<AccountRow> = accounts::table
+            .filter(accounts::workspace_id.eq(self))
+            .filter(accounts::account_type.eq(system.as_str()))
+            .filter(accounts::deleted_at.is_null())
+            .select(AccountRow::as_select())
+            .first(conn)
+            .optional()
+            .map_err(|err| AppError::Internal(format!("system account lookup failed: {err}")))?;
 
-#[derive(Insertable)]
-#[diesel(table_name = accounts)]
-struct NewAccountRow {
-    id: String,
-    #[diesel(column_name = workspace_id)]
-    workspace: WorkspaceRef,
-    parent_id: Option<AccountRef>,
-    name: String,
-    account_type: AccountType,
-    currency: String,
-    created_at: NaiveDateTime,
-    updated_at: NaiveDateTime,
-}
-
-pub struct NewAccount {
-    workspace: WorkspaceRef,
-    parent_id: Option<AccountRef>,
-    name: String,
-    account_type: AccountType,
-    currency: String,
-}
-
-impl NewAccount {
-    /// Create a root account (no parent). Must specify account type.
-    pub fn root(workspace: WorkspaceRef, name: &str, account_type: AccountType) -> Self {
-        NewAccount {
-            workspace,
-            parent_id: None,
-            name: name.to_string(),
-            account_type,
-            currency: "CAD".to_string(),
+        match row {
+            Some(r) => Ok(Some(hydrate(r, conn)?)),
+            None => Ok(None),
         }
     }
+}
 
-    /// Create a child account. Inherits workspace and account_type from parent.
+// ── Hydration ────────────────────────────────────────────────────────────────
+
+fn hydrate(row: AccountRow, conn: &mut SqliteConnection) -> Result<Account, AppError> {
+    let account_type = parse_account_type(&row, conn)?;
+    let currency = row
+        .currency
+        .parse::<Currency>()
+        .map_err(AppError::Internal)?;
+
+    Ok(Account {
+        id: row.id,
+        workspace: row.workspace_id,
+        parent_id: row.parent_id,
+        account_type,
+        currency,
+        deleted_at: row.deleted_at,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    })
+}
+
+fn parse_account_type(
+    row: &AccountRow,
+    conn: &mut SqliteConnection,
+) -> Result<AccountType, AppError> {
+    if row.account_type == "Custom" {
+        let parent_ref = row.parent_id.as_ref().ok_or_else(|| {
+            AppError::Internal(format!("custom account {} missing parent_id", row.id))
+        })?;
+        let name = row.name.clone().ok_or_else(|| {
+            AppError::Internal(format!("custom account {} missing name", row.id))
+        })?;
+        let parent_row: AccountRow = accounts::table
+            .find(parent_ref)
+            .select(AccountRow::as_select())
+            .first(conn)
+            .map_err(|err| AppError::Internal(format!("parent lookup failed: {err}")))?;
+        let parent_type = parse_account_type(&parent_row, conn)?;
+        Ok(AccountType::Custom(CustomAccount {
+            parent: Box::new(parent_type),
+            name,
+        }))
+    } else {
+        let system: SystemAccount = row
+            .account_type
+            .parse()
+            .map_err(|e: String| AppError::Internal(e))?;
+        Ok(AccountType::System(system))
+    }
+}
+
+// ── NewCustomAccount ─────────────────────────────────────────────────────────
+
+pub struct NewCustomAccount {
+    workspace: WorkspaceRef,
+    parent_id: AccountRef,
+    name: String,
+    currency: Currency,
+}
+
+impl NewCustomAccount {
     pub fn child(parent: &Account, name: &str) -> Self {
-        NewAccount {
+        Self {
             workspace: parent.workspace.clone(),
-            parent_id: Some(parent.id.clone()),
+            parent_id: parent.id.clone(),
             name: name.to_string(),
-            account_type: parent.account_type,
-            currency: parent.currency.clone(),
+            currency: parent.currency,
         }
     }
 
-    pub fn currency(mut self, currency: &str) -> Self {
-        self.currency = currency.to_string();
+    pub fn currency(mut self, currency: Currency) -> Self {
+        self.currency = currency;
         self
     }
 
     pub fn insert(self, conn: &mut SqliteConnection) -> Result<Account, AppError> {
-        // For root accounts, enforce uniqueness manually since SQLite
-        // treats NULL as distinct in UNIQUE constraints
-        if self.parent_id.is_none() {
-            let existing: i64 = accounts::table
-                .filter(accounts::workspace_id.eq(&self.workspace))
-                .filter(accounts::parent_id.is_null())
-                .filter(accounts::name.eq(&self.name))
-                .count()
-                .get_result(conn)
-                .map_err(|err| {
-                    AppError::Internal(format!("root uniqueness check failed: {err}"))
-                })?;
-
-            if existing > 0 {
-                return Err(AppError::Conflict(format!(
-                    "root account '{}' already exists in this workspace",
-                    self.name
-                )));
-            }
-        }
-
         let now = chrono::Utc::now().naive_utc();
+        let id = Uuid::new_v4().to_string();
+        let account_ref = AccountRef(id.clone());
+
         diesel::insert_into(accounts::table)
             .values(NewAccountRow {
-                id: Uuid::new_v4().to_string(),
-                workspace: self.workspace,
-                parent_id: self.parent_id,
-                name: self.name.clone(),
-                account_type: self.account_type,
-                currency: self.currency,
+                id,
+                workspace_id: self.workspace,
+                parent_id: Some(self.parent_id),
+                name: Some(self.name.clone()),
+                account_type: "Custom".to_string(),
+                currency: self.currency.as_str().to_string(),
                 created_at: now,
                 updated_at: now,
             })
-            .returning(Account::as_returning())
-            .get_result(conn)
+            .execute(conn)
             .map_err(|err| match err {
                 DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
                     AppError::Conflict(format!(
@@ -528,8 +771,47 @@ impl NewAccount {
                     ))
                 }
                 other => AppError::Internal(format!("account insert failed: {other}")),
-            })
+            })?;
+
+        Account::from_ref(&account_ref, conn)?
+            .ok_or_else(|| AppError::Internal("account disappeared after insert".into()))
     }
+}
+
+fn insert_system(
+    workspace: &WorkspaceRef,
+    system: SystemAccount,
+    parent_id: Option<&AccountRef>,
+    conn: &mut SqliteConnection,
+) -> Result<Account, AppError> {
+    let now = chrono::Utc::now().naive_utc();
+    let id = Uuid::new_v4().to_string();
+    let account_ref = AccountRef(id.clone());
+
+    diesel::insert_into(accounts::table)
+        .values(NewAccountRow {
+            id,
+            workspace_id: workspace.clone(),
+            parent_id: parent_id.cloned(),
+            name: None,
+            account_type: system.as_str().to_string(),
+            currency: Currency::CAD.as_str().to_string(),
+            created_at: now,
+            updated_at: now,
+        })
+        .execute(conn)
+        .map_err(|err| match err {
+            DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
+                AppError::Conflict(format!(
+                    "system account {:?} already exists in this workspace",
+                    system
+                ))
+            }
+            other => AppError::Internal(format!("system insert failed: {other}")),
+        })?;
+
+    Account::from_ref(&account_ref, conn)?
+        .ok_or_else(|| AppError::Internal("system account disappeared after insert".into()))
 }
 
 // ── Default Account Tree ─────────────────────────────────────────────────────
@@ -538,39 +820,52 @@ pub fn create_default_tree(
     workspace: &WorkspaceRef,
     conn: &mut SqliteConnection,
 ) -> Result<(), AppError> {
-    let assets = NewAccount::root(workspace.clone(), "Assets", AccountType::Asset).insert(conn)?;
-    let liabilities =
-        NewAccount::root(workspace.clone(), "Liabilities", AccountType::Liability).insert(conn)?;
-    let equity =
-        NewAccount::root(workspace.clone(), "Equity", AccountType::Equity).insert(conn)?;
-    let revenue =
-        NewAccount::root(workspace.clone(), "Revenue", AccountType::Revenue).insert(conn)?;
-    let expenses =
-        NewAccount::root(workspace.clone(), "Expenses", AccountType::Expense).insert(conn)?;
+    let assets = insert_system(workspace, SystemAccount::AssetsRoot, None, conn)?;
+    let liabilities = insert_system(workspace, SystemAccount::LiabilitiesRoot, None, conn)?;
+    let equity = insert_system(workspace, SystemAccount::EquityRoot, None, conn)?;
+    let revenue = insert_system(workspace, SystemAccount::RevenueRoot, None, conn)?;
+    let expenses = insert_system(workspace, SystemAccount::ExpensesRoot, None, conn)?;
 
-    // Asset sub-accounts
-    NewAccount::child(&assets, "Chequing").insert(conn)?;
-    NewAccount::child(&assets, "Savings").insert(conn)?;
-    NewAccount::child(&assets, "TFSA").insert(conn)?;
-    NewAccount::child(&assets, "RRSP").insert(conn)?;
+    insert_system(
+        workspace,
+        SystemAccount::Chequing,
+        Some(&assets.id),
+        conn,
+    )?;
+    insert_system(
+        workspace,
+        SystemAccount::EmergencyFund,
+        Some(&assets.id),
+        conn,
+    )?;
+    insert_system(
+        workspace,
+        SystemAccount::RetainedEarnings,
+        Some(&equity.id),
+        conn,
+    )?;
+    insert_system(
+        workspace,
+        SystemAccount::OpeningBalances,
+        Some(&equity.id),
+        conn,
+    )?;
 
-    // Liability sub-accounts
-    NewAccount::child(&liabilities, "Credit Card").insert(conn)?;
+    NewCustomAccount::child(&assets, "Savings").insert(conn)?;
+    NewCustomAccount::child(&assets, "TFSA").insert(conn)?;
+    NewCustomAccount::child(&assets, "RRSP").insert(conn)?;
 
-    // Revenue sub-accounts
-    NewAccount::child(&revenue, "Employment").insert(conn)?;
+    NewCustomAccount::child(&liabilities, "Credit Card").insert(conn)?;
 
-    // Expense sub-accounts
-    NewAccount::child(&expenses, "Food").insert(conn)?;
-    NewAccount::child(&expenses, "Rent").insert(conn)?;
-    NewAccount::child(&expenses, "Groceries").insert(conn)?;
-    NewAccount::child(&expenses, "Dining").insert(conn)?;
-    NewAccount::child(&expenses, "Transit").insert(conn)?;
-    NewAccount::child(&expenses, "Utilities").insert(conn)?;
-    NewAccount::child(&expenses, "Entertainment").insert(conn)?;
+    NewCustomAccount::child(&revenue, "Employment").insert(conn)?;
 
-    // Equity sub-accounts
-    NewAccount::child(&equity, "Opening Balances").insert(conn)?;
+    NewCustomAccount::child(&expenses, "Food").insert(conn)?;
+    NewCustomAccount::child(&expenses, "Rent").insert(conn)?;
+    NewCustomAccount::child(&expenses, "Groceries").insert(conn)?;
+    NewCustomAccount::child(&expenses, "Dining").insert(conn)?;
+    NewCustomAccount::child(&expenses, "Transit").insert(conn)?;
+    NewCustomAccount::child(&expenses, "Utilities").insert(conn)?;
+    NewCustomAccount::child(&expenses, "Entertainment").insert(conn)?;
 
     Ok(())
 }
@@ -585,7 +880,6 @@ mod tests {
     use crate::domain::workspace::{NewWorkspace, Workspace};
     use crate::test_helpers::setup_test_db;
 
-    /// Setup creates a workspace with default account tree already populated.
     fn setup() -> (SqliteConnection, Workspace) {
         let mut conn = setup_test_db();
         let user = NewUser::new("alice@example.com", "Alice", "password")
@@ -598,10 +892,23 @@ mod tests {
         (conn, workspace)
     }
 
-    /// Helper to find an account by name in workspace.
-    fn find_account(name: &str, workspace: &Workspace, conn: &mut SqliteConnection) -> Account {
+    fn find_account(label: &str, workspace: &Workspace, conn: &mut SqliteConnection) -> Account {
         let all = workspace.as_ref().accounts(conn).unwrap();
-        all.into_iter().find(|a| a.name == name).unwrap()
+        all.into_iter()
+            .find(|a| a.name() == label)
+            .unwrap_or_else(|| panic!("account not found: {label}"))
+    }
+
+    fn find_system(
+        system: SystemAccount,
+        workspace: &Workspace,
+        conn: &mut SqliteConnection,
+    ) -> Account {
+        workspace
+            .as_ref()
+            .system_account(system, conn)
+            .unwrap()
+            .unwrap_or_else(|| panic!("system account not found: {:?}", system))
     }
 
     #[test]
@@ -609,51 +916,82 @@ mod tests {
         let (mut conn, workspace) = setup();
 
         let roots = workspace.as_ref().root_accounts(&mut conn).unwrap();
-        let root_names: Vec<&str> = roots.iter().map(|a| a.name.as_str()).collect();
-        assert!(root_names.contains(&"Assets"));
-        assert!(root_names.contains(&"Liabilities"));
-        assert!(root_names.contains(&"Equity"));
-        assert!(root_names.contains(&"Revenue"));
-        assert!(root_names.contains(&"Expenses"));
         assert_eq!(roots.len(), 5);
+        assert!(roots.iter().all(|a| a.is_system() && a.is_root()));
 
         let all = workspace.as_ref().accounts(&mut conn).unwrap();
-        // 5 roots + 4 asset + 1 liability + 1 revenue + 7 expense + 1 equity = 19
-        assert_eq!(all.len(), 19);
+        // 5 system roots + 4 system children (Chequing, EmergencyFund, RetainedEarnings, OpeningBalances)
+        // + 12 custom (Savings, TFSA, RRSP, Credit Card, Employment, 7 expenses) = 21
+        assert_eq!(all.len(), 21);
 
-        let chequing = all.iter().find(|a| a.name == "Chequing").unwrap();
-        assert_eq!(chequing.account_type, AccountType::Asset);
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
+        assert_eq!(chequing.category(), Category::Asset);
+        assert!(chequing.is_system());
     }
 
     #[test]
-    fn create_child_account_succeeds() {
+    fn system_accounts_present() {
         let (mut conn, workspace) = setup();
-        let assets = find_account("Assets", &workspace, &mut conn);
+        for system in [
+            SystemAccount::AssetsRoot,
+            SystemAccount::LiabilitiesRoot,
+            SystemAccount::EquityRoot,
+            SystemAccount::RevenueRoot,
+            SystemAccount::ExpensesRoot,
+            SystemAccount::Chequing,
+            SystemAccount::EmergencyFund,
+            SystemAccount::RetainedEarnings,
+            SystemAccount::OpeningBalances,
+        ] {
+            let account = workspace
+                .as_ref()
+                .system_account(system, &mut conn)
+                .unwrap();
+            assert!(account.is_some(), "missing {:?}", system);
+        }
+    }
 
-        let child = NewAccount::child(&assets, "Brokerage")
+    #[test]
+    fn duplicate_system_account_rejected() {
+        let (mut conn, workspace) = setup();
+        let assets_id = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn).id;
+        let err = insert_system(
+            workspace.as_ref(),
+            SystemAccount::Chequing,
+            Some(&assets_id),
+            &mut conn,
+        )
+        .expect_err("duplicate system insert should fail");
+        assert!(matches!(err, AppError::Conflict(_)));
+    }
+
+    #[test]
+    fn create_custom_account_succeeds() {
+        let (mut conn, workspace) = setup();
+        let assets = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn);
+
+        let child = NewCustomAccount::child(&assets, "Brokerage")
             .insert(&mut conn)
-            .expect("child creation should succeed");
+            .expect("custom creation should succeed");
 
-        assert_eq!(child.name, "Brokerage");
-        assert_eq!(child.account_type, AccountType::Asset);
+        assert_eq!(child.name(), "Brokerage");
+        assert_eq!(child.category(), Category::Asset);
         assert_eq!(child.parent_id, Some(assets.id.clone()));
-        assert!(!child.is_root());
+        assert!(!child.is_system());
     }
 
     #[test]
     fn create_deeply_nested_account() {
         let (mut conn, workspace) = setup();
-        let expenses = find_account("Expenses", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        let dining_out = NewAccount::child(&food, "Dining Out")
+        let dining_out = NewCustomAccount::child(&food, "Dining Out")
             .insert(&mut conn)
             .unwrap();
 
-        assert_eq!(dining_out.account_type, AccountType::Expense);
+        assert_eq!(dining_out.category(), Category::Expense);
         assert_eq!(dining_out.parent_id, Some(food.id.clone()));
 
-        // Verify full_name goes 3 levels deep
         assert_eq!(
             dining_out.full_name(&mut conn).unwrap(),
             "Expenses:Food:Dining Out"
@@ -663,10 +1001,10 @@ mod tests {
     #[test]
     fn sibling_name_uniqueness_enforced() {
         let (mut conn, workspace) = setup();
-        let assets = find_account("Assets", &workspace, &mut conn);
+        let assets = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn);
 
-        // "Chequing" already exists as child of Assets from defaults
-        let err = NewAccount::child(&assets, "Chequing")
+        // "Savings" already exists as custom child of Assets
+        let err = NewCustomAccount::child(&assets, "Savings")
             .insert(&mut conn)
             .expect_err("duplicate sibling name should fail");
 
@@ -676,49 +1014,25 @@ mod tests {
     #[test]
     fn cousin_name_duplication_allowed() {
         let (mut conn, workspace) = setup();
-        let assets = find_account("Assets", &workspace, &mut conn);
+        let assets = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn);
 
-        let bank_a = NewAccount::child(&assets, "Bank A")
+        let bank_a = NewCustomAccount::child(&assets, "Bank A")
             .insert(&mut conn)
             .unwrap();
-        let bank_b = NewAccount::child(&assets, "Bank B")
+        let bank_b = NewCustomAccount::child(&assets, "Bank B")
             .insert(&mut conn)
             .unwrap();
 
-        NewAccount::child(&bank_a, "Main")
+        NewCustomAccount::child(&bank_a, "Main")
             .insert(&mut conn)
             .unwrap();
-        NewAccount::child(&bank_b, "Main")
+        NewCustomAccount::child(&bank_b, "Main")
             .insert(&mut conn)
             .expect("cousin duplication should succeed");
     }
 
     #[test]
-    fn root_name_uniqueness_within_workspace() {
-        let (mut conn, workspace) = setup();
-        // "Assets" already exists as root from defaults
-        let err = NewAccount::root(workspace.as_ref().clone(), "Assets", AccountType::Liability)
-            .insert(&mut conn)
-            .expect_err("duplicate root name should fail");
-
-        assert!(matches!(err, AppError::Conflict(_)));
-    }
-
-    #[test]
-    fn create_new_root_succeeds() {
-        let (mut conn, workspace) = setup();
-        let account =
-            NewAccount::root(workspace.as_ref().clone(), "Custom", AccountType::Asset)
-                .insert(&mut conn)
-                .expect("new root should succeed");
-
-        assert_eq!(account.name, "Custom");
-        assert_eq!(account.account_type, AccountType::Asset);
-        assert!(account.is_root());
-    }
-
-    #[test]
-    fn same_root_name_different_workspaces() {
+    fn same_system_accounts_different_workspaces() {
         let mut conn = setup_test_db();
         let user_a = NewUser::new("a@example.com", "A", "password")
             .unwrap()
@@ -735,47 +1049,49 @@ mod tests {
             .insert(&mut conn)
             .unwrap();
 
-        // Both workspaces already have "Assets" from defaults — this test passes
-        // if create_default_tree didn't error (which it didn't, since setup succeeded)
-        let roots_a = workspace_a.as_ref().root_accounts(&mut conn).unwrap();
-        let roots_b = workspace_b.as_ref().root_accounts(&mut conn).unwrap();
-        assert!(roots_a.iter().any(|a| a.name == "Assets"));
-        assert!(roots_b.iter().any(|a| a.name == "Assets"));
+        let chequing_a = workspace_a
+            .as_ref()
+            .system_account(SystemAccount::Chequing, &mut conn)
+            .unwrap();
+        let chequing_b = workspace_b
+            .as_ref()
+            .system_account(SystemAccount::Chequing, &mut conn)
+            .unwrap();
+        assert!(chequing_a.is_some());
+        assert!(chequing_b.is_some());
+        assert_ne!(chequing_a.unwrap().id, chequing_b.unwrap().id);
     }
 
     #[test]
     fn full_name_returns_colon_delimited_path() {
         let (mut conn, workspace) = setup();
-        let expenses = find_account("Expenses", &workspace, &mut conn);
+        let expenses = find_system(SystemAccount::ExpensesRoot, &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        let cafes = NewAccount::child(&food, "Cafés")
+        let cafes = NewCustomAccount::child(&food, "Cafés")
             .insert(&mut conn)
             .unwrap();
 
         assert_eq!(expenses.full_name(&mut conn).unwrap(), "Expenses");
         assert_eq!(food.full_name(&mut conn).unwrap(), "Expenses:Food");
-        assert_eq!(
-            cafes.full_name(&mut conn).unwrap(),
-            "Expenses:Food:Cafés"
-        );
+        assert_eq!(cafes.full_name(&mut conn).unwrap(), "Expenses:Food:Cafés");
     }
 
     #[test]
     fn ancestors_returns_root_to_parent_chain() {
         let (mut conn, workspace) = setup();
-        let assets = find_account("Assets", &workspace, &mut conn);
-        let bank = NewAccount::child(&assets, "Bank")
+        let assets = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn);
+        let bank = NewCustomAccount::child(&assets, "Bank")
             .insert(&mut conn)
             .unwrap();
-        let chequing = NewAccount::child(&bank, "Main Chequing")
+        let chequing = NewCustomAccount::child(&bank, "Main Chequing")
             .insert(&mut conn)
             .unwrap();
 
         let ancestors = chequing.ancestors(&mut conn).unwrap();
         assert_eq!(ancestors.len(), 2);
-        assert_eq!(ancestors[0].name, "Assets");
-        assert_eq!(ancestors[1].name, "Bank");
+        assert_eq!(ancestors[0].name(), "Assets");
+        assert_eq!(ancestors[1].name(), "Bank");
 
         let root_ancestors = assets.ancestors(&mut conn).unwrap();
         assert_eq!(root_ancestors.len(), 0);
@@ -784,65 +1100,64 @@ mod tests {
     #[test]
     fn children_returns_direct_children() {
         let (mut conn, workspace) = setup();
-        let assets = find_account("Assets", &workspace, &mut conn);
+        let assets = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn);
 
-        // Assets has default children: Chequing, Savings, TFSA, RRSP
+        // Assets default children: Chequing, EmergencyFund (System), Savings, TFSA, RRSP (Custom) = 5
         let children = assets.children(&mut conn).unwrap();
-        assert_eq!(children.len(), 4);
+        assert_eq!(children.len(), 5);
     }
 
     #[test]
     fn descendants_returns_all_transitive_children() {
         let (mut conn, workspace) = setup();
-        let expenses = find_account("Expenses", &workspace, &mut conn);
+        let expenses = find_system(SystemAccount::ExpensesRoot, &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        // Add sub-categories under Food
-        NewAccount::child(&food, "Cafés").insert(&mut conn).unwrap();
-        NewAccount::child(&food, "Fast Food")
+        NewCustomAccount::child(&food, "Cafés")
+            .insert(&mut conn)
+            .unwrap();
+        NewCustomAccount::child(&food, "Fast Food")
             .insert(&mut conn)
             .unwrap();
 
         let descendants = expenses.descendants(&mut conn).unwrap();
-        // Default expense children: Food, Rent, Groceries, Dining, Transit, Utilities, Entertainment (7)
-        // Plus Food's new children: Cafés, Fast Food (2)
+        // Default expense children: 7. Plus Food's 2 new children = 9
         assert_eq!(descendants.len(), 9);
     }
 
     #[test]
-    fn account_type_inherited_from_root() {
+    fn category_inherited_from_root_via_parent_chain() {
         let (mut conn, workspace) = setup();
-        let assets = find_account("Assets", &workspace, &mut conn);
-        let bank = NewAccount::child(&assets, "Bank")
+        let assets = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn);
+        let bank = NewCustomAccount::child(&assets, "Bank")
             .insert(&mut conn)
             .unwrap();
-        let grandchild = NewAccount::child(&bank, "Premium")
+        let grandchild = NewCustomAccount::child(&bank, "Premium")
             .insert(&mut conn)
             .unwrap();
 
-        assert_eq!(assets.account_type, AccountType::Asset);
-        assert_eq!(bank.account_type, AccountType::Asset);
-        assert_eq!(grandchild.account_type, AccountType::Asset);
+        assert_eq!(assets.category(), Category::Asset);
+        assert_eq!(bank.category(), Category::Asset);
+        assert_eq!(grandchild.category(), Category::Asset);
     }
 
     #[test]
     fn soft_delete_leaf_succeeds() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let savings = find_account("Savings", &workspace, &mut conn);
 
-        chequing.soft_delete(&mut conn).unwrap();
+        savings.soft_delete(&mut conn).unwrap();
 
-        let assets = find_account("Assets", &workspace, &mut conn);
+        let assets = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn);
         let children = assets.children(&mut conn).unwrap();
-        assert!(!children.iter().any(|a| a.name == "Chequing"));
+        assert!(!children.iter().any(|a| a.name() == "Savings"));
     }
 
     #[test]
     fn soft_delete_with_active_children_rejected() {
         let (mut conn, workspace) = setup();
-        let assets = find_account("Assets", &workspace, &mut conn);
+        let assets = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn);
 
-        // Assets has children, so delete should fail
         let err = assets
             .soft_delete(&mut conn)
             .expect_err("delete with active children should fail");
@@ -851,28 +1166,15 @@ mod tests {
     }
 
     #[test]
-    fn soft_delete_with_all_deleted_children_succeeds() {
-        let (mut conn, workspace) = setup();
-        let equity = find_account("Equity", &workspace, &mut conn);
-        let opening_balances = find_account("Opening Balances", &workspace, &mut conn);
-
-        // Delete the child first, then parent should succeed
-        opening_balances.soft_delete(&mut conn).unwrap();
-        equity
-            .soft_delete(&mut conn)
-            .expect("delete with all children deleted should succeed");
-    }
-
-    #[test]
     fn accounts_returns_only_active() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let savings = find_account("Savings", &workspace, &mut conn);
 
-        chequing.soft_delete(&mut conn).unwrap();
+        savings.soft_delete(&mut conn).unwrap();
 
         let all = workspace.as_ref().accounts(&mut conn).unwrap();
-        assert!(!all.iter().any(|a| a.name == "Chequing"));
-        assert!(all.iter().any(|a| a.name == "Savings"));
+        assert!(!all.iter().any(|a| a.name() == "Savings"));
+        assert!(all.iter().any(|a| a.name() == "TFSA"));
     }
 
     #[test]
@@ -881,21 +1183,7 @@ mod tests {
 
         let roots = workspace.as_ref().root_accounts(&mut conn).unwrap();
         assert!(roots.iter().all(|a| a.is_root()));
-        assert!(roots.iter().any(|a| a.name == "Assets"));
-        assert!(!roots.iter().any(|a| a.name == "Chequing"));
-    }
-
-    #[test]
-    fn custom_currency_on_child() {
-        let (mut conn, workspace) = setup();
-        let assets = find_account("Assets", &workspace, &mut conn);
-
-        let account = NewAccount::child(&assets, "USD Savings")
-            .currency("USD")
-            .insert(&mut conn)
-            .unwrap();
-
-        assert_eq!(account.currency, "USD");
+        assert_eq!(roots.len(), 5);
     }
 
     // ── Balance tests ───────────────────────────────────────────────────
@@ -924,7 +1212,7 @@ mod tests {
     #[test]
     fn balance_sum_of_postings() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
@@ -937,7 +1225,7 @@ mod tests {
     #[test]
     fn balance_excludes_soft_deleted_entries() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
@@ -950,27 +1238,29 @@ mod tests {
     #[test]
     fn balance_with_descendants_includes_children() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
-        let expenses = find_account("Expenses", &workspace, &mut conn);
+        let expenses = find_system(SystemAccount::ExpensesRoot, &workspace, &mut conn);
 
-        let cafes = NewAccount::child(&food, "Cafes").insert(&mut conn).unwrap();
+        let cafes = NewCustomAccount::child(&food, "Cafes")
+            .insert(&mut conn)
+            .unwrap();
 
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
         make_entry(&workspace, &chequing, &cafes, 500, "2026-01-16", &mut conn);
 
-        // Food direct balance = 1200
         assert_eq!(food.balance(&mut conn).unwrap(), 1200);
 
-        // Expenses with descendants = Food(1200) + Cafes(500) = 1700
-        // (other expense children have no postings)
-        assert_eq!(expenses.balance_with_descendants(&mut conn).unwrap(), 1700);
+        assert_eq!(
+            expenses.balance_with_descendants(&mut conn).unwrap(),
+            1700
+        );
     }
 
     #[test]
     fn balance_as_of_filters_by_date() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
@@ -984,25 +1274,34 @@ mod tests {
     #[test]
     fn fundamental_equation_holds() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
         let employment = find_account("Employment", &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
         let rent = find_account("Rent", &workspace, &mut conn);
 
-        // Earn salary: debit chequing, credit employment
-        make_entry(&workspace, &employment, &chequing, 500000, "2026-01-01", &mut conn);
-
-        // Spend on food
+        make_entry(
+            &workspace,
+            &employment,
+            &chequing,
+            500000,
+            "2026-01-01",
+            &mut conn,
+        );
         make_entry(&workspace, &chequing, &food, 5000, "2026-01-05", &mut conn);
+        make_entry(
+            &workspace,
+            &chequing,
+            &rent,
+            150000,
+            "2026-01-05",
+            &mut conn,
+        );
 
-        // Pay rent
-        make_entry(&workspace, &chequing, &rent, 150000, "2026-01-05", &mut conn);
-
-        let assets = find_account("Assets", &workspace, &mut conn);
-        let liabilities = find_account("Liabilities", &workspace, &mut conn);
-        let equity = find_account("Equity", &workspace, &mut conn);
-        let revenue = find_account("Revenue", &workspace, &mut conn);
-        let expenses = find_account("Expenses", &workspace, &mut conn);
+        let assets = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn);
+        let liabilities = find_system(SystemAccount::LiabilitiesRoot, &workspace, &mut conn);
+        let equity = find_system(SystemAccount::EquityRoot, &workspace, &mut conn);
+        let revenue = find_system(SystemAccount::RevenueRoot, &workspace, &mut conn);
+        let expenses = find_system(SystemAccount::ExpensesRoot, &workspace, &mut conn);
 
         let asset_balance = assets.balance_with_descendants(&mut conn).unwrap();
         let liability_balance = liabilities.balance_with_descendants(&mut conn).unwrap();
@@ -1010,78 +1309,94 @@ mod tests {
         let revenue_balance = revenue.balance_with_descendants(&mut conn).unwrap();
         let expense_balance = expenses.balance_with_descendants(&mut conn).unwrap();
 
-        // Sum of all postings across all accounts = 0 (guaranteed by zero-sum invariant)
-        // A + L + E + R + X = 0
-        let total = asset_balance + liability_balance + equity_balance + revenue_balance + expense_balance;
-        assert_eq!(total, 0, "fundamental equation violated: A={asset_balance} L={liability_balance} E={equity_balance} R={revenue_balance} X={expense_balance}");
+        let total = asset_balance
+            + liability_balance
+            + equity_balance
+            + revenue_balance
+            + expense_balance;
+        assert_eq!(
+            total, 0,
+            "fundamental equation violated: A={asset_balance} L={liability_balance} E={equity_balance} R={revenue_balance} X={expense_balance}"
+        );
     }
 
     #[test]
     fn account_with_active_postings_cannot_be_deleted() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
 
-        let err = food.soft_delete(&mut conn).expect_err("should fail with active postings");
+        let err = food
+            .soft_delete(&mut conn)
+            .expect_err("should fail with active postings");
         assert!(matches!(err, AppError::Conflict(_)));
     }
 
     #[test]
     fn account_with_only_deleted_entry_postings_can_be_deleted() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
         let entry = make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
         entry.soft_delete(&mut conn).unwrap();
 
-        food.soft_delete(&mut conn).expect("should succeed when all entries deleted");
+        food.soft_delete(&mut conn)
+            .expect("should succeed when all entries deleted");
     }
 
     #[test]
     fn balance_returns_zero_for_no_postings() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
 
         assert_eq!(chequing.balance(&mut conn).unwrap(), 0);
     }
 
-    // ── Rename tests ───────────────────────────────────────────────
+    // ── Rename ──────────────────────────────────────────────────────────
 
     #[test]
-    fn rename_succeeds() {
+    fn rename_custom_succeeds() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let savings = find_account("Savings", &workspace, &mut conn);
 
-        let renamed = chequing.rename("Main Chequing", &mut conn).unwrap();
+        let renamed = savings.rename("High-Interest Savings", &mut conn).unwrap();
 
-        assert_eq!(renamed.name, "Main Chequing");
-        assert_eq!(renamed.id, chequing.id);
+        assert_eq!(renamed.name(), "High-Interest Savings");
+        assert_eq!(renamed.id, savings.id);
+    }
+
+    #[test]
+    fn rename_system_rejected() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
+
+        let result = chequing.rename("Main Chequing", &mut conn);
+        assert!(matches!(result, Err(AppError::Validation(_))));
     }
 
     #[test]
     fn rename_duplicate_under_same_parent_rejected() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let savings = find_account("Savings", &workspace, &mut conn);
 
-        // "Savings" is a sibling under Assets
-        let result = chequing.rename("Savings", &mut conn);
+        // "TFSA" is a sibling under Assets
+        let result = savings.rename("TFSA", &mut conn);
 
         assert!(matches!(result, Err(AppError::Conflict(_))));
     }
 
-    // ── Reparent tests ─────────────────────────────────────────────
+    // ── Reparent ────────────────────────────────────────────────────────
 
     #[test]
     fn reparent_succeeds() {
         let (mut conn, workspace) = setup();
-        let expenses = find_account("Expenses", &workspace, &mut conn);
+        let expenses = find_system(SystemAccount::ExpensesRoot, &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
-        // Create a sub-category under Expenses to move Food into
-        let categories = NewAccount::child(&expenses, "Categories")
+        let categories = NewCustomAccount::child(&expenses, "Categories")
             .insert(&mut conn)
             .unwrap();
 
@@ -1095,15 +1410,12 @@ mod tests {
     }
 
     #[test]
-    fn reparent_cycle_rejected() {
+    fn reparent_system_rejected() {
         let (mut conn, workspace) = setup();
-        let expenses = find_account("Expenses", &workspace, &mut conn);
-        let food = find_account("Food", &workspace, &mut conn);
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
+        let liabilities = find_system(SystemAccount::LiabilitiesRoot, &workspace, &mut conn);
 
-        // Try to reparent Expenses under Food (its own descendant)
-        let result = expenses.reparent(&food.id, &mut conn);
-
-        // Expenses is a root, so it should be rejected for that reason first
+        let result = chequing.reparent(&liabilities.id, &mut conn);
         assert!(matches!(result, Err(AppError::Validation(_))));
     }
 
@@ -1112,38 +1424,21 @@ mod tests {
         let (mut conn, workspace) = setup();
         let food = find_account("Food", &workspace, &mut conn);
 
-        // Create a child of Food
-        let fast_food = NewAccount::child(&food, "Fast Food")
+        let fast_food = NewCustomAccount::child(&food, "Fast Food")
             .insert(&mut conn)
             .unwrap();
 
-        // Try to reparent Food under its own child
         let result = food.reparent(&fast_food.id, &mut conn);
-
         assert!(matches!(result, Err(AppError::Validation(_))));
     }
 
     #[test]
-    fn reparent_cross_type_rejected() {
+    fn reparent_cross_category_rejected() {
         let (mut conn, workspace) = setup();
         let food = find_account("Food", &workspace, &mut conn);
-        let assets = find_account("Assets", &workspace, &mut conn);
+        let assets = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn);
 
-        // Try to move an Expense account under Assets
         let result = food.reparent(&assets.id, &mut conn);
-
-        assert!(matches!(result, Err(AppError::Validation(_))));
-    }
-
-    #[test]
-    fn reparent_root_account_rejected() {
-        let (mut conn, workspace) = setup();
-        let expenses = find_account("Expenses", &workspace, &mut conn);
-        let revenue = find_account("Revenue", &workspace, &mut conn);
-
-        // Try to reparent "Expenses" root
-        let result = expenses.reparent(&revenue.id, &mut conn);
-
         assert!(matches!(result, Err(AppError::Validation(_))));
     }
 
@@ -1153,7 +1448,6 @@ mod tests {
         let food = find_account("Food", &workspace, &mut conn);
 
         let result = food.reparent(&food.id, &mut conn);
-
         assert!(matches!(result, Err(AppError::Validation(_))));
     }
 
@@ -1176,65 +1470,79 @@ mod tests {
             .unwrap();
 
         let food_a = find_account("Food", &workspace_a, &mut conn);
-        let expenses_b = find_account("Expenses", &workspace_b, &mut conn);
+        let expenses_b = find_system(SystemAccount::ExpensesRoot, &workspace_b, &mut conn);
 
         let result = food_a.reparent(&expenses_b.id, &mut conn);
-
         assert!(matches!(result, Err(AppError::Validation(_))));
     }
 
-    // ── balance_between tests ──────────────────────────────────────
+    // ── balance_between ────────────────────────────────────────────────
 
     #[test]
     fn balance_between_returns_sum_in_date_range() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
         make_entry(&workspace, &chequing, &food, 1000, "2026-01-10", &mut conn);
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
         make_entry(&workspace, &chequing, &food, 800, "2026-01-20", &mut conn);
 
-        // Range captures only middle entry
-        assert_eq!(food.balance_between("2026-01-11", "2026-01-19", &mut conn).unwrap(), 1200);
+        assert_eq!(
+            food.balance_between("2026-01-11", "2026-01-19", &mut conn)
+                .unwrap(),
+            1200
+        );
     }
 
     #[test]
     fn balance_between_inclusive_boundaries() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
 
-        assert_eq!(food.balance_between("2026-01-15", "2026-01-15", &mut conn).unwrap(), 1200);
+        assert_eq!(
+            food.balance_between("2026-01-15", "2026-01-15", &mut conn)
+                .unwrap(),
+            1200
+        );
     }
 
     #[test]
     fn balance_between_returns_zero_for_empty_range() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
 
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
 
-        assert_eq!(food.balance_between("2026-02-01", "2026-02-28", &mut conn).unwrap(), 0);
+        assert_eq!(
+            food.balance_between("2026-02-01", "2026-02-28", &mut conn)
+                .unwrap(),
+            0
+        );
     }
 
     #[test]
     fn balance_between_with_descendants_includes_children() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
-        let expenses = find_account("Expenses", &workspace, &mut conn);
+        let expenses = find_system(SystemAccount::ExpensesRoot, &workspace, &mut conn);
 
-        let cafes = NewAccount::child(&food, "Cafes").insert(&mut conn).unwrap();
+        let cafes = NewCustomAccount::child(&food, "Cafes")
+            .insert(&mut conn)
+            .unwrap();
 
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
         make_entry(&workspace, &chequing, &cafes, 500, "2026-01-16", &mut conn);
 
         assert_eq!(
-            expenses.balance_between_with_descendants("2026-01-01", "2026-01-31", &mut conn).unwrap(),
+            expenses
+                .balance_between_with_descendants("2026-01-01", "2026-01-31", &mut conn)
+                .unwrap(),
             1700
         );
     }
@@ -1242,19 +1550,28 @@ mod tests {
     #[test]
     fn balance_as_of_with_descendants_filters_by_date() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let chequing = find_system(SystemAccount::Chequing, &workspace, &mut conn);
         let food = find_account("Food", &workspace, &mut conn);
-        let assets = find_account("Assets", &workspace, &mut conn);
+        let assets = find_system(SystemAccount::AssetsRoot, &workspace, &mut conn);
 
-        let cafes = NewAccount::child(&food, "Cafes").insert(&mut conn).unwrap();
+        let cafes = NewCustomAccount::child(&food, "Cafes")
+            .insert(&mut conn)
+            .unwrap();
 
-        // Entries at different dates on different accounts
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
         make_entry(&workspace, &chequing, &cafes, 500, "2026-02-10", &mut conn);
 
-        // As of Jan 31: chequing has -1200 (only first entry), assets tree = -1200
-        assert_eq!(assets.balance_as_of_with_descendants("2026-01-31", &mut conn).unwrap(), -1200);
-        // As of Feb 28: chequing has -1700, assets tree = -1700
-        assert_eq!(assets.balance_as_of_with_descendants("2026-02-28", &mut conn).unwrap(), -1700);
+        assert_eq!(
+            assets
+                .balance_as_of_with_descendants("2026-01-31", &mut conn)
+                .unwrap(),
+            -1200
+        );
+        assert_eq!(
+            assets
+                .balance_as_of_with_descendants("2026-02-28", &mut conn)
+                .unwrap(),
+            -1700
+        );
     }
 }

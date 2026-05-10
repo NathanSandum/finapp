@@ -250,20 +250,20 @@ async fn workspace_has_default_accounts() {
     assert_eq!(status, StatusCode::OK);
 
     let accounts = body["accounts"].as_array().unwrap();
-    // 5 roots + 4 asset + 1 liability + 1 revenue + 7 expense + 1 equity = 19
-    assert_eq!(accounts.len(), 19);
+    // 5 system roots + 4 system children (Chequing/EmergencyFund/RetainedEarnings/OpeningBalances)
+    // + 12 custom (Savings/TFSA/RRSP/Credit Card/Employment/Food/Rent/Groceries/Dining/Transit/Utilities/Entertainment) = 21
+    assert_eq!(accounts.len(), 21);
 
-    // Check root accounts exist
-    let root_names: Vec<&str> = accounts
+    let root_kinds: Vec<&str> = accounts
         .iter()
         .filter(|a| a["parent_id"].is_null())
-        .map(|a| a["name"].as_str().unwrap())
+        .map(|a| a["kind"].as_str().unwrap())
         .collect();
-    assert!(root_names.contains(&"Assets"));
-    assert!(root_names.contains(&"Liabilities"));
-    assert!(root_names.contains(&"Equity"));
-    assert!(root_names.contains(&"Revenue"));
-    assert!(root_names.contains(&"Expenses"));
+    assert!(root_kinds.contains(&"AssetsRoot"));
+    assert!(root_kinds.contains(&"LiabilitiesRoot"));
+    assert!(root_kinds.contains(&"EquityRoot"));
+    assert!(root_kinds.contains(&"RevenueRoot"));
+    assert!(root_kinds.contains(&"ExpensesRoot"));
 }
 
 #[tokio::test]
@@ -271,21 +271,8 @@ async fn create_child_account_via_api() {
     let app = app();
     let (token, _, workspace_id) = setup_workspace(&app).await;
 
-    // Find the Assets root account
-    let (_, body) = get(
-        &app,
-        &format!("/workspaces/{workspace_id}/accounts"),
-        &token,
-    )
-    .await;
-    let accounts = body["accounts"].as_array().unwrap();
-    let assets = accounts
-        .iter()
-        .find(|a| a["name"] == "Assets" && a["parent_id"].is_null())
-        .unwrap();
-    let assets_id = assets["id"].as_str().unwrap();
+    let assets_id = find_account_id(&app, &workspace_id, &token, "Assets").await;
 
-    // Create child under Assets
     let (status, body) = post(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
@@ -295,38 +282,22 @@ async fn create_child_account_via_api() {
     .await;
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(body["name"], "Brokerage");
-    assert_eq!(body["account_type"], "asset");
+    assert_eq!(body["kind"], "Custom");
+    assert_eq!(body["category"], "asset");
     assert_eq!(body["parent_id"], assets_id);
 }
 
 #[tokio::test]
-async fn create_root_account_via_api() {
+async fn create_root_account_rejected() {
     let app = app();
     let (token, _, workspace_id) = setup_workspace(&app).await;
 
-    // Creating root account requires account_type
+    // System roots are seeded; clients cannot create root accounts.
     let (status, body) = post(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
         Some(&token),
-        json!({ "name": "Custom Root", "account_type": "asset" }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::CREATED);
-    assert_eq!(body["account_type"], "asset");
-    assert!(body["parent_id"].is_null());
-}
-
-#[tokio::test]
-async fn create_root_without_type_rejected() {
-    let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-
-    let (status, body) = post(
-        &app,
-        &format!("/workspaces/{workspace_id}/accounts"),
-        Some(&token),
-        json!({ "name": "No Type" }),
+        json!({ "name": "Custom Root" }),
     )
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
@@ -337,23 +308,11 @@ async fn delete_leaf_account() {
     let app = app();
     let (token, _, workspace_id) = setup_workspace(&app).await;
 
-    // Find a leaf account (e.g. Chequing under Assets)
-    let (_, body) = get(
-        &app,
-        &format!("/workspaces/{workspace_id}/accounts"),
-        &token,
-    )
-    .await;
-    let accounts = body["accounts"].as_array().unwrap();
-    let chequing = accounts
-        .iter()
-        .find(|a| a["name"] == "Chequing")
-        .unwrap();
-    let chequing_id = chequing["id"].as_str().unwrap();
+    let food_id = find_account_id(&app, &workspace_id, &token, "Food").await;
 
     let (status, _) = delete(
         &app,
-        &format!("/workspaces/{workspace_id}/accounts/{chequing_id}"),
+        &format!("/workspaces/{workspace_id}/accounts/{food_id}"),
         &token,
     )
     .await;
@@ -365,19 +324,7 @@ async fn delete_account_with_children_rejected() {
     let app = app();
     let (token, _, workspace_id) = setup_workspace(&app).await;
 
-    // Find Assets root (has children)
-    let (_, body) = get(
-        &app,
-        &format!("/workspaces/{workspace_id}/accounts"),
-        &token,
-    )
-    .await;
-    let accounts = body["accounts"].as_array().unwrap();
-    let assets = accounts
-        .iter()
-        .find(|a| a["name"] == "Assets" && a["parent_id"].is_null())
-        .unwrap();
-    let assets_id = assets["id"].as_str().unwrap();
+    let assets_id = find_account_id(&app, &workspace_id, &token, "Assets").await;
 
     let (status, _) = delete(
         &app,
@@ -393,18 +340,7 @@ async fn account_balance_zero_when_no_postings() {
     let app = app();
     let (token, _, workspace_id) = setup_workspace(&app).await;
 
-    let (_, body) = get(
-        &app,
-        &format!("/workspaces/{workspace_id}/accounts"),
-        &token,
-    )
-    .await;
-    let accounts = body["accounts"].as_array().unwrap();
-    let chequing = accounts
-        .iter()
-        .find(|a| a["name"] == "Chequing")
-        .unwrap();
-    let chequing_id = chequing["id"].as_str().unwrap();
+    let chequing_id = find_account_id(&app, &workspace_id, &token, "Chequing").await;
 
     let (status, body) = get(
         &app,
@@ -422,28 +358,8 @@ async fn account_balance_reflects_postings() {
     let app = backend::build_router(pool.clone());
     let (token, _, workspace_id) = setup_workspace(&app).await;
 
-    // Get account IDs via API
-    let (_, body) = get(
-        &app,
-        &format!("/workspaces/{workspace_id}/accounts"),
-        &token,
-    )
-    .await;
-    let accounts = body["accounts"].as_array().unwrap();
-    let chequing_id = accounts
-        .iter()
-        .find(|a| a["name"] == "Chequing")
-        .unwrap()["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    let food_id = accounts
-        .iter()
-        .find(|a| a["name"] == "Food")
-        .unwrap()["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    let chequing_id = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let food_id = find_account_id(&app, &workspace_id, &token, "Food").await;
 
     // Create entry via domain model (no route yet)
     {
@@ -510,7 +426,7 @@ async fn cross_workspace_account_access_denied() {
 
 // ── Entry tests ─────────────────────────────────────────────────────────────
 
-/// Helper: find account ID by name from accounts list
+/// Helper: find account ID by name (Custom) or by kind (System; with optional "Root" suffix).
 async fn find_account_id(app: &Router, workspace_id: &str, token: &str, name: &str) -> String {
     let (_, body) = get(
         app,
@@ -519,10 +435,13 @@ async fn find_account_id(app: &Router, workspace_id: &str, token: &str, name: &s
     )
     .await;
     let accounts = body["accounts"].as_array().unwrap();
+    let root_kind = format!("{name}Root");
     accounts
         .iter()
-        .find(|a| a["name"] == name)
-        .unwrap()["id"]
+        .find(|a| {
+            a["name"] == name || a["kind"] == name || a["kind"] == root_kind.as_str()
+        })
+        .unwrap_or_else(|| panic!("account '{name}' not found"))["id"]
         .as_str()
         .unwrap()
         .to_string()
@@ -1241,9 +1160,29 @@ async fn update_entry_not_found() {
 async fn update_account_rename() {
     let app = app();
     let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing_id = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let food_id = find_account_id(&app, &workspace_id, &token, "Food").await;
 
     let (status, body) = put(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts/{food_id}"),
+        &token,
+        json!({ "name": "Dining Out" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "rename failed: {body}");
+    assert_eq!(body["name"], "Dining Out");
+    assert_eq!(body["id"], food_id.as_str());
+    assert_eq!(body["category"], "expense");
+}
+
+#[tokio::test]
+async fn update_system_account_rename_rejected() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let chequing_id = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+
+    let (status, _) = put(
         &app,
         &format!("/workspaces/{workspace_id}/accounts/{chequing_id}"),
         &token,
@@ -1251,10 +1190,7 @@ async fn update_account_rename() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::OK, "rename failed: {body}");
-    assert_eq!(body["name"], "Main Chequing");
-    assert_eq!(body["id"], chequing_id.as_str());
-    assert_eq!(body["account_type"], "asset");
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
 #[tokio::test]
