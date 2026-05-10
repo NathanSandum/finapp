@@ -88,7 +88,8 @@
 	{/snippet}
 
 	{#snippet tiles()}
-		<div class="grid grid-cols-3 gap-3 border-t border-border">
+		<div class="mx-auto h-px w-[95%] bg-border"></div>
+		<div class="grid grid-cols-3 gap-3">
 			<CashFlowTile
 				noun="Income"
 				total={cf.operating.total}
