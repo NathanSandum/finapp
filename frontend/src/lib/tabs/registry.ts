@@ -3,11 +3,13 @@ import IncomeView from '$lib/views/income/View.svelte';
 import CashFlowView from '$lib/views/cash-flow/View.svelte';
 import BalanceSheetView from '$lib/views/balance-sheet/View.svelte';
 import EntriesView from '$lib/views/entries/View.svelte';
+import AccountsView from '$lib/views/accounts/ViewA.svelte';
 import { load as loadEntries } from '$lib/views/entries/loader';
 import { load as loadOverview } from '$lib/views/overview/loader';
 import { load as loadIncome } from '$lib/views/income/loader';
 import { load as loadCashFlow } from '$lib/views/cash-flow/loader';
 import { load as loadBalanceSheet } from '$lib/views/balance-sheet/loader';
+import { load as loadAccounts } from '$lib/views/accounts/loader';
 import type { Tab } from './types';
 
 export const tabs: Tab[] = [
@@ -15,5 +17,6 @@ export const tabs: Tab[] = [
 	{ id: 'income', label: 'Income', view: IncomeView, loader: loadIncome },
 	{ id: 'cash-flow', label: 'Cash Flow', view: CashFlowView, loader: loadCashFlow },
 	{ id: 'balance-sheet', label: 'Balance Sheet', view: BalanceSheetView, loader: loadBalanceSheet },
+	{ id: 'accounts', label: 'Accounts', view: AccountsView, loader: loadAccounts },
 	{ id: 'entries', label: 'Entries', view: EntriesView, loader: loadEntries }
 ];
