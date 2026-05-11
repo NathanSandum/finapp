@@ -267,6 +267,56 @@ async fn workspace_has_default_accounts() {
 }
 
 #[tokio::test]
+async fn accounts_response_includes_role() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+
+    let (_, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts"),
+        &token,
+    )
+    .await;
+    let accounts = body["accounts"].as_array().unwrap();
+
+    let assets_root = accounts
+        .iter()
+        .find(|a| a["name"] == "Assets" && a["parent_id"].is_null())
+        .unwrap();
+    assert_eq!(assets_root["role"], "assets_root");
+
+    let chequing = accounts.iter().find(|a| a["name"] == "Chequing").unwrap();
+    assert_eq!(chequing["role"], "cash");
+
+    let savings = accounts.iter().find(|a| a["name"] == "Savings").unwrap();
+    assert!(savings["role"].is_null());
+}
+
+#[tokio::test]
+async fn anchors_endpoint_returns_all_seven() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/anchors"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    assert_eq!(body["assets"]["role"], "assets_root");
+    assert_eq!(body["liabilities"]["role"], "liabilities_root");
+    assert_eq!(body["equity"]["role"], "equity_root");
+    assert_eq!(body["revenue"]["role"], "revenue_root");
+    assert_eq!(body["expenses"]["role"], "expenses_root");
+    assert_eq!(body["cash"]["role"], "cash");
+    assert_eq!(body["cash"]["name"], "Chequing");
+    assert_eq!(body["opening_equity"]["role"], "opening_equity");
+    assert_eq!(body["opening_equity"]["name"], "Opening Balances");
+}
+
+#[tokio::test]
 async fn create_child_account_via_api() {
     let app = app();
     let (token, _, workspace_id) = setup_workspace(&app).await;

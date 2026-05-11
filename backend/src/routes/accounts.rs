@@ -133,6 +133,27 @@ pub async fn update(
     Ok(JSend::success(account_to_json(&account)))
 }
 
+pub async fn anchors(
+    Extension(db): Extension<DbPool>,
+    member: WorkspaceMember,
+) -> Result<JSend<Value>, AppError> {
+    let mut conn = db
+        .get()
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
+
+    let anchors = member.workspace.anchors(&mut conn)?;
+
+    Ok(JSend::success(json!({
+        "assets": account_to_json(&anchors.assets),
+        "liabilities": account_to_json(&anchors.liabilities),
+        "equity": account_to_json(&anchors.equity),
+        "revenue": account_to_json(&anchors.revenue),
+        "expenses": account_to_json(&anchors.expenses),
+        "cash": account_to_json(&anchors.cash),
+        "opening_equity": account_to_json(&anchors.opening_equity),
+    })))
+}
+
 pub async fn balance(
     Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
@@ -164,5 +185,6 @@ fn account_to_json(account: &Account) -> Value {
         "name": account.name,
         "account_type": account.account_type,
         "currency": account.currency,
+        "role": account.role,
     })
 }

@@ -56,6 +56,10 @@ pub fn build_router(db: DbPool) -> Router {
             "/workspaces/{workspace}/accounts/{account}/balance",
             get(routes::accounts::balance),
         )
+        .route(
+            "/workspaces/{workspace}/anchors",
+            get(routes::accounts::anchors),
+        )
         // Entries
         .route(
             "/workspaces/{workspace}/entries",
