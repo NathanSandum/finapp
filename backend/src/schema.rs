@@ -47,6 +47,7 @@ diesel::table! {
         name -> Text,
         account_type -> Text,
         currency -> Text,
+        role -> Nullable<Text>,
         deleted_at -> Nullable<Timestamp>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
