@@ -77,28 +77,26 @@ Permission checked via `permissions.rs` (Action::Delete × Resource). Self-remov
 ### GET /workspaces/{workspace}/accounts
 ```json
 // data on 200
-{ "accounts": [{ "id": "uuid", "parent_id": "uuid|null", "name": "str", "account_type": "asset|...", "currency": "CAD" }] }
+{ "accounts": [{ "id": "uuid", "parent_id": "uuid|null", "name": "str", "account_type": "asset|...", "currency": "CAD", "role": "assets_root|liabilities_root|equity_root|revenue_root|expenses_root|cash|opening_equity|null" }] }
 ```
-Returns flat list of all active accounts. Filtered by workspace membership.
+Returns flat list of all active accounts. Filtered by workspace membership. `role` is non-null only on anchor accounts (5 roots, Cash = Chequing, OpeningEquity = Opening Balances).
 
 ### POST /workspaces/{workspace}/accounts
-Requires Editor role.
+Requires Editor role. Root accounts are seeded automatically and cannot be created via API.
 ```json
 // Child account (inherits type from parent)
 { "name": "str", "parent_id": "uuid" }
-// Root account (type required)
-{ "name": "str", "account_type": "asset|liability|equity|revenue|expense" }
 // Optional: "currency": "USD" (default "CAD")
 
 // data on 201
-{ "id": "uuid", "parent_id": "uuid|null", "name": "str", "account_type": "str", "currency": "str" }
-// 422: root account without account_type
+{ "id": "uuid", "parent_id": "uuid|null", "name": "str", "account_type": "str", "currency": "str", "role": null }
+// 422: parent_id missing
 // 409: duplicate name under same parent
 ```
 
 ### DELETE /workspaces/{workspace}/accounts/{account}
 Requires Editor role. `data` is `null`.
-409 if account has active children or active postings.
+409 if account has active children, active postings, or is an anchor (role is non-null).
 
 ### GET /workspaces/{workspace}/accounts/{account}/balance
 ```json
@@ -106,6 +104,21 @@ Requires Editor role. `data` is `null`.
 { "account": "uuid", "balance": 1200 }
 ```
 Returns sum of postings on non-deleted entries for this account.
+
+### GET /workspaces/{workspace}/anchors
+```json
+// data on 200
+{
+  "assets":         { ...account, "role": "assets_root" },
+  "liabilities":    { ...account, "role": "liabilities_root" },
+  "equity":         { ...account, "role": "equity_root" },
+  "revenue":        { ...account, "role": "revenue_root" },
+  "expenses":       { ...account, "role": "expenses_root" },
+  "cash":           { ...account, "role": "cash" },
+  "opening_equity": { ...account, "role": "opening_equity" }
+}
+```
+Returns the 7 anchor accounts the workspace guarantees. Frontend can rely on these for statement assembly without name-matching.
 
 ## Entry Routes (token + workspace membership required)
 

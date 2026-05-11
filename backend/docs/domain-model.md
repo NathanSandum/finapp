@@ -46,9 +46,19 @@ Accounts form a tree rooted at five types. `parent_id` is nullable — NULL mean
 
 - `account_type` is denormalized on every row, inherited from root ancestor at insert time
 - Uniqueness: `UNIQUE(workspace_id, parent_id, name)` in DB for siblings. Root uniqueness (NULL parent) enforced in application code (SQLite treats NULL as distinct)
-- `NewAccount::root(workspace, name, account_type)` — creates root, checks name uniqueness manually
-- `NewAccount::child(parent, name)` — inherits workspace, account_type, currency from parent
+- `NewAccount::child(parent, name)` — inherits workspace, account_type, currency from parent (only public constructor)
+- `NewAccount::anchored_root(workspace, name, account_type)` — seed-only, tags with the matching root anchor role
+- `NewAccount::anchored_child(parent, name, ChildAnchor)` — seed-only, tags with a non-root anchor role (Cash, OpeningEquity)
 - `.currency(str)` builder method overrides default "CAD"
+- Roots are sealed: the public API rejects `parent_id == null`. The five typed roots are created exactly once per workspace by `create_default_tree`.
+
+## AccountRole
+
+Anchor roles tag the well-known accounts the 3-statement model depends on. Stored as nullable TEXT; partial unique index `idx_accounts_role` enforces one active account per `(workspace_id, role)`.
+
+Variants: `AssetsRoot`, `LiabilitiesRoot`, `EquityRoot`, `RevenueRoot`, `ExpensesRoot`, `Cash`, `OpeningEquity`.
+
+Anchor accounts can be renamed freely (role identifies, not name). Anchor accounts cannot be soft-deleted (see Soft Deletes).
 
 ### Default Tree (created on workspace creation)
 ```

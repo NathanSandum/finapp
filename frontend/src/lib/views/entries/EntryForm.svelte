@@ -1,22 +1,22 @@
 <script lang="ts">
 	import { cache } from '$lib/api/cache.svelte';
-	import type { Account } from './loader';
+	import type { Account, Anchors } from './loader';
 	import { createEntry } from './api';
 	import { VERBS, verbConfig, buildVerbPostings, type VerbId } from './verbs';
 
 	let {
 		accounts,
+		anchors,
 		initialVerb = 'spent',
 		onClose,
 		onCreated
 	}: {
 		accounts: Account[];
+		anchors: Anchors;
 		initialVerb?: VerbId;
 		onClose: () => void;
 		onCreated?: () => void;
 	} = $props();
-
-	const CHEQUING_NAME = 'Chequing';
 
 	function todayISO(): string {
 		const d = new Date();
@@ -26,7 +26,7 @@
 		return `${y}-${m}-${day}`;
 	}
 
-	const chequing = $derived(accounts.find((a) => a.name === CHEQUING_NAME));
+	const chequing = $derived(anchors.cash);
 
 	let verb = $state<VerbId>(initialVerb);
 	let counterpartyId = $state('');
@@ -42,7 +42,7 @@
 
 	const counterparties = $derived(
 		accounts
-			.filter((a) => a.account_type === config.counterpartyType && a.id !== chequing?.id)
+			.filter((a) => a.account_type === config.counterpartyType && a.id !== chequing.id)
 			.sort((a, b) => a.name.localeCompare(b.name))
 	);
 
@@ -64,11 +64,6 @@
 		event.preventDefault();
 		errorMessage = null;
 		fieldErrors = {};
-
-		if (!chequing) {
-			errorMessage = `No "${CHEQUING_NAME}" account found. Set one up first.`;
-			return;
-		}
 
 		const cents = parseAmount(amountText);
 		if (cents === null) {
@@ -198,7 +193,7 @@
 	<div class="flex gap-2 pt-2">
 		<button
 			type="submit"
-			disabled={submitting || !chequing}
+			disabled={submitting}
 			class="bg-surface-inverse px-4 py-2 text-sm font-medium text-ink-inverse transition-colors hover:bg-surface-inverse-hover disabled:opacity-50"
 		>
 			{submitting ? 'Saving…' : 'Save entry'}

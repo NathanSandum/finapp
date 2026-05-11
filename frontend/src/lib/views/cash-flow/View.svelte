@@ -46,12 +46,13 @@
 	}
 
 	const cf = $derived(
-		computeCashFlow(data.entries, data.accounts, selectedYear, selectedMonth, granularity)
+		computeCashFlow(data.entries, data.accounts, data.anchors, selectedYear, selectedMonth, granularity)
 	);
 	const netTrail = $derived(
 		computeNetCashTrail(
 			data.entries,
 			data.accounts,
+			data.anchors,
 			selectedYear,
 			selectedMonth,
 			granularity,
@@ -62,6 +63,7 @@
 		computeSectionTrails(
 			data.entries,
 			data.accounts,
+			data.anchors,
 			selectedYear,
 			selectedMonth,
 			granularity,

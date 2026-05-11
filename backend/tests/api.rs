@@ -267,6 +267,56 @@ async fn workspace_has_default_accounts() {
 }
 
 #[tokio::test]
+async fn accounts_response_includes_role() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+
+    let (_, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts"),
+        &token,
+    )
+    .await;
+    let accounts = body["accounts"].as_array().unwrap();
+
+    let assets_root = accounts
+        .iter()
+        .find(|a| a["name"] == "Assets" && a["parent_id"].is_null())
+        .unwrap();
+    assert_eq!(assets_root["role"], "assets_root");
+
+    let chequing = accounts.iter().find(|a| a["name"] == "Chequing").unwrap();
+    assert_eq!(chequing["role"], "cash");
+
+    let savings = accounts.iter().find(|a| a["name"] == "Savings").unwrap();
+    assert!(savings["role"].is_null());
+}
+
+#[tokio::test]
+async fn anchors_endpoint_returns_all_seven() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/anchors"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    assert_eq!(body["assets"]["role"], "assets_root");
+    assert_eq!(body["liabilities"]["role"], "liabilities_root");
+    assert_eq!(body["equity"]["role"], "equity_root");
+    assert_eq!(body["revenue"]["role"], "revenue_root");
+    assert_eq!(body["expenses"]["role"], "expenses_root");
+    assert_eq!(body["cash"]["role"], "cash");
+    assert_eq!(body["cash"]["name"], "Chequing");
+    assert_eq!(body["opening_equity"]["role"], "opening_equity");
+    assert_eq!(body["opening_equity"]["name"], "Opening Balances");
+}
+
+#[tokio::test]
 async fn create_child_account_via_api() {
     let app = app();
     let (token, _, workspace_id) = setup_workspace(&app).await;
@@ -300,33 +350,16 @@ async fn create_child_account_via_api() {
 }
 
 #[tokio::test]
-async fn create_root_account_via_api() {
+async fn create_root_account_via_api_rejected() {
     let app = app();
     let (token, _, workspace_id) = setup_workspace(&app).await;
 
-    // Creating root account requires account_type
+    // Roots are seeded; no public path to create them.
     let (status, body) = post(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
         Some(&token),
-        json!({ "name": "Custom Root", "account_type": "asset" }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::CREATED);
-    assert_eq!(body["account_type"], "asset");
-    assert!(body["parent_id"].is_null());
-}
-
-#[tokio::test]
-async fn create_root_without_type_rejected() {
-    let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-
-    let (status, body) = post(
-        &app,
-        &format!("/workspaces/{workspace_id}/accounts"),
-        Some(&token),
-        json!({ "name": "No Type" }),
+        json!({ "name": "Custom Root" }),
     )
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
@@ -337,7 +370,34 @@ async fn delete_leaf_account() {
     let app = app();
     let (token, _, workspace_id) = setup_workspace(&app).await;
 
-    // Find a leaf account (e.g. Chequing under Assets)
+    // Find a non-anchor leaf account (Chequing is an anchor and cannot be deleted).
+    let (_, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts"),
+        &token,
+    )
+    .await;
+    let accounts = body["accounts"].as_array().unwrap();
+    let savings = accounts
+        .iter()
+        .find(|a| a["name"] == "Savings")
+        .unwrap();
+    let savings_id = savings["id"].as_str().unwrap();
+
+    let (status, _) = delete(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts/{savings_id}"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn delete_anchor_account_rejected() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+
     let (_, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
@@ -357,7 +417,7 @@ async fn delete_leaf_account() {
         &token,
     )
     .await;
-    assert_eq!(status, StatusCode::OK);
+    assert_eq!(status, StatusCode::CONFLICT);
 }
 
 #[tokio::test]

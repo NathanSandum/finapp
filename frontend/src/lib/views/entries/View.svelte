@@ -134,6 +134,7 @@
 				{#key formVerb}
 					<EntryForm
 						accounts={data.accounts}
+						anchors={data.anchors}
 						initialVerb={formVerb}
 						onClose={closeForm}
 					/>

@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::auth::WorkspaceMember;
-use crate::domain::account::{Account, AccountRef, AccountType, NewAccount};
+use crate::domain::account::{Account, AccountRef, NewAccount};
 use crate::domain::workspace::{Role, WorkspaceRef};
 use crate::error::AppError;
 use crate::jsend::{JSend, JSendResponse};
@@ -28,7 +28,6 @@ pub async fn list(
 pub struct CreateAccountRequest {
     name: String,
     parent_id: Option<AccountRef>,
-    account_type: Option<String>,
     currency: Option<String>,
 }
 
@@ -42,32 +41,21 @@ pub async fn create(
         .get()
         .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
-    let mut builder = if let Some(ref parent_id) = body.parent_id {
-        let parent = Account::from_ref(parent_id, &mut conn)?
-            .ok_or(AppError::NotFound("parent account".into()))?;
+    let parent_id = body.parent_id.as_ref().ok_or_else(|| {
+        AppError::Validation(vec![crate::error::FieldError {
+            field: "parent_id".into(),
+            message: "parent_id is required; root accounts are seeded automatically".into(),
+        }])
+    })?;
 
-        if parent.workspace != member.workspace {
-            return Err(AppError::NotFound("parent account".into()));
-        }
+    let parent = Account::from_ref(parent_id, &mut conn)?
+        .ok_or(AppError::NotFound("parent account".into()))?;
 
-        NewAccount::child(&parent, &body.name)
-    } else {
-        let account_type_str = body.account_type.as_deref().ok_or_else(|| {
-            AppError::Validation(vec![crate::error::FieldError {
-                field: "account_type".into(),
-                message: "account_type is required for root accounts".into(),
-            }])
-        })?;
+    if parent.workspace != member.workspace {
+        return Err(AppError::NotFound("parent account".into()));
+    }
 
-        let account_type = AccountType::from_str(account_type_str).ok_or_else(|| {
-            AppError::Validation(vec![crate::error::FieldError {
-                field: "account_type".into(),
-                message: format!("unknown account type '{account_type_str}'"),
-            }])
-        })?;
-
-        NewAccount::root(member.workspace.clone(), &body.name, account_type)
-    };
+    let mut builder = NewAccount::child(&parent, &body.name);
 
     if let Some(ref currency) = body.currency {
         builder = builder.currency(currency);
@@ -145,6 +133,27 @@ pub async fn update(
     Ok(JSend::success(account_to_json(&account)))
 }
 
+pub async fn anchors(
+    Extension(db): Extension<DbPool>,
+    member: WorkspaceMember,
+) -> Result<JSend<Value>, AppError> {
+    let mut conn = db
+        .get()
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
+
+    let anchors = member.workspace.anchors(&mut conn)?;
+
+    Ok(JSend::success(json!({
+        "assets": account_to_json(&anchors.assets),
+        "liabilities": account_to_json(&anchors.liabilities),
+        "equity": account_to_json(&anchors.equity),
+        "revenue": account_to_json(&anchors.revenue),
+        "expenses": account_to_json(&anchors.expenses),
+        "cash": account_to_json(&anchors.cash),
+        "opening_equity": account_to_json(&anchors.opening_equity),
+    })))
+}
+
 pub async fn balance(
     Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
@@ -176,5 +185,6 @@ fn account_to_json(account: &Account) -> Value {
         "name": account.name,
         "account_type": account.account_type,
         "currency": account.currency,
+        "role": account.role,
     })
 }

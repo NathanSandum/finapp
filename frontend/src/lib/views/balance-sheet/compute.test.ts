@@ -8,17 +8,17 @@ import {
 import type { Account, Entry } from '../entries/loader';
 
 const accounts: Account[] = [
-	{ id: 'assets', parent_id: null, name: 'Assets', account_type: 'asset', currency: 'CAD' },
-	{ id: 'chequing', parent_id: 'assets', name: 'Chequing', account_type: 'asset', currency: 'CAD' },
-	{ id: 'savings', parent_id: 'assets', name: 'Savings', account_type: 'asset', currency: 'CAD' },
-	{ id: 'liabilities', parent_id: null, name: 'Liabilities', account_type: 'liability', currency: 'CAD' },
-	{ id: 'credit_card', parent_id: 'liabilities', name: 'Credit Card', account_type: 'liability', currency: 'CAD' },
-	{ id: 'equity', parent_id: null, name: 'Equity', account_type: 'equity', currency: 'CAD' },
-	{ id: 'opening', parent_id: 'equity', name: 'Opening Balances', account_type: 'equity', currency: 'CAD' },
-	{ id: 'rev', parent_id: null, name: 'Revenue', account_type: 'revenue', currency: 'CAD' },
-	{ id: 'salary', parent_id: 'rev', name: 'Salary', account_type: 'revenue', currency: 'CAD' },
-	{ id: 'exp', parent_id: null, name: 'Expenses', account_type: 'expense', currency: 'CAD' },
-	{ id: 'food', parent_id: 'exp', name: 'Food', account_type: 'expense', currency: 'CAD' }
+	{ id: 'assets', parent_id: null, name: 'Assets', account_type: 'asset', currency: 'CAD', role: 'assets_root' },
+	{ id: 'chequing', parent_id: 'assets', name: 'Chequing', account_type: 'asset', currency: 'CAD', role: 'cash' },
+	{ id: 'savings', parent_id: 'assets', name: 'Savings', account_type: 'asset', currency: 'CAD', role: null },
+	{ id: 'liabilities', parent_id: null, name: 'Liabilities', account_type: 'liability', currency: 'CAD', role: 'liabilities_root' },
+	{ id: 'credit_card', parent_id: 'liabilities', name: 'Credit Card', account_type: 'liability', currency: 'CAD', role: null },
+	{ id: 'equity', parent_id: null, name: 'Equity', account_type: 'equity', currency: 'CAD', role: 'equity_root' },
+	{ id: 'opening', parent_id: 'equity', name: 'Opening Balances', account_type: 'equity', currency: 'CAD', role: 'opening_equity' },
+	{ id: 'rev', parent_id: null, name: 'Revenue', account_type: 'revenue', currency: 'CAD', role: 'revenue_root' },
+	{ id: 'salary', parent_id: 'rev', name: 'Salary', account_type: 'revenue', currency: 'CAD', role: null },
+	{ id: 'exp', parent_id: null, name: 'Expenses', account_type: 'expense', currency: 'CAD', role: 'expenses_root' },
+	{ id: 'food', parent_id: 'exp', name: 'Food', account_type: 'expense', currency: 'CAD', role: null }
 ];
 
 function entry(id: string, date: string, postings: { account_id: string; amount: number }[]): Entry {

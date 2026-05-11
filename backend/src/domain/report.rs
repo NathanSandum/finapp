@@ -1,7 +1,8 @@
 use diesel::SqliteConnection;
 
-use crate::domain::account::{Account, AccountRef, AccountType};
-use crate::domain::workspace::WorkspaceRef;
+use crate::domain::account::{
+    Account, AccountRef, BalanceSheetAnchors, IncomeStatementAnchors,
+};
 use crate::error::AppError;
 
 // ── AccountBalance ──────────────────────────────────────────────────────────
@@ -30,46 +31,19 @@ pub struct BalanceSheet {
 
 impl BalanceSheet {
     pub fn as_of(
-        workspace: &WorkspaceRef,
+        anchors: BalanceSheetAnchors<'_>,
         date: &str,
         conn: &mut SqliteConnection,
     ) -> Result<BalanceSheet, AppError> {
-        let roots = workspace.root_accounts(conn)?;
+        let total_assets = anchors.assets.balance_as_of_with_descendants(date, conn)?;
+        let total_liabilities = -anchors.liabilities.balance_as_of_with_descendants(date, conn)?;
+        let total_equity = -anchors.equity.balance_as_of_with_descendants(date, conn)?;
+        let revenue_total = anchors.revenue.balance_as_of_with_descendants(date, conn)?;
+        let expense_total = anchors.expenses.balance_as_of_with_descendants(date, conn)?;
 
-        let mut total_assets: i64 = 0;
-        let mut total_liabilities: i64 = 0;
-        let mut total_equity: i64 = 0;
-        let mut revenue_total: i64 = 0;
-        let mut expense_total: i64 = 0;
-
-        let mut assets_detail = Vec::new();
-        let mut liabilities_detail = Vec::new();
-        let mut equity_detail = Vec::new();
-
-        for root in &roots {
-            let root_balance = root.balance_as_of_with_descendants(date, conn)?;
-
-            match root.account_type {
-                AccountType::Asset => {
-                    total_assets = root_balance;
-                    assets_detail = Self::children_balances(root, date, false, conn)?;
-                }
-                AccountType::Liability => {
-                    total_liabilities = -root_balance;
-                    liabilities_detail = Self::children_balances(root, date, true, conn)?;
-                }
-                AccountType::Equity => {
-                    total_equity = -root_balance;
-                    equity_detail = Self::children_balances(root, date, true, conn)?;
-                }
-                AccountType::Revenue => {
-                    revenue_total = root_balance;
-                }
-                AccountType::Expense => {
-                    expense_total = root_balance;
-                }
-            }
-        }
+        let assets_detail = Self::children_balances(anchors.assets, date, false, conn)?;
+        let liabilities_detail = Self::children_balances(anchors.liabilities, date, true, conn)?;
+        let equity_detail = Self::children_balances(anchors.equity, date, true, conn)?;
 
         let net_income = -(revenue_total + expense_total);
         let total_liabilities_and_equity = total_liabilities + total_equity + net_income;
@@ -126,35 +100,19 @@ pub struct IncomeStatement {
 
 impl IncomeStatement {
     pub fn for_period(
-        workspace: &WorkspaceRef,
+        anchors: IncomeStatementAnchors<'_>,
         start_date: &str,
         end_date: &str,
         conn: &mut SqliteConnection,
     ) -> Result<IncomeStatement, AppError> {
-        let roots = workspace.root_accounts(conn)?;
-
-        let mut revenue_balance: i64 = 0;
-        let mut expense_balance: i64 = 0;
-        let mut revenue_detail = Vec::new();
-        let mut expense_detail = Vec::new();
-
-        for root in &roots {
-            match root.account_type {
-                AccountType::Revenue => {
-                    revenue_balance =
-                        root.balance_between_with_descendants(start_date, end_date, conn)?;
-                    revenue_detail =
-                        Self::children_balances(root, start_date, end_date, true, conn)?;
-                }
-                AccountType::Expense => {
-                    expense_balance =
-                        root.balance_between_with_descendants(start_date, end_date, conn)?;
-                    expense_detail =
-                        Self::children_balances(root, start_date, end_date, false, conn)?;
-                }
-                _ => {}
-            }
-        }
+        let revenue_balance =
+            anchors.revenue.balance_between_with_descendants(start_date, end_date, conn)?;
+        let expense_balance =
+            anchors.expenses.balance_between_with_descendants(start_date, end_date, conn)?;
+        let revenue_detail =
+            Self::children_balances(anchors.revenue, start_date, end_date, true, conn)?;
+        let expense_detail =
+            Self::children_balances(anchors.expenses, start_date, end_date, false, conn)?;
 
         // Revenue is negative in ledger (credit-normal), negate for display
         let total_revenue = -revenue_balance;
@@ -226,6 +184,26 @@ mod tests {
         all.into_iter().find(|a| a.name == name).unwrap()
     }
 
+    fn balance_sheet_for(
+        workspace: &Workspace,
+        date: &str,
+        conn: &mut SqliteConnection,
+    ) -> BalanceSheet {
+        let anchors = workspace.as_ref().anchors(conn).unwrap();
+        BalanceSheet::as_of(anchors.balance_sheet(), date, conn).unwrap()
+    }
+
+    fn income_statement_for(
+        workspace: &Workspace,
+        start_date: &str,
+        end_date: &str,
+        conn: &mut SqliteConnection,
+    ) -> IncomeStatement {
+        let anchors = workspace.as_ref().anchors(conn).unwrap();
+        IncomeStatement::for_period(anchors.income_statement(), start_date, end_date, conn)
+            .unwrap()
+    }
+
     fn make_entry(
         workspace: &Workspace,
         from: &Account,
@@ -253,7 +231,7 @@ mod tests {
     fn balance_sheet_all_zeros_when_no_entries() {
         let (mut conn, workspace) = setup();
 
-        let sheet = BalanceSheet::as_of(workspace.as_ref(), "2026-12-31", &mut conn).unwrap();
+        let sheet = balance_sheet_for(&workspace,"2026-12-31", &mut conn);
 
         assert_eq!(sheet.total_assets, 0);
         assert_eq!(sheet.total_liabilities, 0);
@@ -274,7 +252,7 @@ mod tests {
         // Spend 12.00 on food
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-05", &mut conn);
 
-        let sheet = BalanceSheet::as_of(workspace.as_ref(), "2026-01-31", &mut conn).unwrap();
+        let sheet = balance_sheet_for(&workspace,"2026-01-31", &mut conn);
 
         // Assets = 5000.00 - 12.00 = 4988.00
         assert_eq!(sheet.total_assets, 498800);
@@ -295,10 +273,10 @@ mod tests {
         make_entry(&workspace, &employment, &chequing, 500000, "2026-01-15", &mut conn);
         make_entry(&workspace, &employment, &chequing, 300000, "2026-02-15", &mut conn);
 
-        let jan_sheet = BalanceSheet::as_of(workspace.as_ref(), "2026-01-31", &mut conn).unwrap();
+        let jan_sheet = balance_sheet_for(&workspace,"2026-01-31", &mut conn);
         assert_eq!(jan_sheet.total_assets, 500000);
 
-        let feb_sheet = BalanceSheet::as_of(workspace.as_ref(), "2026-02-28", &mut conn).unwrap();
+        let feb_sheet = balance_sheet_for(&workspace,"2026-02-28", &mut conn);
         assert_eq!(feb_sheet.total_assets, 800000);
     }
 
@@ -312,7 +290,7 @@ mod tests {
         make_entry(&workspace, &employment, &chequing, 500000, "2026-01-01", &mut conn);
         make_entry(&workspace, &employment, &savings, 200000, "2026-01-01", &mut conn);
 
-        let sheet = BalanceSheet::as_of(workspace.as_ref(), "2026-01-31", &mut conn).unwrap();
+        let sheet = balance_sheet_for(&workspace,"2026-01-31", &mut conn);
 
         let chequing_balance = sheet.assets.iter().find(|a| a.name == "Chequing").unwrap();
         assert_eq!(chequing_balance.balance, 500000);
@@ -337,7 +315,7 @@ mod tests {
         // Pay rent from chequing
         make_entry(&workspace, &chequing, &rent, 150000, "2026-01-05", &mut conn);
 
-        let sheet = BalanceSheet::as_of(workspace.as_ref(), "2026-01-31", &mut conn).unwrap();
+        let sheet = balance_sheet_for(&workspace,"2026-01-31", &mut conn);
 
         // Liabilities display-positive (credit card owes 50.00)
         assert_eq!(sheet.total_liabilities, 5000);
@@ -359,13 +337,7 @@ mod tests {
 
         make_entry(&workspace, &employment, &chequing, 500000, "2026-01-01", &mut conn);
 
-        let statement = IncomeStatement::for_period(
-            workspace.as_ref(),
-            "2026-01-01",
-            "2026-01-31",
-            &mut conn,
-        )
-        .unwrap();
+        let statement = income_statement_for(&workspace, "2026-01-01", "2026-01-31", &mut conn);
 
         let employment_revenue = statement.revenue.iter().find(|a| a.name == "Employment").unwrap();
         assert_eq!(employment_revenue.balance, 500000, "Revenue detail should be display-positive");
@@ -377,13 +349,7 @@ mod tests {
     fn income_statement_all_zeros_when_no_entries() {
         let (mut conn, workspace) = setup();
 
-        let statement = IncomeStatement::for_period(
-            workspace.as_ref(),
-            "2026-01-01",
-            "2026-01-31",
-            &mut conn,
-        )
-        .unwrap();
+        let statement = income_statement_for(&workspace, "2026-01-01", "2026-01-31", &mut conn);
 
         assert_eq!(statement.total_revenue, 0);
         assert_eq!(statement.total_expenses, 0);
@@ -400,13 +366,7 @@ mod tests {
         make_entry(&workspace, &employment, &chequing, 500000, "2026-01-01", &mut conn);
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-05", &mut conn);
 
-        let statement = IncomeStatement::for_period(
-            workspace.as_ref(),
-            "2026-01-01",
-            "2026-01-31",
-            &mut conn,
-        )
-        .unwrap();
+        let statement = income_statement_for(&workspace, "2026-01-01", "2026-01-31", &mut conn);
 
         assert_eq!(statement.total_revenue, 500000);
         assert_eq!(statement.total_expenses, 1200);
@@ -422,22 +382,10 @@ mod tests {
         make_entry(&workspace, &employment, &chequing, 500000, "2026-01-15", &mut conn);
         make_entry(&workspace, &employment, &chequing, 300000, "2026-02-15", &mut conn);
 
-        let jan = IncomeStatement::for_period(
-            workspace.as_ref(),
-            "2026-01-01",
-            "2026-01-31",
-            &mut conn,
-        )
-        .unwrap();
+        let jan = income_statement_for(&workspace, "2026-01-01", "2026-01-31", &mut conn);
         assert_eq!(jan.total_revenue, 500000);
 
-        let both = IncomeStatement::for_period(
-            workspace.as_ref(),
-            "2026-01-01",
-            "2026-02-28",
-            &mut conn,
-        )
-        .unwrap();
+        let both = income_statement_for(&workspace, "2026-01-01", "2026-02-28", &mut conn);
         assert_eq!(both.total_revenue, 800000);
     }
 
@@ -451,13 +399,7 @@ mod tests {
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-05", &mut conn);
         make_entry(&workspace, &chequing, &rent, 150000, "2026-01-05", &mut conn);
 
-        let statement = IncomeStatement::for_period(
-            workspace.as_ref(),
-            "2026-01-01",
-            "2026-01-31",
-            &mut conn,
-        )
-        .unwrap();
+        let statement = income_statement_for(&workspace, "2026-01-01", "2026-01-31", &mut conn);
 
         let food_expense = statement.expenses.iter().find(|a| a.name == "Food").unwrap();
         assert_eq!(food_expense.balance, 1200);
@@ -477,13 +419,7 @@ mod tests {
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-05", &mut conn);
         make_entry(&workspace, &chequing, &cafes, 500, "2026-01-06", &mut conn);
 
-        let statement = IncomeStatement::for_period(
-            workspace.as_ref(),
-            "2026-01-01",
-            "2026-01-31",
-            &mut conn,
-        )
-        .unwrap();
+        let statement = income_statement_for(&workspace, "2026-01-01", "2026-01-31", &mut conn);
 
         // Food in detail includes Cafes (descendant rollup)
         let food_expense = statement.expenses.iter().find(|a| a.name == "Food").unwrap();
@@ -501,7 +437,7 @@ mod tests {
         // Only Chequing gets a balance; Savings, TFSA, RRSP stay at zero
         make_entry(&workspace, &employment, &chequing, 500000, "2026-01-01", &mut conn);
 
-        let sheet = BalanceSheet::as_of(workspace.as_ref(), "2026-01-31", &mut conn).unwrap();
+        let sheet = balance_sheet_for(&workspace,"2026-01-31", &mut conn);
 
         // Should contain Chequing
         assert!(sheet.assets.iter().any(|a| a.name == "Chequing"));
@@ -523,13 +459,7 @@ mod tests {
         make_entry(&workspace, &employment, &chequing, 500000, "2026-01-01", &mut conn);
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-05", &mut conn);
 
-        let statement = IncomeStatement::for_period(
-            workspace.as_ref(),
-            "2026-01-01",
-            "2026-01-31",
-            &mut conn,
-        )
-        .unwrap();
+        let statement = income_statement_for(&workspace, "2026-01-01", "2026-01-31", &mut conn);
 
         // Revenue should only contain Employment
         assert_eq!(statement.revenue.len(), 1);

@@ -68,6 +68,72 @@ impl ToSql<Text, Sqlite> for AccountType {
 }
 
 
+// ── AccountRole ──────────────────────────────────────────────────────────────
+//
+// A small fixed set of well-known accounts the 3-statement model relies on.
+// Each workspace has at most one active account per role (enforced by a
+// partial unique index on (workspace_id, role) where role IS NOT NULL).
+// Accounts without a role have role = None — that's the common case.
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
+    diesel::expression::AsExpression, diesel::deserialize::FromSqlRow,
+)]
+#[diesel(sql_type = Text)]
+#[serde(rename_all = "snake_case")]
+pub enum AccountRole {
+    AssetsRoot,
+    LiabilitiesRoot,
+    EquityRoot,
+    RevenueRoot,
+    ExpensesRoot,
+    Cash,
+    OpeningEquity,
+}
+
+impl AccountRole {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AccountRole::AssetsRoot => "assets_root",
+            AccountRole::LiabilitiesRoot => "liabilities_root",
+            AccountRole::EquityRoot => "equity_root",
+            AccountRole::RevenueRoot => "revenue_root",
+            AccountRole::ExpensesRoot => "expenses_root",
+            AccountRole::Cash => "cash",
+            AccountRole::OpeningEquity => "opening_equity",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "assets_root" => Some(AccountRole::AssetsRoot),
+            "liabilities_root" => Some(AccountRole::LiabilitiesRoot),
+            "equity_root" => Some(AccountRole::EquityRoot),
+            "revenue_root" => Some(AccountRole::RevenueRoot),
+            "expenses_root" => Some(AccountRole::ExpensesRoot),
+            "cash" => Some(AccountRole::Cash),
+            "opening_equity" => Some(AccountRole::OpeningEquity),
+            _ => None,
+        }
+    }
+}
+
+impl FromSql<Text, Sqlite> for AccountRole {
+    fn from_sql(
+        bytes: <Sqlite as Backend>::RawValue<'_>,
+    ) -> deserialize::Result<Self> {
+        let raw = <String as FromSql<Text, Sqlite>>::from_sql(bytes)?;
+        AccountRole::from_str(&raw).ok_or_else(|| format!("unknown account role: {raw}").into())
+    }
+}
+
+impl ToSql<Text, Sqlite> for AccountRole {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> serialize::Result {
+        <str as ToSql<Text, Sqlite>>::to_sql(self.as_str(), out)
+    }
+}
+
+
 // ── Models ────────────────────────────────────────────────────────────────────
 
 #[derive(
@@ -93,6 +159,7 @@ pub struct Account {
     pub name: String,
     pub account_type: AccountType,
     pub currency: String,
+    pub role: Option<AccountRole>,
     pub deleted_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
@@ -253,6 +320,13 @@ impl Account {
     }
 
     pub fn soft_delete(&self, conn: &mut SqliteConnection) -> Result<(), AppError> {
+        // Anchor accounts are part of the workspace invariant and must always exist.
+        if self.role.is_some() {
+            return Err(AppError::Conflict(
+                "cannot delete an anchor account".to_string(),
+            ));
+        }
+
         // Prevent deleting accounts with active children
         let active_children_count: i64 = accounts::table
             .filter(accounts::parent_id.eq(&self.id))
@@ -411,6 +485,113 @@ impl Account {
     }
 }
 
+// ── WorkspaceAnchors ─────────────────────────────────────────────────────────
+//
+// The seven anchor accounts every workspace guarantees. Loaded together so
+// downstream report code can take a populated struct rather than re-fetching
+// or matching by name. Each field is the active anchor for that role; any
+// missing anchor is an Internal error (workspace invariant broken).
+
+#[derive(Debug)]
+pub struct WorkspaceAnchors {
+    pub assets: Account,
+    pub liabilities: Account,
+    pub equity: Account,
+    pub revenue: Account,
+    pub expenses: Account,
+    pub cash: Account,
+    pub opening_equity: Account,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct BalanceSheetAnchors<'a> {
+    pub assets: &'a Account,
+    pub liabilities: &'a Account,
+    pub equity: &'a Account,
+    pub revenue: &'a Account,
+    pub expenses: &'a Account,
+    pub opening_equity: &'a Account,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct IncomeStatementAnchors<'a> {
+    pub revenue: &'a Account,
+    pub expenses: &'a Account,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CashFlowAnchors<'a> {
+    pub cash: &'a Account,
+    pub opening_equity: &'a Account,
+    pub revenue: &'a Account,
+    pub expenses: &'a Account,
+}
+
+impl WorkspaceAnchors {
+    pub fn balance_sheet(&self) -> BalanceSheetAnchors<'_> {
+        BalanceSheetAnchors {
+            assets: &self.assets,
+            liabilities: &self.liabilities,
+            equity: &self.equity,
+            revenue: &self.revenue,
+            expenses: &self.expenses,
+            opening_equity: &self.opening_equity,
+        }
+    }
+
+    pub fn income_statement(&self) -> IncomeStatementAnchors<'_> {
+        IncomeStatementAnchors {
+            revenue: &self.revenue,
+            expenses: &self.expenses,
+        }
+    }
+
+    pub fn cash_flow(&self) -> CashFlowAnchors<'_> {
+        CashFlowAnchors {
+            cash: &self.cash,
+            opening_equity: &self.opening_equity,
+            revenue: &self.revenue,
+            expenses: &self.expenses,
+        }
+    }
+}
+
+impl WorkspaceRef {
+    pub fn anchors(&self, conn: &mut SqliteConnection) -> Result<WorkspaceAnchors, AppError> {
+        let anchored: Vec<Account> = accounts::table
+            .filter(accounts::workspace_id.eq(self))
+            .filter(accounts::role.is_not_null())
+            .filter(accounts::deleted_at.is_null())
+            .select(Account::as_select())
+            .load(conn)
+            .map_err(|err| AppError::Internal(format!("anchors query failed: {err}")))?;
+
+        let mut by_role: std::collections::HashMap<AccountRole, Account> = anchored
+            .into_iter()
+            .filter_map(|account| account.role.map(|role| (role, account)))
+            .collect();
+
+        fn take(
+            by_role: &mut std::collections::HashMap<AccountRole, Account>,
+            role: AccountRole,
+        ) -> Result<Account, AppError> {
+            by_role.remove(&role).ok_or_else(|| {
+                AppError::Internal(format!("workspace missing anchor: {}", role.as_str()))
+            })
+        }
+
+        Ok(WorkspaceAnchors {
+            assets: take(&mut by_role, AccountRole::AssetsRoot)?,
+            liabilities: take(&mut by_role, AccountRole::LiabilitiesRoot)?,
+            equity: take(&mut by_role, AccountRole::EquityRoot)?,
+            revenue: take(&mut by_role, AccountRole::RevenueRoot)?,
+            expenses: take(&mut by_role, AccountRole::ExpensesRoot)?,
+            cash: take(&mut by_role, AccountRole::Cash)?,
+            opening_equity: take(&mut by_role, AccountRole::OpeningEquity)?,
+        })
+    }
+}
+
 impl WorkspaceRef {
     pub fn accounts(&self, conn: &mut SqliteConnection) -> Result<Vec<Account>, AppError> {
         accounts::table
@@ -444,6 +625,7 @@ struct NewAccountRow {
     name: String,
     account_type: AccountType,
     currency: String,
+    role: Option<AccountRole>,
     created_at: NaiveDateTime,
     updated_at: NaiveDateTime,
 }
@@ -454,20 +636,34 @@ pub struct NewAccount {
     name: String,
     account_type: AccountType,
     currency: String,
+    role: Option<AccountRole>,
 }
 
-impl NewAccount {
-    /// Create a root account (no parent). Must specify account type.
-    pub fn root(workspace: WorkspaceRef, name: &str, account_type: AccountType) -> Self {
-        NewAccount {
-            workspace,
-            parent_id: None,
-            name: name.to_string(),
-            account_type,
-            currency: "CAD".to_string(),
+/// Anchor roles that may be assigned to non-root accounts.
+/// Root anchor roles are derived from AccountType in `anchored_root`.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ChildAnchor {
+    Cash,
+    OpeningEquity,
+}
+
+impl ChildAnchor {
+    fn role(self) -> AccountRole {
+        match self {
+            ChildAnchor::Cash => AccountRole::Cash,
+            ChildAnchor::OpeningEquity => AccountRole::OpeningEquity,
         }
     }
 
+    fn required_account_type(self) -> AccountType {
+        match self {
+            ChildAnchor::Cash => AccountType::Asset,
+            ChildAnchor::OpeningEquity => AccountType::Equity,
+        }
+    }
+}
+
+impl NewAccount {
     /// Create a child account. Inherits workspace and account_type from parent.
     pub fn child(parent: &Account, name: &str) -> Self {
         NewAccount {
@@ -476,6 +672,52 @@ impl NewAccount {
             name: name.to_string(),
             account_type: parent.account_type,
             currency: parent.currency.clone(),
+            role: None,
+        }
+    }
+
+    /// Seed-only: build a root account tagged with the matching root anchor role.
+    /// Each (workspace, account_type) gets exactly one of these via `create_default_tree`.
+    pub(crate) fn anchored_root(
+        workspace: WorkspaceRef,
+        name: &str,
+        account_type: AccountType,
+    ) -> Self {
+        let role = match account_type {
+            AccountType::Asset => AccountRole::AssetsRoot,
+            AccountType::Liability => AccountRole::LiabilitiesRoot,
+            AccountType::Equity => AccountRole::EquityRoot,
+            AccountType::Revenue => AccountRole::RevenueRoot,
+            AccountType::Expense => AccountRole::ExpensesRoot,
+        };
+        NewAccount {
+            workspace,
+            parent_id: None,
+            name: name.to_string(),
+            account_type,
+            currency: "CAD".to_string(),
+            role: Some(role),
+        }
+    }
+
+    /// Seed-only: build a child account tagged with a non-root anchor role.
+    /// Anchor's required account_type must match the parent's account_type.
+    pub(crate) fn anchored_child(parent: &Account, name: &str, anchor: ChildAnchor) -> Self {
+        debug_assert_eq!(
+            parent.account_type,
+            anchor.required_account_type(),
+            "ChildAnchor {:?} requires parent of type {:?}, got {:?}",
+            anchor,
+            anchor.required_account_type(),
+            parent.account_type,
+        );
+        NewAccount {
+            workspace: parent.workspace.clone(),
+            parent_id: Some(parent.id.clone()),
+            name: name.to_string(),
+            account_type: parent.account_type,
+            currency: parent.currency.clone(),
+            role: Some(anchor.role()),
         }
     }
 
@@ -515,6 +757,7 @@ impl NewAccount {
                 name: self.name.clone(),
                 account_type: self.account_type,
                 currency: self.currency,
+                role: self.role,
                 created_at: now,
                 updated_at: now,
             })
@@ -538,18 +781,22 @@ pub fn create_default_tree(
     workspace: &WorkspaceRef,
     conn: &mut SqliteConnection,
 ) -> Result<(), AppError> {
-    let assets = NewAccount::root(workspace.clone(), "Assets", AccountType::Asset).insert(conn)?;
+    let assets =
+        NewAccount::anchored_root(workspace.clone(), "Assets", AccountType::Asset).insert(conn)?;
     let liabilities =
-        NewAccount::root(workspace.clone(), "Liabilities", AccountType::Liability).insert(conn)?;
+        NewAccount::anchored_root(workspace.clone(), "Liabilities", AccountType::Liability)
+            .insert(conn)?;
     let equity =
-        NewAccount::root(workspace.clone(), "Equity", AccountType::Equity).insert(conn)?;
+        NewAccount::anchored_root(workspace.clone(), "Equity", AccountType::Equity).insert(conn)?;
     let revenue =
-        NewAccount::root(workspace.clone(), "Revenue", AccountType::Revenue).insert(conn)?;
+        NewAccount::anchored_root(workspace.clone(), "Revenue", AccountType::Revenue)
+            .insert(conn)?;
     let expenses =
-        NewAccount::root(workspace.clone(), "Expenses", AccountType::Expense).insert(conn)?;
+        NewAccount::anchored_root(workspace.clone(), "Expenses", AccountType::Expense)
+            .insert(conn)?;
 
-    // Asset sub-accounts
-    NewAccount::child(&assets, "Chequing").insert(conn)?;
+    // Asset sub-accounts (Chequing is the cash anchor)
+    NewAccount::anchored_child(&assets, "Chequing", ChildAnchor::Cash).insert(conn)?;
     NewAccount::child(&assets, "Savings").insert(conn)?;
     NewAccount::child(&assets, "TFSA").insert(conn)?;
     NewAccount::child(&assets, "RRSP").insert(conn)?;
@@ -569,8 +816,9 @@ pub fn create_default_tree(
     NewAccount::child(&expenses, "Utilities").insert(conn)?;
     NewAccount::child(&expenses, "Entertainment").insert(conn)?;
 
-    // Equity sub-accounts
-    NewAccount::child(&equity, "Opening Balances").insert(conn)?;
+    // Equity sub-accounts (Opening Balances is the opening-equity anchor)
+    NewAccount::anchored_child(&equity, "Opening Balances", ChildAnchor::OpeningEquity)
+        .insert(conn)?;
 
     Ok(())
 }
@@ -623,6 +871,45 @@ mod tests {
 
         let chequing = all.iter().find(|a| a.name == "Chequing").unwrap();
         assert_eq!(chequing.account_type, AccountType::Asset);
+        assert_eq!(chequing.role, Some(AccountRole::Cash));
+
+        let opening = all.iter().find(|a| a.name == "Opening Balances").unwrap();
+        assert_eq!(opening.role, Some(AccountRole::OpeningEquity));
+
+        let assets_root = roots.iter().find(|a| a.name == "Assets").unwrap();
+        assert_eq!(assets_root.role, Some(AccountRole::AssetsRoot));
+
+        // Non-anchor accounts have no role.
+        let savings = all.iter().find(|a| a.name == "Savings").unwrap();
+        assert_eq!(savings.role, None);
+    }
+
+    #[test]
+    fn account_role_string_round_trip() {
+        for role in [
+            AccountRole::AssetsRoot,
+            AccountRole::LiabilitiesRoot,
+            AccountRole::EquityRoot,
+            AccountRole::RevenueRoot,
+            AccountRole::ExpensesRoot,
+            AccountRole::Cash,
+            AccountRole::OpeningEquity,
+        ] {
+            assert_eq!(AccountRole::from_str(role.as_str()), Some(role));
+        }
+        assert_eq!(AccountRole::from_str("bogus"), None);
+    }
+
+    #[test]
+    fn newly_created_account_has_no_role() {
+        let (mut conn, workspace) = setup();
+        let assets = find_account("Assets", &workspace, &mut conn);
+
+        let brokerage = NewAccount::child(&assets, "Brokerage")
+            .insert(&mut conn)
+            .unwrap();
+
+        assert_eq!(brokerage.role, None);
     }
 
     #[test]
@@ -694,27 +981,63 @@ mod tests {
     }
 
     #[test]
-    fn root_name_uniqueness_within_workspace() {
+    fn anchors_loaded_from_seeded_workspace() {
         let (mut conn, workspace) = setup();
-        // "Assets" already exists as root from defaults
-        let err = NewAccount::root(workspace.as_ref().clone(), "Assets", AccountType::Liability)
-            .insert(&mut conn)
-            .expect_err("duplicate root name should fail");
+        let anchors = workspace.as_ref().anchors(&mut conn).unwrap();
 
-        assert!(matches!(err, AppError::Conflict(_)));
+        assert_eq!(anchors.assets.name, "Assets");
+        assert_eq!(anchors.assets.role, Some(AccountRole::AssetsRoot));
+        assert_eq!(anchors.liabilities.name, "Liabilities");
+        assert_eq!(anchors.equity.name, "Equity");
+        assert_eq!(anchors.revenue.name, "Revenue");
+        assert_eq!(anchors.expenses.name, "Expenses");
+        assert_eq!(anchors.cash.name, "Chequing");
+        assert_eq!(anchors.cash.role, Some(AccountRole::Cash));
+        assert_eq!(anchors.opening_equity.name, "Opening Balances");
+        assert_eq!(anchors.opening_equity.role, Some(AccountRole::OpeningEquity));
     }
 
     #[test]
-    fn create_new_root_succeeds() {
+    fn anchors_unaffected_by_rename() {
         let (mut conn, workspace) = setup();
-        let account =
-            NewAccount::root(workspace.as_ref().clone(), "Custom", AccountType::Asset)
-                .insert(&mut conn)
-                .expect("new root should succeed");
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        chequing.rename("Wealthsimple Cash", &mut conn).unwrap();
 
-        assert_eq!(account.name, "Custom");
-        assert_eq!(account.account_type, AccountType::Asset);
-        assert!(account.is_root());
+        let anchors = workspace.as_ref().anchors(&mut conn).unwrap();
+        assert_eq!(anchors.cash.name, "Wealthsimple Cash");
+        assert_eq!(anchors.cash.role, Some(AccountRole::Cash));
+    }
+
+    #[test]
+    fn anchors_fail_when_role_missing() {
+        let (mut conn, workspace) = setup();
+        // Clear the Cash anchor's role directly to simulate a broken workspace.
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        diesel::update(accounts::table.find(&chequing.id))
+            .set(accounts::role.eq::<Option<AccountRole>>(None))
+            .execute(&mut conn)
+            .unwrap();
+
+        let err = workspace
+            .as_ref()
+            .anchors(&mut conn)
+            .expect_err("missing anchor should fail");
+        assert!(matches!(err, AppError::Internal(ref msg) if msg.contains("cash")));
+    }
+
+    #[test]
+    fn duplicate_root_anchor_rejected() {
+        let (mut conn, workspace) = setup();
+        // Seed already created an Asset root with AssetsRoot anchor role.
+        let err = NewAccount::anchored_root(
+            workspace.as_ref().clone(),
+            "Extra Assets",
+            AccountType::Asset,
+        )
+        .insert(&mut conn)
+        .expect_err("second AssetsRoot in same workspace should fail");
+
+        assert!(matches!(err, AppError::Conflict(_)));
     }
 
     #[test]
@@ -828,13 +1151,30 @@ mod tests {
     #[test]
     fn soft_delete_leaf_succeeds() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let savings = find_account("Savings", &workspace, &mut conn);
 
-        chequing.soft_delete(&mut conn).unwrap();
+        savings.soft_delete(&mut conn).unwrap();
 
         let assets = find_account("Assets", &workspace, &mut conn);
         let children = assets.children(&mut conn).unwrap();
-        assert!(!children.iter().any(|a| a.name == "Chequing"));
+        assert!(!children.iter().any(|a| a.name == "Savings"));
+    }
+
+    #[test]
+    fn soft_delete_anchor_rejected() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+
+        let err = chequing
+            .soft_delete(&mut conn)
+            .expect_err("deleting anchor account should fail");
+        assert!(matches!(err, AppError::Conflict(_)));
+
+        let opening = find_account("Opening Balances", &workspace, &mut conn);
+        let err = opening
+            .soft_delete(&mut conn)
+            .expect_err("deleting anchor account should fail");
+        assert!(matches!(err, AppError::Conflict(_)));
     }
 
     #[test]
@@ -853,12 +1193,14 @@ mod tests {
     #[test]
     fn soft_delete_with_all_deleted_children_succeeds() {
         let (mut conn, workspace) = setup();
-        let equity = find_account("Equity", &workspace, &mut conn);
-        let opening_balances = find_account("Opening Balances", &workspace, &mut conn);
+        let assets = find_account("Assets", &workspace, &mut conn);
 
-        // Delete the child first, then parent should succeed
-        opening_balances.soft_delete(&mut conn).unwrap();
-        equity
+        // Build a non-anchor branch we can fully soft-delete.
+        let custom = NewAccount::child(&assets, "Custom").insert(&mut conn).unwrap();
+        let sub = NewAccount::child(&custom, "Sub").insert(&mut conn).unwrap();
+
+        sub.soft_delete(&mut conn).unwrap();
+        custom
             .soft_delete(&mut conn)
             .expect("delete with all children deleted should succeed");
     }
@@ -866,12 +1208,12 @@ mod tests {
     #[test]
     fn accounts_returns_only_active() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let tfsa = find_account("TFSA", &workspace, &mut conn);
 
-        chequing.soft_delete(&mut conn).unwrap();
+        tfsa.soft_delete(&mut conn).unwrap();
 
         let all = workspace.as_ref().accounts(&mut conn).unwrap();
-        assert!(!all.iter().any(|a| a.name == "Chequing"));
+        assert!(!all.iter().any(|a| a.name == "TFSA"));
         assert!(all.iter().any(|a| a.name == "Savings"));
     }
 
