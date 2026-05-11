@@ -320,7 +320,34 @@ async fn delete_leaf_account() {
     let app = app();
     let (token, _, workspace_id) = setup_workspace(&app).await;
 
-    // Find a leaf account (e.g. Chequing under Assets)
+    // Find a non-anchor leaf account (Chequing is an anchor and cannot be deleted).
+    let (_, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts"),
+        &token,
+    )
+    .await;
+    let accounts = body["accounts"].as_array().unwrap();
+    let savings = accounts
+        .iter()
+        .find(|a| a["name"] == "Savings")
+        .unwrap();
+    let savings_id = savings["id"].as_str().unwrap();
+
+    let (status, _) = delete(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts/{savings_id}"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn delete_anchor_account_rejected() {
+    let app = app();
+    let (token, _, workspace_id) = setup_workspace(&app).await;
+
     let (_, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
@@ -340,7 +367,7 @@ async fn delete_leaf_account() {
         &token,
     )
     .await;
-    assert_eq!(status, StatusCode::OK);
+    assert_eq!(status, StatusCode::CONFLICT);
 }
 
 #[tokio::test]

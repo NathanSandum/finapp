@@ -320,6 +320,13 @@ impl Account {
     }
 
     pub fn soft_delete(&self, conn: &mut SqliteConnection) -> Result<(), AppError> {
+        // Anchor accounts are part of the workspace invariant and must always exist.
+        if self.role.is_some() {
+            return Err(AppError::Conflict(
+                "cannot delete an anchor account".to_string(),
+            ));
+        }
+
         // Prevent deleting accounts with active children
         let active_children_count: i64 = accounts::table
             .filter(accounts::parent_id.eq(&self.id))
@@ -1091,13 +1098,30 @@ mod tests {
     #[test]
     fn soft_delete_leaf_succeeds() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let savings = find_account("Savings", &workspace, &mut conn);
 
-        chequing.soft_delete(&mut conn).unwrap();
+        savings.soft_delete(&mut conn).unwrap();
 
         let assets = find_account("Assets", &workspace, &mut conn);
         let children = assets.children(&mut conn).unwrap();
-        assert!(!children.iter().any(|a| a.name == "Chequing"));
+        assert!(!children.iter().any(|a| a.name == "Savings"));
+    }
+
+    #[test]
+    fn soft_delete_anchor_rejected() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+
+        let err = chequing
+            .soft_delete(&mut conn)
+            .expect_err("deleting anchor account should fail");
+        assert!(matches!(err, AppError::Conflict(_)));
+
+        let opening = find_account("Opening Balances", &workspace, &mut conn);
+        let err = opening
+            .soft_delete(&mut conn)
+            .expect_err("deleting anchor account should fail");
+        assert!(matches!(err, AppError::Conflict(_)));
     }
 
     #[test]
@@ -1116,12 +1140,14 @@ mod tests {
     #[test]
     fn soft_delete_with_all_deleted_children_succeeds() {
         let (mut conn, workspace) = setup();
-        let equity = find_account("Equity", &workspace, &mut conn);
-        let opening_balances = find_account("Opening Balances", &workspace, &mut conn);
+        let assets = find_account("Assets", &workspace, &mut conn);
 
-        // Delete the child first, then parent should succeed
-        opening_balances.soft_delete(&mut conn).unwrap();
-        equity
+        // Build a non-anchor branch we can fully soft-delete.
+        let custom = NewAccount::child(&assets, "Custom").insert(&mut conn).unwrap();
+        let sub = NewAccount::child(&custom, "Sub").insert(&mut conn).unwrap();
+
+        sub.soft_delete(&mut conn).unwrap();
+        custom
             .soft_delete(&mut conn)
             .expect("delete with all children deleted should succeed");
     }
@@ -1129,12 +1155,12 @@ mod tests {
     #[test]
     fn accounts_returns_only_active() {
         let (mut conn, workspace) = setup();
-        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let tfsa = find_account("TFSA", &workspace, &mut conn);
 
-        chequing.soft_delete(&mut conn).unwrap();
+        tfsa.soft_delete(&mut conn).unwrap();
 
         let all = workspace.as_ref().accounts(&mut conn).unwrap();
-        assert!(!all.iter().any(|a| a.name == "Chequing"));
+        assert!(!all.iter().any(|a| a.name == "TFSA"));
         assert!(all.iter().any(|a| a.name == "Savings"));
     }
 
