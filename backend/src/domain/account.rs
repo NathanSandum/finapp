@@ -68,6 +68,72 @@ impl ToSql<Text, Sqlite> for AccountType {
 }
 
 
+// ── AccountRole ──────────────────────────────────────────────────────────────
+//
+// A small fixed set of well-known accounts the 3-statement model relies on.
+// Each workspace has at most one active account per role (enforced by a
+// partial unique index on (workspace_id, role) where role IS NOT NULL).
+// Accounts without a role have role = None — that's the common case.
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+    diesel::expression::AsExpression, diesel::deserialize::FromSqlRow,
+)]
+#[diesel(sql_type = Text)]
+#[serde(rename_all = "snake_case")]
+pub enum AccountRole {
+    AssetsRoot,
+    LiabilitiesRoot,
+    EquityRoot,
+    RevenueRoot,
+    ExpensesRoot,
+    Cash,
+    OpeningEquity,
+}
+
+impl AccountRole {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AccountRole::AssetsRoot => "assets_root",
+            AccountRole::LiabilitiesRoot => "liabilities_root",
+            AccountRole::EquityRoot => "equity_root",
+            AccountRole::RevenueRoot => "revenue_root",
+            AccountRole::ExpensesRoot => "expenses_root",
+            AccountRole::Cash => "cash",
+            AccountRole::OpeningEquity => "opening_equity",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "assets_root" => Some(AccountRole::AssetsRoot),
+            "liabilities_root" => Some(AccountRole::LiabilitiesRoot),
+            "equity_root" => Some(AccountRole::EquityRoot),
+            "revenue_root" => Some(AccountRole::RevenueRoot),
+            "expenses_root" => Some(AccountRole::ExpensesRoot),
+            "cash" => Some(AccountRole::Cash),
+            "opening_equity" => Some(AccountRole::OpeningEquity),
+            _ => None,
+        }
+    }
+}
+
+impl FromSql<Text, Sqlite> for AccountRole {
+    fn from_sql(
+        bytes: <Sqlite as Backend>::RawValue<'_>,
+    ) -> deserialize::Result<Self> {
+        let raw = <String as FromSql<Text, Sqlite>>::from_sql(bytes)?;
+        AccountRole::from_str(&raw).ok_or_else(|| format!("unknown account role: {raw}").into())
+    }
+}
+
+impl ToSql<Text, Sqlite> for AccountRole {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> serialize::Result {
+        <str as ToSql<Text, Sqlite>>::to_sql(self.as_str(), out)
+    }
+}
+
+
 // ── Models ────────────────────────────────────────────────────────────────────
 
 #[derive(
@@ -93,6 +159,7 @@ pub struct Account {
     pub name: String,
     pub account_type: AccountType,
     pub currency: String,
+    pub role: Option<AccountRole>,
     pub deleted_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
@@ -444,6 +511,7 @@ struct NewAccountRow {
     name: String,
     account_type: AccountType,
     currency: String,
+    role: Option<AccountRole>,
     created_at: NaiveDateTime,
     updated_at: NaiveDateTime,
 }
@@ -454,6 +522,7 @@ pub struct NewAccount {
     name: String,
     account_type: AccountType,
     currency: String,
+    role: Option<AccountRole>,
 }
 
 impl NewAccount {
@@ -465,6 +534,7 @@ impl NewAccount {
             name: name.to_string(),
             account_type,
             currency: "CAD".to_string(),
+            role: None,
         }
     }
 
@@ -476,6 +546,7 @@ impl NewAccount {
             name: name.to_string(),
             account_type: parent.account_type,
             currency: parent.currency.clone(),
+            role: None,
         }
     }
 
@@ -515,6 +586,7 @@ impl NewAccount {
                 name: self.name.clone(),
                 account_type: self.account_type,
                 currency: self.currency,
+                role: self.role,
                 created_at: now,
                 updated_at: now,
             })
@@ -623,6 +695,34 @@ mod tests {
 
         let chequing = all.iter().find(|a| a.name == "Chequing").unwrap();
         assert_eq!(chequing.account_type, AccountType::Asset);
+    }
+
+    #[test]
+    fn account_role_string_round_trip() {
+        for role in [
+            AccountRole::AssetsRoot,
+            AccountRole::LiabilitiesRoot,
+            AccountRole::EquityRoot,
+            AccountRole::RevenueRoot,
+            AccountRole::ExpensesRoot,
+            AccountRole::Cash,
+            AccountRole::OpeningEquity,
+        ] {
+            assert_eq!(AccountRole::from_str(role.as_str()), Some(role));
+        }
+        assert_eq!(AccountRole::from_str("bogus"), None);
+    }
+
+    #[test]
+    fn newly_created_account_has_no_role() {
+        let (mut conn, workspace) = setup();
+        let assets = find_account("Assets", &workspace, &mut conn);
+
+        let brokerage = NewAccount::child(&assets, "Brokerage")
+            .insert(&mut conn)
+            .unwrap();
+
+        assert_eq!(brokerage.role, None);
     }
 
     #[test]
