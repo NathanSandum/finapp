@@ -76,7 +76,7 @@ impl ToSql<Text, Sqlite> for AccountType {
 // Accounts without a role have role = None — that's the common case.
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+    Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
     diesel::expression::AsExpression, diesel::deserialize::FromSqlRow,
 )]
 #[diesel(sql_type = Text)]
@@ -478,6 +478,60 @@ impl Account {
     }
 }
 
+// ── WorkspaceAnchors ─────────────────────────────────────────────────────────
+//
+// The seven anchor accounts every workspace guarantees. Loaded together so
+// downstream report code can take a populated struct rather than re-fetching
+// or matching by name. Each field is the active anchor for that role; any
+// missing anchor is an Internal error (workspace invariant broken).
+
+#[derive(Debug)]
+pub struct WorkspaceAnchors {
+    pub assets: Account,
+    pub liabilities: Account,
+    pub equity: Account,
+    pub revenue: Account,
+    pub expenses: Account,
+    pub cash: Account,
+    pub opening_equity: Account,
+}
+
+impl WorkspaceRef {
+    pub fn anchors(&self, conn: &mut SqliteConnection) -> Result<WorkspaceAnchors, AppError> {
+        let anchored: Vec<Account> = accounts::table
+            .filter(accounts::workspace_id.eq(self))
+            .filter(accounts::role.is_not_null())
+            .filter(accounts::deleted_at.is_null())
+            .select(Account::as_select())
+            .load(conn)
+            .map_err(|err| AppError::Internal(format!("anchors query failed: {err}")))?;
+
+        let mut by_role: std::collections::HashMap<AccountRole, Account> = anchored
+            .into_iter()
+            .filter_map(|account| account.role.map(|role| (role, account)))
+            .collect();
+
+        fn take(
+            by_role: &mut std::collections::HashMap<AccountRole, Account>,
+            role: AccountRole,
+        ) -> Result<Account, AppError> {
+            by_role.remove(&role).ok_or_else(|| {
+                AppError::Internal(format!("workspace missing anchor: {}", role.as_str()))
+            })
+        }
+
+        Ok(WorkspaceAnchors {
+            assets: take(&mut by_role, AccountRole::AssetsRoot)?,
+            liabilities: take(&mut by_role, AccountRole::LiabilitiesRoot)?,
+            equity: take(&mut by_role, AccountRole::EquityRoot)?,
+            revenue: take(&mut by_role, AccountRole::RevenueRoot)?,
+            expenses: take(&mut by_role, AccountRole::ExpensesRoot)?,
+            cash: take(&mut by_role, AccountRole::Cash)?,
+            opening_equity: take(&mut by_role, AccountRole::OpeningEquity)?,
+        })
+    }
+}
+
 impl WorkspaceRef {
     pub fn accounts(&self, conn: &mut SqliteConnection) -> Result<Vec<Account>, AppError> {
         accounts::table
@@ -864,6 +918,51 @@ mod tests {
         NewAccount::child(&bank_b, "Main")
             .insert(&mut conn)
             .expect("cousin duplication should succeed");
+    }
+
+    #[test]
+    fn anchors_loaded_from_seeded_workspace() {
+        let (mut conn, workspace) = setup();
+        let anchors = workspace.as_ref().anchors(&mut conn).unwrap();
+
+        assert_eq!(anchors.assets.name, "Assets");
+        assert_eq!(anchors.assets.role, Some(AccountRole::AssetsRoot));
+        assert_eq!(anchors.liabilities.name, "Liabilities");
+        assert_eq!(anchors.equity.name, "Equity");
+        assert_eq!(anchors.revenue.name, "Revenue");
+        assert_eq!(anchors.expenses.name, "Expenses");
+        assert_eq!(anchors.cash.name, "Chequing");
+        assert_eq!(anchors.cash.role, Some(AccountRole::Cash));
+        assert_eq!(anchors.opening_equity.name, "Opening Balances");
+        assert_eq!(anchors.opening_equity.role, Some(AccountRole::OpeningEquity));
+    }
+
+    #[test]
+    fn anchors_unaffected_by_rename() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        chequing.rename("Wealthsimple Cash", &mut conn).unwrap();
+
+        let anchors = workspace.as_ref().anchors(&mut conn).unwrap();
+        assert_eq!(anchors.cash.name, "Wealthsimple Cash");
+        assert_eq!(anchors.cash.role, Some(AccountRole::Cash));
+    }
+
+    #[test]
+    fn anchors_fail_when_role_missing() {
+        let (mut conn, workspace) = setup();
+        // Clear the Cash anchor's role directly to simulate a broken workspace.
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        diesel::update(accounts::table.find(&chequing.id))
+            .set(accounts::role.eq::<Option<AccountRole>>(None))
+            .execute(&mut conn)
+            .unwrap();
+
+        let err = workspace
+            .as_ref()
+            .anchors(&mut conn)
+            .expect_err("missing anchor should fail");
+        assert!(matches!(err, AppError::Internal(ref msg) if msg.contains("cash")));
     }
 
     #[test]
