@@ -352,7 +352,7 @@ impl Account {
 
         if active_posting_count > 0 {
             return Err(AppError::Conflict(
-                "cannot delete account with active postings".to_string(),
+                "cannot delete account with active entries".to_string(),
             ));
         }
 
@@ -727,6 +727,45 @@ impl NewAccount {
     }
 
     pub fn insert(self, conn: &mut SqliteConnection) -> Result<Account, AppError> {
+        // If a soft-deleted account with the same (workspace, parent_id, name)
+        // exists, restore it instead of inserting a new row. The UNIQUE
+        // constraint doesn't exclude soft-deleted rows, so creating a fresh
+        // row would conflict; restoring keeps history linked to the same id.
+        // Safe to resurrect: soft_delete refuses while active children or
+        // entries exist, so the restored row carries no live state.
+        let soft_deleted: Option<Account> = {
+            let mut query = accounts::table
+                .filter(accounts::workspace_id.eq(&self.workspace))
+                .filter(accounts::name.eq(&self.name))
+                .filter(accounts::deleted_at.is_not_null())
+                .into_boxed();
+            query = match &self.parent_id {
+                Some(parent) => query.filter(accounts::parent_id.eq(parent)),
+                None => query.filter(accounts::parent_id.is_null()),
+            };
+            query
+                .select(Account::as_select())
+                .first(conn)
+                .optional()
+                .map_err(|err| {
+                    AppError::Internal(format!("soft-deleted lookup failed: {err}"))
+                })?
+        };
+
+        if let Some(account) = soft_deleted {
+            let now = chrono::Utc::now().naive_utc();
+            return diesel::update(accounts::table.find(&account.id))
+                .set((
+                    accounts::deleted_at.eq::<Option<chrono::NaiveDateTime>>(None),
+                    accounts::updated_at.eq(now),
+                ))
+                .returning(Account::as_returning())
+                .get_result(conn)
+                .map_err(|err| {
+                    AppError::Internal(format!("account restore failed: {err}"))
+                });
+        }
+
         // For root accounts, enforce uniqueness manually since SQLite
         // treats NULL as distinct in UNIQUE constraints
         if self.parent_id.is_none() {
@@ -734,6 +773,7 @@ impl NewAccount {
                 .filter(accounts::workspace_id.eq(&self.workspace))
                 .filter(accounts::parent_id.is_null())
                 .filter(accounts::name.eq(&self.name))
+                .filter(accounts::deleted_at.is_null())
                 .count()
                 .get_result(conn)
                 .map_err(|err| {
@@ -1368,6 +1408,21 @@ mod tests {
 
         let err = food.soft_delete(&mut conn).expect_err("should fail with active postings");
         assert!(matches!(err, AppError::Conflict(_)));
+    }
+
+    #[test]
+    fn delete_then_readd_account_restores_same_id() {
+        let (mut conn, workspace) = setup();
+        let food = find_account("Food", &workspace, &mut conn);
+        let original_id = food.id.clone();
+        let expenses = find_account("Expenses", &workspace, &mut conn);
+
+        food.soft_delete(&mut conn).unwrap();
+
+        let recreated = NewAccount::child(&expenses, "Food").insert(&mut conn).unwrap();
+
+        assert_eq!(recreated.id, original_id);
+        assert!(recreated.deleted_at.is_none());
     }
 
     #[test]
