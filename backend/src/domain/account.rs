@@ -503,6 +503,59 @@ pub struct WorkspaceAnchors {
     pub opening_equity: Account,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct BalanceSheetAnchors<'a> {
+    pub assets: &'a Account,
+    pub liabilities: &'a Account,
+    pub equity: &'a Account,
+    pub revenue: &'a Account,
+    pub expenses: &'a Account,
+    pub opening_equity: &'a Account,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct IncomeStatementAnchors<'a> {
+    pub revenue: &'a Account,
+    pub expenses: &'a Account,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CashFlowAnchors<'a> {
+    pub cash: &'a Account,
+    pub opening_equity: &'a Account,
+    pub revenue: &'a Account,
+    pub expenses: &'a Account,
+}
+
+impl WorkspaceAnchors {
+    pub fn balance_sheet(&self) -> BalanceSheetAnchors<'_> {
+        BalanceSheetAnchors {
+            assets: &self.assets,
+            liabilities: &self.liabilities,
+            equity: &self.equity,
+            revenue: &self.revenue,
+            expenses: &self.expenses,
+            opening_equity: &self.opening_equity,
+        }
+    }
+
+    pub fn income_statement(&self) -> IncomeStatementAnchors<'_> {
+        IncomeStatementAnchors {
+            revenue: &self.revenue,
+            expenses: &self.expenses,
+        }
+    }
+
+    pub fn cash_flow(&self) -> CashFlowAnchors<'_> {
+        CashFlowAnchors {
+            cash: &self.cash,
+            opening_equity: &self.opening_equity,
+            revenue: &self.revenue,
+            expenses: &self.expenses,
+        }
+    }
+}
+
 impl WorkspaceRef {
     pub fn anchors(&self, conn: &mut SqliteConnection) -> Result<WorkspaceAnchors, AppError> {
         let anchored: Vec<Account> = accounts::table

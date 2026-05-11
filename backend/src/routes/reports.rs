@@ -28,7 +28,8 @@ pub async fn balance_sheet(
         .get()
         .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
-    let sheet = BalanceSheet::as_of(&member.workspace, &as_of, &mut conn)?;
+    let anchors = member.workspace.anchors(&mut conn)?;
+    let sheet = BalanceSheet::as_of(anchors.balance_sheet(), &as_of, &mut conn)?;
 
     Ok(JSend::success(sheet))
 }
@@ -68,8 +69,9 @@ pub async fn income_statement(
         .get()
         .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
+    let anchors = member.workspace.anchors(&mut conn)?;
     let statement = IncomeStatement::for_period(
-        &member.workspace,
+        anchors.income_statement(),
         &start_date,
         &end_date,
         &mut conn,
