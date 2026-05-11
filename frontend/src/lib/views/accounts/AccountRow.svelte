@@ -3,6 +3,9 @@
 	import { createAccount, deleteAccount, renameAccount } from './api';
 	import { ROLE_BADGE, type AccountNode } from './tree';
 	import Self from './AccountRow.svelte';
+	import NameButton from './NameButton.svelte';
+	import NameEditor from './NameEditor.svelte';
+	import AddChildInput from './AddChildInput.svelte';
 
 	let {
 		node,
@@ -19,32 +22,12 @@
 	const canDelete = $derived(!isAnchor && !hasChildren);
 
 	let editing = $state(false);
-	let nameInput = $state('');
 	let adding = $state(false);
-	let newName = $state('');
 	let busy = $state(false);
 	let error = $state<string | null>(null);
-	let nameEl = $state<HTMLInputElement | null>(null);
-	let newNameEl = $state<HTMLInputElement | null>(null);
 
-	$effect(() => {
-		if (editing && nameEl) {
-			nameEl.focus();
-			nameEl.select();
-		}
-	});
-
-	$effect(() => {
-		if (adding && newNameEl) newNameEl.focus();
-	});
-
-	function startEdit() {
-		nameInput = account.name;
-		editing = true;
-	}
-
-	async function commitRename() {
-		const trimmed = nameInput.trim();
+	async function commitRename(next: string) {
+		const trimmed = next.trim();
 		if (!trimmed || trimmed === account.name) {
 			editing = false;
 			return;
@@ -61,8 +44,8 @@
 		}
 	}
 
-	async function commitAddChild() {
-		const trimmed = newName.trim();
+	async function commitAddChild(next: string) {
+		const trimmed = next.trim();
 		if (!trimmed) {
 			adding = false;
 			return;
@@ -78,7 +61,6 @@
 		if (result.status === 'success') {
 			cache.invalidateAll();
 			adding = false;
-			newName = '';
 		} else {
 			error = result.status === 'fail' ? Object.values(result.data)[0] ?? 'create failed' : result.message;
 		}
@@ -101,26 +83,14 @@
 
 <div class="flex items-center gap-2 py-1" style="padding-left: {depth * 16}px;">
 	{#if editing}
-		<input
-			type="text"
-			bind:value={nameInput}
-			bind:this={nameEl}
-			onblur={commitRename}
-			onkeydown={(e) => {
-				if (e.key === 'Enter') commitRename();
-				if (e.key === 'Escape') editing = false;
-			}}
-			disabled={busy}
-			class="flex-1 border border-border bg-surface-card px-1.5 py-0.5 text-sm"
+		<NameEditor
+			initial={account.name}
+			{busy}
+			onCommit={commitRename}
+			onCancel={() => (editing = false)}
 		/>
 	{:else}
-		<button
-			type="button"
-			onclick={startEdit}
-			class="flex-1 truncate text-left text-sm text-ink hover:text-ink-body"
-		>
-			{account.name}
-		</button>
+		<NameButton name={account.name} onEdit={() => (editing = true)} />
 	{/if}
 
 	{#if badge}
@@ -159,22 +129,7 @@
 
 {#if adding}
 	<div class="flex items-center gap-2 py-1" style="padding-left: {(depth + 1) * 16}px;">
-		<input
-			type="text"
-			bind:value={newName}
-			bind:this={newNameEl}
-			placeholder="new account name"
-			onblur={commitAddChild}
-			onkeydown={(e) => {
-				if (e.key === 'Enter') commitAddChild();
-				if (e.key === 'Escape') {
-					adding = false;
-					newName = '';
-				}
-			}}
-			disabled={busy}
-			class="flex-1 border border-border bg-surface-card px-1.5 py-0.5 text-sm"
-		/>
+		<AddChildInput {busy} onCommit={commitAddChild} onCancel={() => (adding = false)} />
 	</div>
 {/if}
 
