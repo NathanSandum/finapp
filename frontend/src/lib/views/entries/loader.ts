@@ -15,28 +15,55 @@ export type Entry = {
 	postings: Posting[];
 };
 
+export type AccountRole =
+	| 'assets_root'
+	| 'liabilities_root'
+	| 'equity_root'
+	| 'revenue_root'
+	| 'expenses_root'
+	| 'cash'
+	| 'opening_equity';
+
 export type Account = {
 	id: string;
 	parent_id: string | null;
 	name: string;
 	account_type: string;
 	currency: string;
+	role: AccountRole | null;
+};
+
+export type Anchors = {
+	assets: Account;
+	liabilities: Account;
+	equity: Account;
+	revenue: Account;
+	expenses: Account;
+	cash: Account;
+	opening_equity: Account;
 };
 
 export type EntriesData = {
 	entries: Entry[];
 	accounts: Account[];
 	accountNames: Record<string, string>;
+	anchors: Anchors;
 };
 
+export function fetchAnchors() {
+	return apiFetch<Anchors>(`/workspaces/${DEV_WORKSPACE}/anchors`);
+}
+
 export async function load(): Promise<JSend<EntriesData>> {
-	const [entriesResult, accountsResult] = await Promise.all([
+	const [entriesResult, accountsResult, anchorsResult] = await Promise.all([
 		apiFetch<{ entries: Entry[] }>(`/workspaces/${DEV_WORKSPACE}/entries`),
-		apiFetch<{ accounts: Account[] }>(`/workspaces/${DEV_WORKSPACE}/accounts`)
+		apiFetch<{ accounts: Account[] }>(`/workspaces/${DEV_WORKSPACE}/accounts`),
+		fetchAnchors()
 	]);
 
 	if (entriesResult.status !== 'success') return entriesResult;
 	if (accountsResult.status !== 'success') return accountsResult;
+	if (anchorsResult.status !== 'success') return anchorsResult;
 
 	const accountNames: Record<string, string> = {};
 	for (const account of accountsResult.data.accounts) {
@@ -48,7 +75,8 @@ export async function load(): Promise<JSend<EntriesData>> {
 		data: {
 			entries: entriesResult.data.entries,
 			accounts: accountsResult.data.accounts,
-			accountNames
+			accountNames,
+			anchors: anchorsResult.data
 		}
 	};
 }

@@ -1,15 +1,10 @@
-import type { Account, Entry } from '../entries/loader';
+import type { Account, Anchors, Entry } from '../entries/loader';
 import { periodBounds, periodLabel, type Granularity } from '../period';
 
-const CASH_NAMES = new Set(['chequing', 'checking', 'cash']);
 const MONTH_SHORT = [
 	'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
 	'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
 ];
-
-function isCash(account: Account): boolean {
-	return CASH_NAMES.has(account.name.toLowerCase());
-}
 
 function topBucket(accountId: string, accounts: Map<string, Account>): Account | null {
 	let current = accounts.get(accountId);
@@ -64,6 +59,7 @@ export type OverviewMetrics = {
 export function computeOverview(
 	entries: Entry[],
 	accounts: Account[],
+	anchors: Anchors,
 	year: number,
 	month: number,
 	granularity: Granularity
@@ -72,6 +68,7 @@ export function computeOverview(
 	const asOf = bounds.end;
 
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
+	const cashAnchorId = anchors.cash.id;
 
 	const acctBalance = new Map<string, number>();
 	for (const entry of entries) {
@@ -92,7 +89,7 @@ export function computeOverview(
 		if (!bucket) continue;
 		if (bucket.account_type === 'asset') {
 			totalAssets += bal;
-			if (isCash(bucket)) liquidAssets += bal;
+			if (bucket.id === cashAnchorId) liquidAssets += bal;
 		} else if (bucket.account_type === 'liability') {
 			totalLiabilities += -bal;
 		}

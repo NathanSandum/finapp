@@ -11,14 +11,14 @@ import {
 import type { Account, Entry } from '../entries/loader';
 
 const accounts: Account[] = [
-	{ id: 'rev', parent_id: null, name: 'Revenue', account_type: 'revenue', currency: 'CAD' },
-	{ id: 'employment', parent_id: 'rev', name: 'Employment', account_type: 'revenue', currency: 'CAD' },
-	{ id: 'salary', parent_id: 'employment', name: 'Salary', account_type: 'revenue', currency: 'CAD' },
-	{ id: 'exp', parent_id: null, name: 'Expenses', account_type: 'expense', currency: 'CAD' },
-	{ id: 'food', parent_id: 'exp', name: 'Food', account_type: 'expense', currency: 'CAD' },
-	{ id: 'rent', parent_id: 'exp', name: 'Rent', account_type: 'expense', currency: 'CAD' },
-	{ id: 'assets', parent_id: null, name: 'Assets', account_type: 'asset', currency: 'CAD' },
-	{ id: 'chequing', parent_id: 'assets', name: 'Chequing', account_type: 'asset', currency: 'CAD' }
+	{ id: 'rev', parent_id: null, name: 'Revenue', account_type: 'revenue', currency: 'CAD', role: 'revenue_root' },
+	{ id: 'employment', parent_id: 'rev', name: 'Employment', account_type: 'revenue', currency: 'CAD', role: null },
+	{ id: 'salary', parent_id: 'employment', name: 'Salary', account_type: 'revenue', currency: 'CAD', role: null },
+	{ id: 'exp', parent_id: null, name: 'Expenses', account_type: 'expense', currency: 'CAD', role: 'expenses_root' },
+	{ id: 'food', parent_id: 'exp', name: 'Food', account_type: 'expense', currency: 'CAD', role: null },
+	{ id: 'rent', parent_id: 'exp', name: 'Rent', account_type: 'expense', currency: 'CAD', role: null },
+	{ id: 'assets', parent_id: null, name: 'Assets', account_type: 'asset', currency: 'CAD', role: 'assets_root' },
+	{ id: 'chequing', parent_id: 'assets', name: 'Chequing', account_type: 'asset', currency: 'CAD', role: 'cash' }
 ];
 
 function entry(id: string, date: string, postings: { account_id: string; amount: number }[]): Entry {

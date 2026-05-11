@@ -1,4 +1,4 @@
-import type { Account, Entry } from '../entries/loader';
+import type { Account, Anchors, Entry } from '../entries/loader';
 import {
 	asOfDate,
 	defaultTrailCount,
@@ -38,12 +38,6 @@ export type CashFlowData = {
 	closing_cash: number;
 };
 
-const CASH_NAMES = new Set(['chequing', 'checking', 'cash']);
-
-function isCashAccount(account: Account): boolean {
-	return CASH_NAMES.has(account.name.toLowerCase());
-}
-
 function topBucket(accountId: string, accounts: Map<string, Account>): Account | null {
 	let current = accounts.get(accountId);
 	if (!current) return null;
@@ -58,9 +52,9 @@ function topBucket(accountId: string, accounts: Map<string, Account>): Account |
 
 type Category = 'operating' | 'investing' | 'financing' | 'cash' | null;
 
-function categorize(bucket: Account): Category {
+function categorize(bucket: Account, cashAnchorId: string): Category {
 	if (bucket.account_type === 'revenue' || bucket.account_type === 'expense') return 'operating';
-	if (bucket.account_type === 'asset') return isCashAccount(bucket) ? 'cash' : 'investing';
+	if (bucket.account_type === 'asset') return bucket.id === cashAnchorId ? 'cash' : 'investing';
 	if (bucket.account_type === 'liability' || bucket.account_type === 'equity') return 'financing';
 	return null;
 }
@@ -68,6 +62,7 @@ function categorize(bucket: Account): Category {
 function buildSections(
 	entries: Entry[],
 	accounts: Map<string, Account>,
+	cashAnchorId: string,
 	start: string,
 	end: string
 ): { operating: CashFlowSection; investing: CashFlowSection; financing: CashFlowSection } {
@@ -80,7 +75,7 @@ function buildSections(
 		for (const posting of entry.postings) {
 			const bucket = topBucket(posting.account_id, accounts);
 			if (!bucket) continue;
-			const category = categorize(bucket);
+			const category = categorize(bucket, cashAnchorId);
 			if (!category || category === 'cash') continue;
 
 			const cashEffect = -posting.amount;
@@ -117,6 +112,7 @@ function buildSections(
 function cashBalanceAt(
 	entries: Entry[],
 	accounts: Map<string, Account>,
+	cashAnchorId: string,
 	asOf: string
 ): number {
 	let total = 0;
@@ -125,7 +121,7 @@ function cashBalanceAt(
 		for (const posting of entry.postings) {
 			const bucket = topBucket(posting.account_id, accounts);
 			if (!bucket) continue;
-			if (bucket.account_type === 'asset' && isCashAccount(bucket)) total += posting.amount;
+			if (bucket.id === cashAnchorId) total += posting.amount;
 		}
 	}
 	return total;
@@ -134,20 +130,22 @@ function cashBalanceAt(
 export function computeCashFlow(
 	entries: Entry[],
 	accounts: Account[],
+	anchors: Anchors,
 	year: number,
 	month: number,
 	granularity: Granularity
 ): CashFlowData {
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
+	const cashAnchorId = anchors.cash.id;
 	const { start, end } = periodBounds(year, month, granularity);
 	const prior = priorPeriod(year, month, granularity);
 	const { start: priorStart, end: priorEnd } = periodBounds(prior.year, prior.month, granularity);
 
-	const current = buildSections(entries, accountIndex, start, end);
-	const previous = buildSections(entries, accountIndex, priorStart, priorEnd);
+	const current = buildSections(entries, accountIndex, cashAnchorId, start, end);
+	const previous = buildSections(entries, accountIndex, cashAnchorId, priorStart, priorEnd);
 
-	const opening_cash = cashBalanceAt(entries, accountIndex, priorEnd);
-	const closing_cash = cashBalanceAt(entries, accountIndex, end);
+	const opening_cash = cashBalanceAt(entries, accountIndex, cashAnchorId, priorEnd);
+	const closing_cash = cashBalanceAt(entries, accountIndex, cashAnchorId, end);
 
 	return {
 		period_label: periodLabel(year, month, granularity),
@@ -167,18 +165,20 @@ export function computeCashFlow(
 export function computeNetCashTrail(
 	entries: Entry[],
 	accounts: Account[],
+	anchors: Anchors,
 	year: number,
 	month: number,
 	granularity: Granularity,
 	count: number
 ): { values: number[]; labels: string[] } {
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
+	const cashAnchorId = anchors.cash.id;
 	const periods = priorPeriodList(year, month, granularity, count);
 	const values: number[] = [];
 	const labels: string[] = [];
 	for (const period of periods) {
 		const { start, end } = periodBounds(period.year, period.month, granularity);
-		const sections = buildSections(entries, accountIndex, start, end);
+		const sections = buildSections(entries, accountIndex, cashAnchorId, start, end);
 		values.push(sections.operating.total + sections.investing.total + sections.financing.total);
 		labels.push(trailLabel(period.year, period.month, granularity));
 	}
@@ -188,6 +188,7 @@ export function computeNetCashTrail(
 export function computeSectionTrails(
 	entries: Entry[],
 	accounts: Account[],
+	anchors: Anchors,
 	year: number,
 	month: number,
 	granularity: Granularity,
@@ -199,6 +200,7 @@ export function computeSectionTrails(
 	labels: string[];
 } {
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
+	const cashAnchorId = anchors.cash.id;
 	const periods = priorPeriodList(year, month, granularity, count);
 	const operating: number[] = [];
 	const investing: number[] = [];
@@ -206,7 +208,7 @@ export function computeSectionTrails(
 	const labels: string[] = [];
 	for (const period of periods) {
 		const { start, end } = periodBounds(period.year, period.month, granularity);
-		const sections = buildSections(entries, accountIndex, start, end);
+		const sections = buildSections(entries, accountIndex, cashAnchorId, start, end);
 		operating.push(sections.operating.total);
 		investing.push(sections.investing.total);
 		financing.push(sections.financing.total);

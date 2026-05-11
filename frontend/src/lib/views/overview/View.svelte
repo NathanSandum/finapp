@@ -36,7 +36,7 @@
 	}
 
 	const metrics = $derived(
-		computeOverview(data.entries, data.accounts, selectedYear, selectedMonth, granularity)
+		computeOverview(data.entries, data.accounts, data.anchors, selectedYear, selectedMonth, granularity)
 	);
 
 	function newEntry() {
