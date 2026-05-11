@@ -525,19 +525,31 @@ pub struct NewAccount {
     role: Option<AccountRole>,
 }
 
-impl NewAccount {
-    /// Create a root account (no parent). Must specify account type.
-    pub fn root(workspace: WorkspaceRef, name: &str, account_type: AccountType) -> Self {
-        NewAccount {
-            workspace,
-            parent_id: None,
-            name: name.to_string(),
-            account_type,
-            currency: "CAD".to_string(),
-            role: None,
+/// Anchor roles that may be assigned to non-root accounts.
+/// Root anchor roles are derived from AccountType in `anchored_root`.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ChildAnchor {
+    Cash,
+    OpeningEquity,
+}
+
+impl ChildAnchor {
+    fn role(self) -> AccountRole {
+        match self {
+            ChildAnchor::Cash => AccountRole::Cash,
+            ChildAnchor::OpeningEquity => AccountRole::OpeningEquity,
         }
     }
 
+    fn required_account_type(self) -> AccountType {
+        match self {
+            ChildAnchor::Cash => AccountType::Asset,
+            ChildAnchor::OpeningEquity => AccountType::Equity,
+        }
+    }
+}
+
+impl NewAccount {
     /// Create a child account. Inherits workspace and account_type from parent.
     pub fn child(parent: &Account, name: &str) -> Self {
         NewAccount {
@@ -547,6 +559,51 @@ impl NewAccount {
             account_type: parent.account_type,
             currency: parent.currency.clone(),
             role: None,
+        }
+    }
+
+    /// Seed-only: build a root account tagged with the matching root anchor role.
+    /// Each (workspace, account_type) gets exactly one of these via `create_default_tree`.
+    pub(crate) fn anchored_root(
+        workspace: WorkspaceRef,
+        name: &str,
+        account_type: AccountType,
+    ) -> Self {
+        let role = match account_type {
+            AccountType::Asset => AccountRole::AssetsRoot,
+            AccountType::Liability => AccountRole::LiabilitiesRoot,
+            AccountType::Equity => AccountRole::EquityRoot,
+            AccountType::Revenue => AccountRole::RevenueRoot,
+            AccountType::Expense => AccountRole::ExpensesRoot,
+        };
+        NewAccount {
+            workspace,
+            parent_id: None,
+            name: name.to_string(),
+            account_type,
+            currency: "CAD".to_string(),
+            role: Some(role),
+        }
+    }
+
+    /// Seed-only: build a child account tagged with a non-root anchor role.
+    /// Anchor's required account_type must match the parent's account_type.
+    pub(crate) fn anchored_child(parent: &Account, name: &str, anchor: ChildAnchor) -> Self {
+        debug_assert_eq!(
+            parent.account_type,
+            anchor.required_account_type(),
+            "ChildAnchor {:?} requires parent of type {:?}, got {:?}",
+            anchor,
+            anchor.required_account_type(),
+            parent.account_type,
+        );
+        NewAccount {
+            workspace: parent.workspace.clone(),
+            parent_id: Some(parent.id.clone()),
+            name: name.to_string(),
+            account_type: parent.account_type,
+            currency: parent.currency.clone(),
+            role: Some(anchor.role()),
         }
     }
 
@@ -610,18 +667,22 @@ pub fn create_default_tree(
     workspace: &WorkspaceRef,
     conn: &mut SqliteConnection,
 ) -> Result<(), AppError> {
-    let assets = NewAccount::root(workspace.clone(), "Assets", AccountType::Asset).insert(conn)?;
+    let assets =
+        NewAccount::anchored_root(workspace.clone(), "Assets", AccountType::Asset).insert(conn)?;
     let liabilities =
-        NewAccount::root(workspace.clone(), "Liabilities", AccountType::Liability).insert(conn)?;
+        NewAccount::anchored_root(workspace.clone(), "Liabilities", AccountType::Liability)
+            .insert(conn)?;
     let equity =
-        NewAccount::root(workspace.clone(), "Equity", AccountType::Equity).insert(conn)?;
+        NewAccount::anchored_root(workspace.clone(), "Equity", AccountType::Equity).insert(conn)?;
     let revenue =
-        NewAccount::root(workspace.clone(), "Revenue", AccountType::Revenue).insert(conn)?;
+        NewAccount::anchored_root(workspace.clone(), "Revenue", AccountType::Revenue)
+            .insert(conn)?;
     let expenses =
-        NewAccount::root(workspace.clone(), "Expenses", AccountType::Expense).insert(conn)?;
+        NewAccount::anchored_root(workspace.clone(), "Expenses", AccountType::Expense)
+            .insert(conn)?;
 
-    // Asset sub-accounts
-    NewAccount::child(&assets, "Chequing").insert(conn)?;
+    // Asset sub-accounts (Chequing is the cash anchor)
+    NewAccount::anchored_child(&assets, "Chequing", ChildAnchor::Cash).insert(conn)?;
     NewAccount::child(&assets, "Savings").insert(conn)?;
     NewAccount::child(&assets, "TFSA").insert(conn)?;
     NewAccount::child(&assets, "RRSP").insert(conn)?;
@@ -641,8 +702,9 @@ pub fn create_default_tree(
     NewAccount::child(&expenses, "Utilities").insert(conn)?;
     NewAccount::child(&expenses, "Entertainment").insert(conn)?;
 
-    // Equity sub-accounts
-    NewAccount::child(&equity, "Opening Balances").insert(conn)?;
+    // Equity sub-accounts (Opening Balances is the opening-equity anchor)
+    NewAccount::anchored_child(&equity, "Opening Balances", ChildAnchor::OpeningEquity)
+        .insert(conn)?;
 
     Ok(())
 }
@@ -695,6 +757,17 @@ mod tests {
 
         let chequing = all.iter().find(|a| a.name == "Chequing").unwrap();
         assert_eq!(chequing.account_type, AccountType::Asset);
+        assert_eq!(chequing.role, Some(AccountRole::Cash));
+
+        let opening = all.iter().find(|a| a.name == "Opening Balances").unwrap();
+        assert_eq!(opening.role, Some(AccountRole::OpeningEquity));
+
+        let assets_root = roots.iter().find(|a| a.name == "Assets").unwrap();
+        assert_eq!(assets_root.role, Some(AccountRole::AssetsRoot));
+
+        // Non-anchor accounts have no role.
+        let savings = all.iter().find(|a| a.name == "Savings").unwrap();
+        assert_eq!(savings.role, None);
     }
 
     #[test]
@@ -794,27 +867,18 @@ mod tests {
     }
 
     #[test]
-    fn root_name_uniqueness_within_workspace() {
+    fn duplicate_root_anchor_rejected() {
         let (mut conn, workspace) = setup();
-        // "Assets" already exists as root from defaults
-        let err = NewAccount::root(workspace.as_ref().clone(), "Assets", AccountType::Liability)
-            .insert(&mut conn)
-            .expect_err("duplicate root name should fail");
+        // Seed already created an Asset root with AssetsRoot anchor role.
+        let err = NewAccount::anchored_root(
+            workspace.as_ref().clone(),
+            "Extra Assets",
+            AccountType::Asset,
+        )
+        .insert(&mut conn)
+        .expect_err("second AssetsRoot in same workspace should fail");
 
         assert!(matches!(err, AppError::Conflict(_)));
-    }
-
-    #[test]
-    fn create_new_root_succeeds() {
-        let (mut conn, workspace) = setup();
-        let account =
-            NewAccount::root(workspace.as_ref().clone(), "Custom", AccountType::Asset)
-                .insert(&mut conn)
-                .expect("new root should succeed");
-
-        assert_eq!(account.name, "Custom");
-        assert_eq!(account.account_type, AccountType::Asset);
-        assert!(account.is_root());
     }
 
     #[test]

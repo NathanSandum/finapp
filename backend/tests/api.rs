@@ -300,33 +300,16 @@ async fn create_child_account_via_api() {
 }
 
 #[tokio::test]
-async fn create_root_account_via_api() {
+async fn create_root_account_via_api_rejected() {
     let app = app();
     let (token, _, workspace_id) = setup_workspace(&app).await;
 
-    // Creating root account requires account_type
+    // Roots are seeded; no public path to create them.
     let (status, body) = post(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
         Some(&token),
-        json!({ "name": "Custom Root", "account_type": "asset" }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::CREATED);
-    assert_eq!(body["account_type"], "asset");
-    assert!(body["parent_id"].is_null());
-}
-
-#[tokio::test]
-async fn create_root_without_type_rejected() {
-    let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-
-    let (status, body) = post(
-        &app,
-        &format!("/workspaces/{workspace_id}/accounts"),
-        Some(&token),
-        json!({ "name": "No Type" }),
+        json!({ "name": "Custom Root" }),
     )
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
