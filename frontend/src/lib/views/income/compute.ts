@@ -11,6 +11,7 @@ import {
 	trailLabel,
 	type Granularity
 } from '../period';
+import { todayYearMonth } from '../today';
 import type { IncomeData, Line } from './lib';
 
 export { defaultTrailCount, priorPeriod, shiftPeriod, snapToGranularity };
@@ -199,6 +200,5 @@ export function latestActivityMonth(
 		const [y, m] = latest.split('-');
 		return { year: Number(y), month: Number(m) };
 	}
-	const now = new Date();
-	return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
+	return todayYearMonth();
 }

@@ -11,6 +11,7 @@ import {
 	trailLabel,
 	type Granularity
 } from '../period';
+import { todayYearMonth } from '../today';
 
 export { defaultTrailCount, priorPeriod, shiftPeriod, snapToGranularity };
 export type { Granularity };
@@ -214,6 +215,5 @@ export function latestActivityPeriod(
 		const [y, m] = latest.split('-');
 		return { year: Number(y), month: Number(m) };
 	}
-	const now = new Date();
-	return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
+	return todayYearMonth();
 }

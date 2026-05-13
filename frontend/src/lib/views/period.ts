@@ -1,3 +1,5 @@
+import { todayYearMonth } from './today';
+
 export type Granularity = 'month' | 'quarter' | 'year';
 
 const MONTH_LONG = [
@@ -154,8 +156,7 @@ export function latestActivityPeriod(
 		const [y, m] = latest.split('-');
 		return { year: Number(y), month: Number(m) };
 	}
-	const now = new Date();
-	return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
+	return todayYearMonth();
 }
 
 export function priorPeriodList(
