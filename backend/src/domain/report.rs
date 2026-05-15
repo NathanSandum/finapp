@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use diesel::SqliteConnection;
 
 use crate::domain::account::{
@@ -18,7 +19,7 @@ pub struct AccountBalance {
 
 #[derive(serde::Serialize)]
 pub struct BalanceSheet {
-    pub as_of_date: String,
+    pub as_of_date: NaiveDate,
     pub assets: Vec<AccountBalance>,
     pub liabilities: Vec<AccountBalance>,
     pub equity: Vec<AccountBalance>,
@@ -32,7 +33,7 @@ pub struct BalanceSheet {
 impl BalanceSheet {
     pub fn as_of(
         anchors: BalanceSheetAnchors<'_>,
-        date: &str,
+        date: NaiveDate,
         conn: &mut SqliteConnection,
     ) -> Result<BalanceSheet, AppError> {
         let total_assets = anchors.assets.balance_as_of_with_descendants(date, conn)?;
@@ -49,7 +50,7 @@ impl BalanceSheet {
         let total_liabilities_and_equity = total_liabilities + total_equity + net_income;
 
         Ok(BalanceSheet {
-            as_of_date: date.to_string(),
+            as_of_date: date,
             assets: assets_detail,
             liabilities: liabilities_detail,
             equity: equity_detail,
@@ -63,7 +64,7 @@ impl BalanceSheet {
 
     fn children_balances(
         root: &Account,
-        date: &str,
+        date: NaiveDate,
         negate: bool,
         conn: &mut SqliteConnection,
     ) -> Result<Vec<AccountBalance>, AppError> {
@@ -89,8 +90,8 @@ impl BalanceSheet {
 
 #[derive(serde::Serialize)]
 pub struct IncomeStatement {
-    pub start_date: String,
-    pub end_date: String,
+    pub start_date: NaiveDate,
+    pub end_date: NaiveDate,
     pub revenue: Vec<AccountBalance>,
     pub expenses: Vec<AccountBalance>,
     pub total_revenue: i64,
@@ -101,8 +102,8 @@ pub struct IncomeStatement {
 impl IncomeStatement {
     pub fn for_period(
         anchors: IncomeStatementAnchors<'_>,
-        start_date: &str,
-        end_date: &str,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
         conn: &mut SqliteConnection,
     ) -> Result<IncomeStatement, AppError> {
         let revenue_balance =
@@ -120,8 +121,8 @@ impl IncomeStatement {
         let net_income = total_revenue - total_expenses;
 
         Ok(IncomeStatement {
-            start_date: start_date.to_string(),
-            end_date: end_date.to_string(),
+            start_date,
+            end_date,
             revenue: revenue_detail,
             expenses: expense_detail,
             total_revenue,
@@ -132,8 +133,8 @@ impl IncomeStatement {
 
     fn children_balances(
         root: &Account,
-        start_date: &str,
-        end_date: &str,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
         negate: bool,
         conn: &mut SqliteConnection,
     ) -> Result<Vec<AccountBalance>, AppError> {

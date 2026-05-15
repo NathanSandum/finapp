@@ -1,4 +1,5 @@
 use axum::{extract::Extension, extract::Query};
+use chrono::NaiveDate;
 use serde::Deserialize;
 
 use crate::auth::WorkspaceMember;
@@ -9,7 +10,7 @@ use crate::DbPool;
 
 #[derive(Deserialize)]
 pub struct BalanceSheetQuery {
-    as_of: Option<String>,
+    as_of: Option<NaiveDate>,
 }
 
 pub async fn balance_sheet(
@@ -29,15 +30,15 @@ pub async fn balance_sheet(
         .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let anchors = member.workspace.anchors(&mut conn)?;
-    let sheet = BalanceSheet::as_of(anchors.balance_sheet(), &as_of, &mut conn)?;
+    let sheet = BalanceSheet::as_of(anchors.balance_sheet(), as_of, &mut conn)?;
 
     Ok(JSend::success(sheet))
 }
 
 #[derive(Deserialize)]
 pub struct IncomeStatementQuery {
-    start_date: Option<String>,
-    end_date: Option<String>,
+    start_date: Option<NaiveDate>,
+    end_date: Option<NaiveDate>,
 }
 
 pub async fn income_statement(
@@ -72,8 +73,8 @@ pub async fn income_statement(
     let anchors = member.workspace.anchors(&mut conn)?;
     let statement = IncomeStatement::for_period(
         anchors.income_statement(),
-        &start_date,
-        &end_date,
+        start_date,
+        end_date,
         &mut conn,
     )?;
 

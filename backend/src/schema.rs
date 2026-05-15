@@ -58,7 +58,7 @@ diesel::table! {
     entries (id) {
         id -> Text,
         workspace_id -> Text,
-        date -> Text,
+        date -> Date,
         description -> Text,
         deleted_at -> Nullable<Timestamp>,
         created_at -> Timestamp,

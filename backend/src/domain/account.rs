@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{NaiveDate, NaiveDateTime};
 use diesel::backend::Backend;
 use diesel::deserialize::{self, FromSql};
 use diesel::prelude::*;
@@ -397,7 +397,7 @@ impl Account {
     }
 
     /// Balance filtered by entry date <= given date.
-    pub fn balance_as_of(&self, date: &str, conn: &mut SqliteConnection) -> Result<i64, AppError> {
+    pub fn balance_as_of(&self, date: NaiveDate, conn: &mut SqliteConnection) -> Result<i64, AppError> {
         let result: Option<i64> = postings::table
             .inner_join(entries::table.on(entries::id.eq(postings::entry_id)))
             .filter(postings::account_id.eq(&self.id))
@@ -413,7 +413,7 @@ impl Account {
     /// Balance including descendants, filtered by entry date <= given date.
     pub fn balance_as_of_with_descendants(
         &self,
-        date: &str,
+        date: NaiveDate,
         conn: &mut SqliteConnection,
     ) -> Result<i64, AppError> {
         let descendants = self.descendants(conn)?;
@@ -439,8 +439,8 @@ impl Account {
     /// Balance for a date range (inclusive on both ends).
     pub fn balance_between(
         &self,
-        start_date: &str,
-        end_date: &str,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
         conn: &mut SqliteConnection,
     ) -> Result<i64, AppError> {
         let result: Option<i64> = postings::table
@@ -459,8 +459,8 @@ impl Account {
     /// Balance for a date range, including all descendant accounts.
     pub fn balance_between_with_descendants(
         &self,
-        start_date: &str,
-        end_date: &str,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
         conn: &mut SqliteConnection,
     ) -> Result<i64, AppError> {
         let descendants = self.descendants(conn)?;

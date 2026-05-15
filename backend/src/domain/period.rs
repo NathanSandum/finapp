@@ -1,9 +1,11 @@
+use chrono::NaiveDate;
+
 use crate::error::AppError;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct Period {
-    pub start_date: String,
-    pub end_date: String,
+    pub start_date: NaiveDate,
+    pub end_date: NaiveDate,
     pub label: String,
 }
 
@@ -52,7 +54,7 @@ impl Period {
             9 => "Sep", 10 => "Oct", 11 => "Nov", 12 => "Dec",
             _ => unreachable!(),
         };
-        let start_date = format!("{year}-{month:02}-01");
+        let start_date = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
         let end_date = Self::last_day_of_month(year, month);
         Ok(Period {
             start_date,
@@ -64,7 +66,7 @@ impl Period {
     fn quarter(year: i32, quarter: u32) -> Result<Period, AppError> {
         let first_month = (quarter - 1) * 3 + 1;
         let last_month = first_month + 2;
-        let start_date = format!("{year}-{first_month:02}-01");
+        let start_date = NaiveDate::from_ymd_opt(year, first_month, 1).unwrap();
         let end_date = Self::last_day_of_month(year, last_month);
         Ok(Period {
             start_date,
@@ -73,7 +75,7 @@ impl Period {
         })
     }
 
-    fn last_day_of_month(year: i32, month: u32) -> String {
+    fn last_day_of_month(year: i32, month: u32) -> NaiveDate {
         let day = match month {
             1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
             4 | 6 | 9 | 11 => 30,
@@ -86,7 +88,7 @@ impl Period {
             }
             _ => unreachable!(),
         };
-        format!("{year}-{month:02}-{day:02}")
+        NaiveDate::from_ymd_opt(year, month, day).unwrap()
     }
 }
 

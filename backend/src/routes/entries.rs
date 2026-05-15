@@ -1,4 +1,5 @@
 use axum::{extract::Extension, extract::Path, http::StatusCode, Json};
+use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -19,7 +20,7 @@ pub struct CreatePostingRequest {
 
 #[derive(Deserialize)]
 pub struct CreateEntryRequest {
-    date: String,
+    date: NaiveDate,
     description: String,
     postings: Vec<CreatePostingRequest>,
 }
@@ -42,7 +43,7 @@ pub async fn create(
 
     let entry = NewEntry::new(
         member.workspace.clone(),
-        &body.date,
+        body.date,
         &body.description,
         posting_inputs,
     )
@@ -105,7 +106,7 @@ pub async fn get(
 
 #[derive(Deserialize)]
 pub struct UpdateEntryRequest {
-    date: Option<String>,
+    date: Option<NaiveDate>,
     description: Option<String>,
     postings: Option<Vec<CreatePostingRequest>>,
 }
@@ -169,7 +170,7 @@ pub async fn delete(
 #[derive(Deserialize)]
 pub struct MergeEntriesRequest {
     source_entry_ids: Vec<EntryRef>,
-    date: String,
+    date: NaiveDate,
     description: String,
     postings: Vec<CreatePostingRequest>,
 }
@@ -203,7 +204,7 @@ pub async fn merge(
     let entry = Entry::merge(
         &source_entries,
         &member.workspace,
-        &body.date,
+        body.date,
         &body.description,
         posting_inputs,
         &mut conn,

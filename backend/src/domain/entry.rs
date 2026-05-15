@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{NaiveDate, NaiveDateTime};
 use diesel::prelude::*;
 
 use diesel_derive_newtype::DieselNewType;
@@ -42,7 +42,7 @@ pub struct Entry {
     pub id: EntryRef,
     #[diesel(column_name = workspace_id)]
     pub workspace: WorkspaceRef,
-    pub date: String,
+    pub date: NaiveDate,
     pub description: String,
     pub deleted_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
@@ -131,7 +131,7 @@ impl Entry {
     pub fn merge(
         source_entries: &[Entry],
         workspace: &WorkspaceRef,
-        date: &str,
+        date: NaiveDate,
         description: &str,
         posting_inputs: Vec<PostingInput>,
         conn: &mut SqliteConnection,
@@ -239,8 +239,8 @@ impl WorkspaceRef {
 
     pub fn entries_between(
         &self,
-        start_date: &str,
-        end_date: &str,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
         conn: &mut SqliteConnection,
     ) -> Result<Vec<Entry>, AppError> {
         entries::table
@@ -325,7 +325,7 @@ fn validate_postings(posting_inputs: &[PostingInput]) -> Result<(), AppError> {
 }
 
 pub struct UpdateEntry {
-    pub date: Option<String>,
+    pub date: Option<NaiveDate>,
     pub description: Option<String>,
     pub postings: Option<Vec<PostingInput>>,
 }
@@ -351,7 +351,7 @@ struct NewEntryRow {
     id: String,
     #[diesel(column_name = workspace_id)]
     workspace: WorkspaceRef,
-    date: String,
+    date: NaiveDate,
     description: String,
     created_at: NaiveDateTime,
     updated_at: NaiveDateTime,
@@ -373,7 +373,7 @@ struct NewPostingRow {
 
 pub struct NewEntry {
     workspace: WorkspaceRef,
-    date: String,
+    date: NaiveDate,
     description: String,
     posting_inputs: Vec<PostingInput>,
 }
@@ -381,13 +381,13 @@ pub struct NewEntry {
 impl NewEntry {
     pub fn new(
         workspace: WorkspaceRef,
-        date: &str,
+        date: NaiveDate,
         description: &str,
         posting_inputs: Vec<PostingInput>,
     ) -> Self {
         NewEntry {
             workspace,
-            date: date.to_string(),
+            date,
             description: description.to_string(),
             posting_inputs,
         }
@@ -457,6 +457,10 @@ mod tests {
         all.into_iter().find(|a| a.name == name).unwrap()
     }
 
+    fn nd(s: &str) -> NaiveDate {
+        s.parse().unwrap()
+    }
+
     fn simple_expense(
         workspace: &Workspace,
         chequing: &Account,
@@ -467,7 +471,7 @@ mod tests {
     ) -> Entry {
         NewEntry::new(
             workspace.as_ref().clone(),
-            date,
+            nd(date),
             "Groceries",
             vec![
                 PostingInput::new(chequing.id.clone(), -amount),
@@ -486,7 +490,7 @@ mod tests {
 
         let entry = NewEntry::new(
             workspace.as_ref().clone(),
-            "2026-01-15",
+            nd("2026-01-15"),
             "Lunch",
             vec![
                 PostingInput::new(chequing.id.clone(), -1200),
@@ -509,7 +513,7 @@ mod tests {
 
         let entry = NewEntry::new(
             workspace.as_ref().clone(),
-            "2026-01-15",
+            nd("2026-01-15"),
             "Split meal",
             vec![
                 PostingInput::new(chequing.id.clone(), -2000),
@@ -532,7 +536,7 @@ mod tests {
 
         let err = NewEntry::new(
             workspace.as_ref().clone(),
-            "2026-01-15",
+            nd("2026-01-15"),
             "Bad",
             vec![
                 PostingInput::new(chequing.id.clone(), -1200),
@@ -552,7 +556,7 @@ mod tests {
 
         let err = NewEntry::new(
             workspace.as_ref().clone(),
-            "2026-01-15",
+            nd("2026-01-15"),
             "Bad",
             vec![PostingInput::new(chequing.id.clone(), 0)],
         )
@@ -570,7 +574,7 @@ mod tests {
 
         let err = NewEntry::new(
             workspace.as_ref().clone(),
-            "2026-01-15",
+            nd("2026-01-15"),
             "Bad",
             vec![
                 PostingInput::new(chequing.id.clone(), 0),
@@ -591,7 +595,7 @@ mod tests {
 
         let entry = NewEntry::new(
             workspace.as_ref().clone(),
-            "2026-01-15",
+            nd("2026-01-15"),
             "Lunch",
             vec![
                 PostingInput::new(chequing.id.clone(), -1200),
@@ -621,7 +625,7 @@ mod tests {
         // Entry touching chequing + rent
         NewEntry::new(
             workspace.as_ref().clone(),
-            "2026-01-16",
+            nd("2026-01-16"),
             "Rent payment",
             vec![
                 PostingInput::new(chequing.id.clone(), -150000),
@@ -663,7 +667,7 @@ mod tests {
 
         let entry = NewEntry::new(
             workspace.as_ref().clone(),
-            "2026-01-15",
+            nd("2026-01-15"),
             "Lunch",
             vec![
                 PostingInput::new(chequing.id.clone(), -1200),
@@ -688,7 +692,7 @@ mod tests {
         simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
         NewEntry::new(
             workspace.as_ref().clone(),
-            "2026-01-16",
+            nd("2026-01-16"),
             "Rent",
             vec![
                 PostingInput::new(chequing.id.clone(), -150000),
@@ -902,7 +906,7 @@ mod tests {
         let entry_one = simple_expense(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
         let entry_two = NewEntry::new(
             workspace.as_ref().clone(),
-            "2026-01-16",
+            nd("2026-01-16"),
             "ATM withdrawal",
             vec![
                 PostingInput::new(chequing.id.clone(), -5000),
@@ -915,7 +919,7 @@ mod tests {
         let merged = Entry::merge(
             &[entry_one, entry_two],
             workspace.as_ref(),
-            "2026-01-15",
+            nd("2026-01-15"),
             "Transfer to savings",
             vec![
                 PostingInput::new(chequing.id.clone(), -6200),
@@ -950,7 +954,7 @@ mod tests {
         let error = Entry::merge(
             &[entry],
             workspace.as_ref(),
-            "2026-01-15",
+            nd("2026-01-15"),
             "Bad merge",
             vec![
                 PostingInput::new(chequing.id.clone(), -1200),
@@ -972,7 +976,7 @@ mod tests {
         let error = Entry::merge(
             &[],
             workspace.as_ref(),
-            "2026-01-15",
+            nd("2026-01-15"),
             "Empty merge",
             vec![
                 PostingInput::new(chequing.id.clone(), -1200),
@@ -1009,14 +1013,14 @@ mod tests {
             &other_chequing,
             &other_food,
             500,
-            "2026-01-15",
+            nd("2026-01-15"),
             &mut conn,
         );
 
         let error = Entry::merge(
             &[entry, other_entry],
             workspace.as_ref(),
-            "2026-01-15",
+            nd("2026-01-15"),
             "Cross workspace",
             vec![
                 PostingInput::new(chequing.id.clone(), -1700),
@@ -1045,7 +1049,7 @@ mod tests {
         // Post to Cafes (child of Food)
         NewEntry::new(
             workspace.as_ref().clone(),
-            "2026-01-16",
+            nd("2026-01-16"),
             "Coffee",
             vec![
                 PostingInput::new(chequing.id.clone(), -500),
