@@ -101,6 +101,14 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    auth_sessions (id) {
+        id -> Text,
+        data -> Binary,
+        expiry_date -> BigInt,
+    }
+}
+
 diesel::joinable!(workspace_members -> workspaces (workspace_id));
 diesel::joinable!(sessions -> users (user_id));
 diesel::joinable!(accounts -> workspaces (workspace_id));
@@ -118,5 +126,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     entries,
     postings,
     sessions,
+    auth_sessions,
     users,
 );

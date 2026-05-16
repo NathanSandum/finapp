@@ -8,6 +8,7 @@ mod permissions;
 mod routes;
 mod schema;
 pub mod seed;
+pub mod session_store;
 pub mod test_helpers;
 
 use axum::{
