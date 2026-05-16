@@ -22,7 +22,7 @@ impl std::fmt::Display for UserRef {
     }
 }
 
-#[derive(Debug, Queryable, Selectable)]
+#[derive(Debug, Clone, Queryable, Selectable)]
 #[diesel(table_name = users)]
 pub struct User {
     pub id: UserRef,
@@ -31,6 +31,18 @@ pub struct User {
     pub password_hash: String,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+}
+
+impl axum_login::AuthUser for User {
+    type Id = UserRef;
+
+    fn id(&self) -> Self::Id {
+        self.id.clone()
+    }
+
+    fn session_auth_hash(&self) -> &[u8] {
+        self.password_hash.as_bytes()
+    }
 }
 
 impl User {

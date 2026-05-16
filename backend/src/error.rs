@@ -22,6 +22,21 @@ pub enum AppError {
     Internal(String),
 }
 
+impl std::fmt::Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AppError::NotFound(msg) => write!(f, "not found: {msg}"),
+            AppError::Forbidden => write!(f, "forbidden"),
+            AppError::Unauthorized => write!(f, "unauthorized"),
+            AppError::Conflict(msg) => write!(f, "conflict: {msg}"),
+            AppError::Validation(_) => write!(f, "validation failed"),
+            AppError::Internal(msg) => write!(f, "internal: {msg}"),
+        }
+    }
+}
+
+impl std::error::Error for AppError {}
+
 impl From<DieselError> for AppError {
     fn from(err: DieselError) -> Self {
         match err {

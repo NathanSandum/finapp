@@ -1,4 +1,5 @@
 mod auth;
+pub mod auth_backend;
 pub mod config;
 pub mod database;
 pub mod domain;
