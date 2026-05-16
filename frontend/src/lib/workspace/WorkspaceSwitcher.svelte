@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { workspaceState } from './state.svelte';
 	import { createWorkspace, listWorkspaces, renameWorkspace, type Workspace } from './api';
-	import WorkspaceNameInput from './WorkspaceNameInput.svelte';
+	import WorkspaceRow from './WorkspaceRow.svelte';
+	import WorkspaceCreate from './WorkspaceCreate.svelte';
 
 	let { onClose }: { onClose: () => void } = $props();
 
@@ -67,76 +68,34 @@
 </script>
 
 <div
-	class="absolute left-2 right-2 top-full z-20 mt-1 rounded border border-border bg-surface-card text-ink shadow-lg"
+	class="absolute -inset-x-2 top-full z-20 mt-1 bg-surface-overlay shadow-2xl shadow-black/60 ring-1 ring-inset ring-ink-inverse/25"
+	style="box-shadow: inset 0 1px 0 oklch(60% 0.04 260), inset 0 -1px 0 oklch(14% 0.02 260), 0 18px 40px -8px rgba(0,0,0,0.6);"
 	role="menu"
 >
-	<ul class="flex flex-col py-1">
+	<div class="border-y border-ink-inverse/10">
 		{#each workspaceState.list as workspace (workspace.workspace)}
-			{@const isActive = workspace.workspace === workspaceState.id()}
-			<li class="flex items-center gap-1 px-1.5">
-				{#if editingId === workspace.workspace}
-					<WorkspaceNameInput
-						initial={workspace.name}
-						{busy}
-						onCommit={(name) => commitRename(workspace.workspace, name)}
-						onCancel={() => (editingId = null)}
-					/>
-				{:else}
-					<button
-						type="button"
-						onclick={() => switchTo(workspace)}
-						class="flex flex-1 items-center gap-2 rounded px-1.5 py-1 text-left text-sm hover:bg-surface-hover"
-					>
-						<span
-							class="flex h-4 w-4 items-center justify-center text-brand"
-							aria-hidden="true"
-						>
-							{#if isActive}
-								<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5">
-									<path
-										fill-rule="evenodd"
-										d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 011.4-1.4L8.5 12 15.3 5.3a1 1 0 011.4 0z"
-										clip-rule="evenodd"
-									/>
-								</svg>
-							{/if}
-						</span>
-						<span class="flex-1 truncate">{workspace.name}</span>
-					</button>
-					<button
-						type="button"
-						onclick={() => (editingId = workspace.workspace)}
-						class="rounded px-1.5 py-1 text-xs text-ink-muted hover:bg-surface-hover hover:text-ink"
-						aria-label="Rename {workspace.name}"
-					>
-						Rename
-					</button>
-				{/if}
-			</li>
-		{/each}
-	</ul>
-
-	<div class="border-t border-border px-1.5 py-1">
-		{#if creating}
-			<WorkspaceNameInput
-				placeholder="new workspace name"
+			<WorkspaceRow
+				{workspace}
+				isActive={workspace.workspace === workspaceState.id()}
+				editing={editingId === workspace.workspace}
 				{busy}
-				onCommit={commitCreate}
-				onCancel={() => (creating = false)}
+				onSelect={() => switchTo(workspace)}
+				onStartEdit={() => (editingId = workspace.workspace)}
+				onCommitRename={(name) => commitRename(workspace.workspace, name)}
+				onCancelEdit={() => (editingId = null)}
 			/>
-		{:else}
-			<button
-				type="button"
-				onclick={() => (creating = true)}
-				class="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-sm text-ink-muted hover:bg-surface-hover hover:text-ink"
-			>
-				<span class="flex h-4 w-4 items-center justify-center" aria-hidden="true">+</span>
-				<span>New workspace</span>
-			</button>
-		{/if}
+		{/each}
 	</div>
 
+	<WorkspaceCreate
+		{creating}
+		{busy}
+		onStart={() => (creating = true)}
+		onCommit={commitCreate}
+		onCancel={() => (creating = false)}
+	/>
+
 	{#if error}
-		<p class="px-3 py-1.5 text-xs text-negative">{error}</p>
+		<p class="px-4 py-1.5 text-xs text-negative">{error}</p>
 	{/if}
 </div>

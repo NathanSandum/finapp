@@ -27,7 +27,7 @@
 </script>
 
 <form
-	class="flex flex-1 items-center gap-1"
+	class="grid min-w-0 flex-1 grid-cols-[1fr_4rem] items-center gap-1"
 	onsubmit={(e) => {
 		e.preventDefault();
 		onCommit(value);
@@ -42,12 +42,12 @@
 			if (e.key === 'Escape') onCancel();
 		}}
 		disabled={busy}
-		class="flex-1 border border-border bg-surface-card px-1.5 py-0.5 text-sm"
+		class="h-6 w-full min-w-0 border border-ink-inverse/20 bg-surface-inverse px-1.5 text-sm text-ink-inverse placeholder:text-ink-inverse-muted focus:border-brand focus:outline-none disabled:opacity-50"
 	/>
 	<button
 		type="submit"
 		disabled={busy}
-		class="rounded border border-border bg-surface-card px-1.5 py-0.5 text-xs text-ink hover:bg-surface-hover disabled:opacity-50"
+		class="h-6 w-full rounded border border-ink-inverse/20 bg-surface-inverse text-xs leading-none text-ink-inverse hover:bg-surface-overlay-hover disabled:opacity-50"
 	>
 		Confirm
 	</button>

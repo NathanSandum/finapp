@@ -38,7 +38,9 @@
 	<button
 		type="button"
 		onclick={() => (switcherOpen = !switcherOpen)}
-		class="flex w-full items-center justify-between rounded px-2 py-1.5 text-left transition-colors hover:bg-surface-inverse-hover"
+		class="flex w-full items-center justify-between rounded px-2 py-1.5 text-left transition-colors {switcherOpen
+			? 'bg-surface-inverse-hover'
+			: 'hover:bg-surface-inverse-hover'}"
 	>
 		<span class="flex items-center gap-2">
 			<span class="flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-bold text-ink">
@@ -46,7 +48,12 @@
 			</span>
 			<span class="text-sm font-medium text-ink-inverse">{activeName}</span>
 		</span>
-		<svg class="h-4 w-4 text-ink-muted" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+		<svg
+			class="h-4 w-4 text-ink-muted transition-transform {switcherOpen ? 'rotate-180' : ''}"
+			viewBox="0 0 20 20"
+			fill="currentColor"
+			aria-hidden="true"
+		>
 			<path fill-rule="evenodd" d="M5 8l5 5 5-5H5z" clip-rule="evenodd" />
 		</svg>
 	</button>
