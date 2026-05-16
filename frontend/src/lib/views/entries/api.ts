@@ -1,4 +1,5 @@
-import { apiFetch, DEV_WORKSPACE } from '$lib/api/client';
+import { apiFetch } from '$lib/api/client';
+import { workspaceState } from '$lib/workspace/state.svelte';
 import type { JSend } from '$lib/tabs/types';
 import type { Entry } from './loader';
 
@@ -28,7 +29,7 @@ export async function createEntry(input: CreateEntryInput): Promise<JSend<Entry>
 		...(note ? { note } : {})
 	}));
 
-	return apiFetch<Entry>(`/workspaces/${DEV_WORKSPACE}/entries`, {
+	return apiFetch<Entry>(`/workspaces/${workspaceState.id()}/entries`, {
 		method: 'POST',
 		body: JSON.stringify({
 			date: input.date,
