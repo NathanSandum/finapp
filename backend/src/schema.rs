@@ -84,7 +84,7 @@ diesel::table! {
         workspace_id -> Text,
         account_id -> Text,
         period_type -> Text,
-        period_start -> Text,
+        period_start -> Date,
         amount -> Integer,
         created_at -> Timestamp,
         updated_at -> Timestamp,

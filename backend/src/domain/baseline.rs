@@ -85,7 +85,7 @@ pub struct Baseline {
     #[diesel(column_name = account_id)]
     pub account: AccountRef,
     pub period_type: PeriodType,
-    pub period_start: String,
+    pub period_start: NaiveDate,
     pub amount: i32,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
@@ -116,11 +116,9 @@ impl Baseline {
     pub fn variance(&self, conn: &mut SqliteConnection) -> Result<i64, AppError> {
         let account = Account::from_ref(&self.account, conn)?
             .ok_or_else(|| AppError::Internal("baseline account not found".to_string()))?;
-        let period_start = NaiveDate::parse_from_str(&self.period_start, "%Y-%m-%d")
-            .map_err(|err| AppError::Internal(format!("invalid period_start date: {err}")))?;
-        let period_end = end_of_month_date(period_start)?;
+        let period_end = end_of_month_date(self.period_start)?;
         let actual =
-            account.balance_between_with_descendants(period_start, period_end, conn)?;
+            account.balance_between_with_descendants(self.period_start, period_end, conn)?;
         Ok(actual - self.amount as i64)
     }
 }
@@ -160,7 +158,7 @@ struct NewBaselineRow {
     #[diesel(column_name = account_id)]
     account: AccountRef,
     period_type: PeriodType,
-    period_start: String,
+    period_start: NaiveDate,
     amount: i32,
     created_at: NaiveDateTime,
     updated_at: NaiveDateTime,
@@ -170,7 +168,7 @@ pub struct NewBaseline {
     workspace: WorkspaceRef,
     account: AccountRef,
     period_type: PeriodType,
-    period_start: String,
+    period_start: NaiveDate,
     amount: i32,
 }
 
@@ -178,14 +176,14 @@ impl NewBaseline {
     pub fn monthly(
         workspace: WorkspaceRef,
         account: AccountRef,
-        period_start: &str,
+        period_start: NaiveDate,
         amount: i32,
     ) -> Self {
         NewBaseline {
             workspace,
             account,
             period_type: PeriodType::Monthly,
-            period_start: period_start.to_string(),
+            period_start,
             amount,
         }
     }
@@ -306,14 +304,14 @@ mod tests {
         let baseline = NewBaseline::monthly(
             workspace.as_ref().clone(),
             food.id.clone(),
-            "2026-01-01",
+            nd("2026-01-01"),
             50000,
         )
         .insert(&mut conn)
         .unwrap();
 
         assert_eq!(baseline.amount, 50000);
-        assert_eq!(baseline.period_start, "2026-01-01");
+        assert_eq!(baseline.period_start, nd("2026-01-01"));
         assert_eq!(baseline.period_type, PeriodType::Monthly);
         assert_eq!(baseline.account, food.id);
     }
@@ -323,14 +321,14 @@ mod tests {
         let (mut conn, workspace) = setup();
         let food = find_account("Food", &workspace, &mut conn);
 
-        NewBaseline::monthly(workspace.as_ref().clone(), food.id.clone(), "2026-01-01", 50000)
+        NewBaseline::monthly(workspace.as_ref().clone(), food.id.clone(), nd("2026-01-01"), 50000)
             .insert(&mut conn)
             .unwrap();
 
         let err = NewBaseline::monthly(
             workspace.as_ref().clone(),
             food.id.clone(),
-            "2026-01-01",
+            nd("2026-01-01"),
             60000,
         )
         .insert(&mut conn)
@@ -345,10 +343,10 @@ mod tests {
         let food = find_account("Food", &workspace, &mut conn);
         let rent = find_account("Rent", &workspace, &mut conn);
 
-        NewBaseline::monthly(workspace.as_ref().clone(), food.id.clone(), "2026-01-01", 50000)
+        NewBaseline::monthly(workspace.as_ref().clone(), food.id.clone(), nd("2026-01-01"), 50000)
             .insert(&mut conn)
             .unwrap();
-        NewBaseline::monthly(workspace.as_ref().clone(), rent.id.clone(), "2026-01-01", 150000)
+        NewBaseline::monthly(workspace.as_ref().clone(), rent.id.clone(), nd("2026-01-01"), 150000)
             .insert(&mut conn)
             .unwrap();
 
@@ -363,10 +361,10 @@ mod tests {
         let food = find_account("Food", &workspace, &mut conn);
         let rent = find_account("Rent", &workspace, &mut conn);
 
-        NewBaseline::monthly(workspace.as_ref().clone(), food.id.clone(), "2026-01-01", 50000)
+        NewBaseline::monthly(workspace.as_ref().clone(), food.id.clone(), nd("2026-01-01"), 50000)
             .insert(&mut conn)
             .unwrap();
-        NewBaseline::monthly(workspace.as_ref().clone(), rent.id.clone(), "2026-01-01", 150000)
+        NewBaseline::monthly(workspace.as_ref().clone(), rent.id.clone(), nd("2026-01-01"), 150000)
             .insert(&mut conn)
             .unwrap();
 
@@ -384,7 +382,7 @@ mod tests {
         let baseline = NewBaseline::monthly(
             workspace.as_ref().clone(),
             food.id.clone(),
-            "2026-01-01",
+            nd("2026-01-01"),
             10000,
         )
         .insert(&mut conn)
@@ -405,7 +403,7 @@ mod tests {
         let baseline = NewBaseline::monthly(
             workspace.as_ref().clone(),
             food.id.clone(),
-            "2026-01-01",
+            nd("2026-01-01"),
             5000,
         )
         .insert(&mut conn)
@@ -425,7 +423,7 @@ mod tests {
         let baseline = NewBaseline::monthly(
             workspace.as_ref().clone(),
             food.id.clone(),
-            "2026-01-01",
+            nd("2026-01-01"),
             5000,
         )
         .insert(&mut conn)
@@ -448,7 +446,7 @@ mod tests {
         let baseline = NewBaseline::monthly(
             workspace.as_ref().clone(),
             food.id.clone(),
-            "2026-01-01",
+            nd("2026-01-01"),
             5000,
         )
         .insert(&mut conn)

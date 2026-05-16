@@ -1,4 +1,5 @@
 use axum::{extract::Extension, extract::Path, http::StatusCode, Json};
+use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -13,7 +14,7 @@ use crate::DbPool;
 #[derive(Deserialize)]
 pub struct CreateBaselineRequest {
     account_id: AccountRef,
-    period_start: String,
+    period_start: NaiveDate,
     amount: i32,
 }
 
@@ -30,7 +31,7 @@ pub async fn create(
     let baseline = NewBaseline::monthly(
         member.workspace.clone(),
         body.account_id,
-        &body.period_start,
+        body.period_start,
         body.amount,
     )
     .insert(&mut conn)?;
