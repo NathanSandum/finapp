@@ -116,7 +116,7 @@ impl Baseline {
     pub fn variance(&self, conn: &mut SqliteConnection) -> Result<i64, AppError> {
         let account = Account::from_ref(&self.account, conn)?
             .ok_or_else(|| AppError::Internal("baseline account not found".to_string()))?;
-        let period_end = end_of_month_date(self.period_start)?;
+        let period_end = end_of_month(self.period_start)?;
         let actual =
             account.balance_between_with_descendants(self.period_start, period_end, conn)?;
         Ok(actual - self.amount as i64)
@@ -217,7 +217,7 @@ impl NewBaseline {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-fn end_of_month_date(date: NaiveDate) -> Result<NaiveDate, AppError> {
+fn end_of_month(date: NaiveDate) -> Result<NaiveDate, AppError> {
     let (year, month) = if date.month() == 12 {
         (date.year() + 1, 1)
     } else {
@@ -283,15 +283,15 @@ mod tests {
         s.parse().unwrap()
     }
 
-    // ── end_of_month_date tests ────────────────────────────────────
+    // ── end_of_month tests ────────────────────────────────────
 
     #[test]
     fn end_of_month_correctness() {
-        assert_eq!(end_of_month_date(nd("2026-01-01")).unwrap(), nd("2026-01-31"));
-        assert_eq!(end_of_month_date(nd("2026-02-01")).unwrap(), nd("2026-02-28"));
-        assert_eq!(end_of_month_date(nd("2024-02-01")).unwrap(), nd("2024-02-29"));
-        assert_eq!(end_of_month_date(nd("2026-12-01")).unwrap(), nd("2026-12-31"));
-        assert_eq!(end_of_month_date(nd("2026-04-15")).unwrap(), nd("2026-04-30"));
+        assert_eq!(end_of_month(nd("2026-01-01")).unwrap(), nd("2026-01-31"));
+        assert_eq!(end_of_month(nd("2026-02-01")).unwrap(), nd("2026-02-28"));
+        assert_eq!(end_of_month(nd("2024-02-01")).unwrap(), nd("2024-02-29"));
+        assert_eq!(end_of_month(nd("2026-12-01")).unwrap(), nd("2026-12-31"));
+        assert_eq!(end_of_month(nd("2026-04-15")).unwrap(), nd("2026-04-30"));
     }
 
     // ── Baseline CRUD tests ────────────────────────────────────────
