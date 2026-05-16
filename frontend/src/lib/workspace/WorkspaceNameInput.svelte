@@ -38,9 +38,6 @@
 		bind:value
 		bind:this={el}
 		{placeholder}
-		onkeydown={(e) => {
-			if (e.key === 'Escape') onCancel();
-		}}
 		disabled={busy}
 		class="h-6 w-full min-w-0 border border-ink-inverse/20 bg-surface-inverse px-1.5 text-sm text-ink-inverse placeholder:text-ink-inverse-muted focus:border-brand focus:outline-none disabled:opacity-50"
 	/>

@@ -22,14 +22,9 @@
 				switcherOpen = false;
 			}
 		}
-		function onKeyDown(event: KeyboardEvent) {
-			if (event.key === 'Escape') switcherOpen = false;
-		}
 		window.addEventListener('pointerdown', onPointerDown);
-		window.addEventListener('keydown', onKeyDown);
 		return () => {
 			window.removeEventListener('pointerdown', onPointerDown);
-			window.removeEventListener('keydown', onKeyDown);
 		};
 	});
 </script>
