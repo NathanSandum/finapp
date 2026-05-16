@@ -2,13 +2,16 @@
 	import TabIcon from './TabIcon.svelte';
 	import { tabs } from '$lib/tabs/registry';
 	import type { Tab } from '$lib/tabs/types';
+	import { todayLabel } from '$lib/views/today';
 
 	let { current, onSelect }: { current: Tab; onSelect: (tab: Tab) => void } = $props();
+
+	const dateLabel = todayLabel();
 </script>
 
 <button
 	type="button"
-	class="mb-4 flex items-center justify-between rounded px-2 py-1.5 text-left transition-colors hover:bg-surface-inverse-hover"
+	class="flex items-center justify-between rounded px-2 py-1.5 text-left transition-colors hover:bg-surface-inverse-hover"
 >
 	<span class="flex items-center gap-2">
 		<span class="flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-bold text-ink">
@@ -20,6 +23,9 @@
 		<path fill-rule="evenodd" d="M5 8l5 5 5-5H5z" clip-rule="evenodd" />
 	</svg>
 </button>
+<p class="mb-4 px-2 pt-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
+	{dateLabel}
+</p>
 <nav class="flex flex-col gap-0.5">
 	{#each tabs as tab (tab.id)}
 		<button

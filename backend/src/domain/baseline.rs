@@ -1,4 +1,4 @@
-use chrono::{Datelike, NaiveDateTime};
+use chrono::{Datelike, NaiveDate, NaiveDateTime};
 use diesel::backend::Backend;
 use diesel::deserialize::{self, FromSql};
 use diesel::prelude::*;
@@ -85,7 +85,7 @@ pub struct Baseline {
     #[diesel(column_name = account_id)]
     pub account: AccountRef,
     pub period_type: PeriodType,
-    pub period_start: String,
+    pub period_start: NaiveDate,
     pub amount: i32,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
@@ -116,9 +116,9 @@ impl Baseline {
     pub fn variance(&self, conn: &mut SqliteConnection) -> Result<i64, AppError> {
         let account = Account::from_ref(&self.account, conn)?
             .ok_or_else(|| AppError::Internal("baseline account not found".to_string()))?;
-        let period_end = end_of_month(&self.period_start)?;
+        let period_end = end_of_month(self.period_start)?;
         let actual =
-            account.balance_between_with_descendants(&self.period_start, &period_end, conn)?;
+            account.balance_between_with_descendants(self.period_start, period_end, conn)?;
         Ok(actual - self.amount as i64)
     }
 }
@@ -158,7 +158,7 @@ struct NewBaselineRow {
     #[diesel(column_name = account_id)]
     account: AccountRef,
     period_type: PeriodType,
-    period_start: String,
+    period_start: NaiveDate,
     amount: i32,
     created_at: NaiveDateTime,
     updated_at: NaiveDateTime,
@@ -168,7 +168,7 @@ pub struct NewBaseline {
     workspace: WorkspaceRef,
     account: AccountRef,
     period_type: PeriodType,
-    period_start: String,
+    period_start: NaiveDate,
     amount: i32,
 }
 
@@ -176,14 +176,14 @@ impl NewBaseline {
     pub fn monthly(
         workspace: WorkspaceRef,
         account: AccountRef,
-        period_start: &str,
+        period_start: NaiveDate,
         amount: i32,
     ) -> Self {
         NewBaseline {
             workspace,
             account,
             period_type: PeriodType::Monthly,
-            period_start: period_start.to_string(),
+            period_start,
             amount,
         }
     }
@@ -217,25 +217,17 @@ impl NewBaseline {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-/// Returns the last day of the month for a given "YYYY-MM-DD" period start.
-fn end_of_month(period_start: &str) -> Result<String, AppError> {
-    let date = chrono::NaiveDate::parse_from_str(period_start, "%Y-%m-%d")
-        .map_err(|err| AppError::Internal(format!("invalid period_start date: {err}")))?;
-
-    // Go to day 1 of next month, subtract 1 day
+fn end_of_month(date: NaiveDate) -> Result<NaiveDate, AppError> {
     let (year, month) = if date.month() == 12 {
         (date.year() + 1, 1)
     } else {
         (date.year(), date.month() + 1)
     };
-
-    let first_of_next = chrono::NaiveDate::from_ymd_opt(year, month, 1)
+    let first_of_next = NaiveDate::from_ymd_opt(year, month, 1)
         .ok_or_else(|| AppError::Internal("invalid date computation".to_string()))?;
-    let last_day = first_of_next
+    first_of_next
         .pred_opt()
-        .ok_or_else(|| AppError::Internal("date underflow".to_string()))?;
-
-    Ok(last_day.format("%Y-%m-%d").to_string())
+        .ok_or_else(|| AppError::Internal("date underflow".to_string()))
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -276,7 +268,7 @@ mod tests {
     ) {
         NewEntry::new(
             workspace.as_ref().clone(),
-            date,
+            date.parse::<NaiveDate>().unwrap(),
             "test",
             vec![
                 PostingInput::new(from.id.clone(), -amount),
@@ -287,15 +279,19 @@ mod tests {
         .unwrap();
     }
 
-    // ── end_of_month tests ─────────────────────────────────────────
+    fn nd(s: &str) -> NaiveDate {
+        s.parse().unwrap()
+    }
+
+    // ── end_of_month tests ────────────────────────────────────
 
     #[test]
     fn end_of_month_correctness() {
-        assert_eq!(end_of_month("2026-01-01").unwrap(), "2026-01-31");
-        assert_eq!(end_of_month("2026-02-01").unwrap(), "2026-02-28");
-        assert_eq!(end_of_month("2024-02-01").unwrap(), "2024-02-29"); // leap year
-        assert_eq!(end_of_month("2026-12-01").unwrap(), "2026-12-31");
-        assert_eq!(end_of_month("2026-04-15").unwrap(), "2026-04-30");
+        assert_eq!(end_of_month(nd("2026-01-01")).unwrap(), nd("2026-01-31"));
+        assert_eq!(end_of_month(nd("2026-02-01")).unwrap(), nd("2026-02-28"));
+        assert_eq!(end_of_month(nd("2024-02-01")).unwrap(), nd("2024-02-29"));
+        assert_eq!(end_of_month(nd("2026-12-01")).unwrap(), nd("2026-12-31"));
+        assert_eq!(end_of_month(nd("2026-04-15")).unwrap(), nd("2026-04-30"));
     }
 
     // ── Baseline CRUD tests ────────────────────────────────────────
@@ -308,14 +304,14 @@ mod tests {
         let baseline = NewBaseline::monthly(
             workspace.as_ref().clone(),
             food.id.clone(),
-            "2026-01-01",
+            nd("2026-01-01"),
             50000,
         )
         .insert(&mut conn)
         .unwrap();
 
         assert_eq!(baseline.amount, 50000);
-        assert_eq!(baseline.period_start, "2026-01-01");
+        assert_eq!(baseline.period_start, nd("2026-01-01"));
         assert_eq!(baseline.period_type, PeriodType::Monthly);
         assert_eq!(baseline.account, food.id);
     }
@@ -325,14 +321,14 @@ mod tests {
         let (mut conn, workspace) = setup();
         let food = find_account("Food", &workspace, &mut conn);
 
-        NewBaseline::monthly(workspace.as_ref().clone(), food.id.clone(), "2026-01-01", 50000)
+        NewBaseline::monthly(workspace.as_ref().clone(), food.id.clone(), nd("2026-01-01"), 50000)
             .insert(&mut conn)
             .unwrap();
 
         let err = NewBaseline::monthly(
             workspace.as_ref().clone(),
             food.id.clone(),
-            "2026-01-01",
+            nd("2026-01-01"),
             60000,
         )
         .insert(&mut conn)
@@ -347,10 +343,10 @@ mod tests {
         let food = find_account("Food", &workspace, &mut conn);
         let rent = find_account("Rent", &workspace, &mut conn);
 
-        NewBaseline::monthly(workspace.as_ref().clone(), food.id.clone(), "2026-01-01", 50000)
+        NewBaseline::monthly(workspace.as_ref().clone(), food.id.clone(), nd("2026-01-01"), 50000)
             .insert(&mut conn)
             .unwrap();
-        NewBaseline::monthly(workspace.as_ref().clone(), rent.id.clone(), "2026-01-01", 150000)
+        NewBaseline::monthly(workspace.as_ref().clone(), rent.id.clone(), nd("2026-01-01"), 150000)
             .insert(&mut conn)
             .unwrap();
 
@@ -365,10 +361,10 @@ mod tests {
         let food = find_account("Food", &workspace, &mut conn);
         let rent = find_account("Rent", &workspace, &mut conn);
 
-        NewBaseline::monthly(workspace.as_ref().clone(), food.id.clone(), "2026-01-01", 50000)
+        NewBaseline::monthly(workspace.as_ref().clone(), food.id.clone(), nd("2026-01-01"), 50000)
             .insert(&mut conn)
             .unwrap();
-        NewBaseline::monthly(workspace.as_ref().clone(), rent.id.clone(), "2026-01-01", 150000)
+        NewBaseline::monthly(workspace.as_ref().clone(), rent.id.clone(), nd("2026-01-01"), 150000)
             .insert(&mut conn)
             .unwrap();
 
@@ -386,7 +382,7 @@ mod tests {
         let baseline = NewBaseline::monthly(
             workspace.as_ref().clone(),
             food.id.clone(),
-            "2026-01-01",
+            nd("2026-01-01"),
             10000,
         )
         .insert(&mut conn)
@@ -407,7 +403,7 @@ mod tests {
         let baseline = NewBaseline::monthly(
             workspace.as_ref().clone(),
             food.id.clone(),
-            "2026-01-01",
+            nd("2026-01-01"),
             5000,
         )
         .insert(&mut conn)
@@ -427,7 +423,7 @@ mod tests {
         let baseline = NewBaseline::monthly(
             workspace.as_ref().clone(),
             food.id.clone(),
-            "2026-01-01",
+            nd("2026-01-01"),
             5000,
         )
         .insert(&mut conn)
@@ -450,7 +446,7 @@ mod tests {
         let baseline = NewBaseline::monthly(
             workspace.as_ref().clone(),
             food.id.clone(),
-            "2026-01-01",
+            nd("2026-01-01"),
             5000,
         )
         .insert(&mut conn)

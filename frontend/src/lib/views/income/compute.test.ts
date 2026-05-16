@@ -209,6 +209,6 @@ describe('latestActivityMonth', () => {
 	it('falls back to current month when no qualifying entries exist', () => {
 		const empty = latestActivityMonth([], accounts);
 		const now = new Date();
-		expect(empty).toEqual({ year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 });
+		expect(empty).toEqual({ year: now.getFullYear(), month: now.getMonth() + 1 });
 	});
 });

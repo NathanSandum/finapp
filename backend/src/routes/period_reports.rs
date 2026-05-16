@@ -32,8 +32,8 @@ pub async fn income_statement(
     let anchors = member.workspace.anchors(&mut conn)?;
     let statement = IncomeStatement::for_period(
         anchors.income_statement(),
-        &period.start_date,
-        &period.end_date,
+        period.start_date,
+        period.end_date,
         &mut conn,
     )?;
 
@@ -52,7 +52,7 @@ pub async fn balance_sheet(
         .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let anchors = member.workspace.anchors(&mut conn)?;
-    let sheet = BalanceSheet::as_of(anchors.balance_sheet(), &period.end_date, &mut conn)?;
+    let sheet = BalanceSheet::as_of(anchors.balance_sheet(), period.end_date, &mut conn)?;
 
     Ok(JSend::success(sheet))
 }
@@ -70,7 +70,7 @@ pub async fn entries(
 
     let entries = member
         .workspace
-        .entries_between(&period.start_date, &period.end_date, &mut conn)?;
+        .entries_between(period.start_date, period.end_date, &mut conn)?;
 
     let mut items = Vec::with_capacity(entries.len());
     for entry in &entries {

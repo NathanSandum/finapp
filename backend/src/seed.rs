@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{NaiveDate, NaiveDateTime};
 use diesel::prelude::*;
 use sha2::{Digest, Sha256};
 
@@ -386,7 +386,10 @@ fn insert_fixture_entries(
     }
 
     for (date, description, postings) in entries {
-        NewEntry::new(workspace_ref.clone(), &date, &description, postings).insert(conn)?;
+        let parsed: NaiveDate = date
+            .parse()
+            .map_err(|err| AppError::Internal(format!("seed date {date}: {err}")))?;
+        NewEntry::new(workspace_ref.clone(), parsed, &description, postings).insert(conn)?;
     }
 
     Ok(())
