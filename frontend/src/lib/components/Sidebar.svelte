@@ -3,26 +3,57 @@
 	import { tabs } from '$lib/tabs/registry';
 	import type { Tab } from '$lib/tabs/types';
 	import { todayLabel } from '$lib/views/today';
+	import { workspaceState } from '$lib/workspace/state.svelte';
+	import WorkspaceSwitcher from '$lib/workspace/WorkspaceSwitcher.svelte';
 
 	let { current, onSelect }: { current: Tab; onSelect: (tab: Tab) => void } = $props();
 
 	const dateLabel = todayLabel();
+	let switcherOpen = $state(false);
+	let switcherEl = $state<HTMLDivElement | null>(null);
+
+	const activeName = $derived(workspaceState.active?.name ?? 'FinApp');
+	const initial = $derived(activeName.charAt(0).toUpperCase() || 'F');
+
+	$effect(() => {
+		if (!switcherOpen) return;
+		function onPointerDown(event: PointerEvent) {
+			if (switcherEl && !switcherEl.contains(event.target as Node)) {
+				switcherOpen = false;
+			}
+		}
+		function onKeyDown(event: KeyboardEvent) {
+			if (event.key === 'Escape') switcherOpen = false;
+		}
+		window.addEventListener('pointerdown', onPointerDown);
+		window.addEventListener('keydown', onKeyDown);
+		return () => {
+			window.removeEventListener('pointerdown', onPointerDown);
+			window.removeEventListener('keydown', onKeyDown);
+		};
+	});
 </script>
 
-<button
-	type="button"
-	class="flex items-center justify-between rounded px-2 py-1.5 text-left transition-colors hover:bg-surface-inverse-hover"
->
-	<span class="flex items-center gap-2">
-		<span class="flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-bold text-ink">
-			F
+<div class="relative" bind:this={switcherEl}>
+	<button
+		type="button"
+		onclick={() => (switcherOpen = !switcherOpen)}
+		class="flex w-full items-center justify-between rounded px-2 py-1.5 text-left transition-colors hover:bg-surface-inverse-hover"
+	>
+		<span class="flex items-center gap-2">
+			<span class="flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-bold text-ink">
+				{initial}
+			</span>
+			<span class="text-sm font-medium text-ink-inverse">{activeName}</span>
 		</span>
-		<span class="text-sm font-medium text-ink-inverse">FinApp</span>
-	</span>
-	<svg class="h-4 w-4 text-ink-muted" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-		<path fill-rule="evenodd" d="M5 8l5 5 5-5H5z" clip-rule="evenodd" />
-	</svg>
-</button>
+		<svg class="h-4 w-4 text-ink-muted" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+			<path fill-rule="evenodd" d="M5 8l5 5 5-5H5z" clip-rule="evenodd" />
+		</svg>
+	</button>
+	{#if switcherOpen}
+		<WorkspaceSwitcher onClose={() => (switcherOpen = false)} />
+	{/if}
+</div>
 <p class="mb-4 px-2 pt-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
 	{dateLabel}
 </p>
@@ -49,7 +80,6 @@
 	</div>
 	<div class="flex flex-1 flex-col leading-tight">
 		<span class="text-sm text-ink-inverse-body">Nathan Sandum</span>
-		<span class="text-[11px] text-ink-muted">Personal</span>
 	</div>
 	<svg class="h-4 w-4 text-ink-muted" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
 		<path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
