@@ -1,4 +1,5 @@
-import { apiFetch, DEV_WORKSPACE } from '$lib/api/client';
+import { apiFetch } from '$lib/api/client';
+import { workspaceState } from '$lib/workspace/state.svelte';
 import type { JSend } from '$lib/tabs/types';
 import type { Account, Entry } from '../entries/loader';
 
@@ -8,9 +9,10 @@ export type IncomeRaw = {
 };
 
 export async function load(): Promise<JSend<IncomeRaw>> {
+	const id = workspaceState.id();
 	const [entriesResult, accountsResult] = await Promise.all([
-		apiFetch<{ entries: Entry[] }>(`/workspaces/${DEV_WORKSPACE}/entries`),
-		apiFetch<{ accounts: Account[] }>(`/workspaces/${DEV_WORKSPACE}/accounts`)
+		apiFetch<{ entries: Entry[] }>(`/workspaces/${id}/entries`),
+		apiFetch<{ accounts: Account[] }>(`/workspaces/${id}/accounts`)
 	]);
 
 	if (entriesResult.status !== 'success') return entriesResult;

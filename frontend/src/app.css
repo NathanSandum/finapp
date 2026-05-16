@@ -35,6 +35,9 @@
 
 	--color-surface-inverse: oklch(22% 0.025 260);
 	--color-surface-inverse-hover: oklch(28% 0.03 260);
+	--color-surface-overlay: oklch(32% 0.035 260);
+	--color-surface-overlay-active: oklch(38% 0.04 260);
+	--color-surface-overlay-hover: oklch(42% 0.045 260);
 
 	--color-ink: oklch(20.5% 0.02 260);
 	--color-ink-body: oklch(38% 0.018 260);

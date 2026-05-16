@@ -3,8 +3,6 @@ import type { JSend } from '$lib/tabs/types';
 const PREFIX = import.meta.env.VITE_API_PREFIX ?? '/api';
 const TOKEN = import.meta.env.VITE_DEV_TOKEN ?? '';
 
-export const DEV_WORKSPACE = import.meta.env.VITE_DEV_WORKSPACE ?? '';
-
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<JSend<T>> {
 	let response: Response;
 	try {

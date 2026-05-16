@@ -1,4 +1,5 @@
-import { apiFetch, DEV_WORKSPACE } from '$lib/api/client';
+import { apiFetch } from '$lib/api/client';
+import { workspaceState } from '$lib/workspace/state.svelte';
 import type { JSend } from '$lib/tabs/types';
 
 type Posting = {
@@ -51,13 +52,14 @@ export type EntriesData = {
 };
 
 export function fetchAnchors() {
-	return apiFetch<Anchors>(`/workspaces/${DEV_WORKSPACE}/anchors`);
+	return apiFetch<Anchors>(`/workspaces/${workspaceState.id()}/anchors`);
 }
 
 export async function load(): Promise<JSend<EntriesData>> {
+	const id = workspaceState.id();
 	const [entriesResult, accountsResult, anchorsResult] = await Promise.all([
-		apiFetch<{ entries: Entry[] }>(`/workspaces/${DEV_WORKSPACE}/entries`),
-		apiFetch<{ accounts: Account[] }>(`/workspaces/${DEV_WORKSPACE}/accounts`),
+		apiFetch<{ entries: Entry[] }>(`/workspaces/${id}/entries`),
+		apiFetch<{ accounts: Account[] }>(`/workspaces/${id}/accounts`),
 		fetchAnchors()
 	]);
 
