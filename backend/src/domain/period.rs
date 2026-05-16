@@ -37,9 +37,9 @@ impl Period {
             "Q4" => Self::quarter(year_num, 4),
             "Year" => Ok(Period {
                 start_date: NaiveDate::from_ymd_opt(year_num, 1, 1)
-                    .ok_or_else(|| out_of_range(year_num))?,
+                    .ok_or_else(invalid_date)?,
                 end_date: NaiveDate::from_ymd_opt(year_num, 12, 31)
-                    .ok_or_else(|| out_of_range(year_num))?,
+                    .ok_or_else(invalid_date)?,
                 label: "Year".into(),
             }),
             _ => Err(AppError::Validation(vec![crate::error::FieldError {
@@ -57,7 +57,7 @@ impl Period {
             _ => unreachable!(),
         };
         let start_date =
-            NaiveDate::from_ymd_opt(year, month, 1).ok_or_else(|| out_of_range(year))?;
+            NaiveDate::from_ymd_opt(year, month, 1).ok_or_else(invalid_date)?;
         let end_date = Self::last_day_of_month(year, month)?;
         Ok(Period {
             start_date,
@@ -70,7 +70,7 @@ impl Period {
         let first_month = (quarter - 1) * 3 + 1;
         let last_month = first_month + 2;
         let start_date =
-            NaiveDate::from_ymd_opt(year, first_month, 1).ok_or_else(|| out_of_range(year))?;
+            NaiveDate::from_ymd_opt(year, first_month, 1).ok_or_else(invalid_date)?;
         let end_date = Self::last_day_of_month(year, last_month)?;
         Ok(Period {
             start_date,
@@ -92,14 +92,14 @@ impl Period {
             }
             _ => unreachable!(),
         };
-        NaiveDate::from_ymd_opt(year, month, day).ok_or_else(|| out_of_range(year))
+        NaiveDate::from_ymd_opt(year, month, day).ok_or_else(invalid_date)
     }
 }
 
-fn out_of_range(year: i32) -> AppError {
+fn invalid_date() -> AppError {
     AppError::Validation(vec![crate::error::FieldError {
-        field: "year".into(),
-        message: format!("year out of range: {year}"),
+        field: "period".into(),
+        message: "invalid date".into(),
     }])
 }
 
