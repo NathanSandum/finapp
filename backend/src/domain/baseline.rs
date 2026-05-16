@@ -1,4 +1,4 @@
-use chrono::{Datelike, NaiveDateTime};
+use chrono::{Datelike, NaiveDate, NaiveDateTime};
 use diesel::backend::Backend;
 use diesel::deserialize::{self, FromSql};
 use diesel::prelude::*;
@@ -116,9 +116,11 @@ impl Baseline {
     pub fn variance(&self, conn: &mut SqliteConnection) -> Result<i64, AppError> {
         let account = Account::from_ref(&self.account, conn)?
             .ok_or_else(|| AppError::Internal("baseline account not found".to_string()))?;
-        let period_end = end_of_month(&self.period_start)?;
+        let period_start = NaiveDate::parse_from_str(&self.period_start, "%Y-%m-%d")
+            .map_err(|err| AppError::Internal(format!("invalid period_start date: {err}")))?;
+        let period_end = end_of_month_date(period_start)?;
         let actual =
-            account.balance_between_with_descendants(&self.period_start, &period_end, conn)?;
+            account.balance_between_with_descendants(period_start, period_end, conn)?;
         Ok(actual - self.amount as i64)
     }
 }
@@ -217,25 +219,17 @@ impl NewBaseline {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-/// Returns the last day of the month for a given "YYYY-MM-DD" period start.
-fn end_of_month(period_start: &str) -> Result<String, AppError> {
-    let date = chrono::NaiveDate::parse_from_str(period_start, "%Y-%m-%d")
-        .map_err(|err| AppError::Internal(format!("invalid period_start date: {err}")))?;
-
-    // Go to day 1 of next month, subtract 1 day
+fn end_of_month_date(date: NaiveDate) -> Result<NaiveDate, AppError> {
     let (year, month) = if date.month() == 12 {
         (date.year() + 1, 1)
     } else {
         (date.year(), date.month() + 1)
     };
-
-    let first_of_next = chrono::NaiveDate::from_ymd_opt(year, month, 1)
+    let first_of_next = NaiveDate::from_ymd_opt(year, month, 1)
         .ok_or_else(|| AppError::Internal("invalid date computation".to_string()))?;
-    let last_day = first_of_next
+    first_of_next
         .pred_opt()
-        .ok_or_else(|| AppError::Internal("date underflow".to_string()))?;
-
-    Ok(last_day.format("%Y-%m-%d").to_string())
+        .ok_or_else(|| AppError::Internal("date underflow".to_string()))
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -276,7 +270,7 @@ mod tests {
     ) {
         NewEntry::new(
             workspace.as_ref().clone(),
-            date,
+            date.parse::<NaiveDate>().unwrap(),
             "test",
             vec![
                 PostingInput::new(from.id.clone(), -amount),
@@ -287,15 +281,19 @@ mod tests {
         .unwrap();
     }
 
-    // ── end_of_month tests ─────────────────────────────────────────
+    fn nd(s: &str) -> NaiveDate {
+        s.parse().unwrap()
+    }
+
+    // ── end_of_month_date tests ────────────────────────────────────
 
     #[test]
     fn end_of_month_correctness() {
-        assert_eq!(end_of_month("2026-01-01").unwrap(), "2026-01-31");
-        assert_eq!(end_of_month("2026-02-01").unwrap(), "2026-02-28");
-        assert_eq!(end_of_month("2024-02-01").unwrap(), "2024-02-29"); // leap year
-        assert_eq!(end_of_month("2026-12-01").unwrap(), "2026-12-31");
-        assert_eq!(end_of_month("2026-04-15").unwrap(), "2026-04-30");
+        assert_eq!(end_of_month_date(nd("2026-01-01")).unwrap(), nd("2026-01-31"));
+        assert_eq!(end_of_month_date(nd("2026-02-01")).unwrap(), nd("2026-02-28"));
+        assert_eq!(end_of_month_date(nd("2024-02-01")).unwrap(), nd("2024-02-29"));
+        assert_eq!(end_of_month_date(nd("2026-12-01")).unwrap(), nd("2026-12-31"));
+        assert_eq!(end_of_month_date(nd("2026-04-15")).unwrap(), nd("2026-04-30"));
     }
 
     // ── Baseline CRUD tests ────────────────────────────────────────

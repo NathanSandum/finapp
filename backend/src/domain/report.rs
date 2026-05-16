@@ -185,13 +185,17 @@ mod tests {
         all.into_iter().find(|a| a.name == name).unwrap()
     }
 
+    fn nd(s: &str) -> NaiveDate {
+        s.parse().unwrap()
+    }
+
     fn balance_sheet_for(
         workspace: &Workspace,
         date: &str,
         conn: &mut SqliteConnection,
     ) -> BalanceSheet {
         let anchors = workspace.as_ref().anchors(conn).unwrap();
-        BalanceSheet::as_of(anchors.balance_sheet(), date, conn).unwrap()
+        BalanceSheet::as_of(anchors.balance_sheet(), nd(date), conn).unwrap()
     }
 
     fn income_statement_for(
@@ -201,7 +205,7 @@ mod tests {
         conn: &mut SqliteConnection,
     ) -> IncomeStatement {
         let anchors = workspace.as_ref().anchors(conn).unwrap();
-        IncomeStatement::for_period(anchors.income_statement(), start_date, end_date, conn)
+        IncomeStatement::for_period(anchors.income_statement(), nd(start_date), nd(end_date), conn)
             .unwrap()
     }
 
@@ -215,7 +219,7 @@ mod tests {
     ) {
         NewEntry::new(
             workspace.as_ref().clone(),
-            date,
+            nd(date),
             "test",
             vec![
                 PostingInput::new(from.id.clone(), -amount),

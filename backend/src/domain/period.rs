@@ -36,8 +36,8 @@ impl Period {
             "Q3" => Self::quarter(year_num, 3),
             "Q4" => Self::quarter(year_num, 4),
             "Year" => Ok(Period {
-                start_date: format!("{year_num}-01-01"),
-                end_date: format!("{year_num}-12-31"),
+                start_date: NaiveDate::from_ymd_opt(year_num, 1, 1).unwrap(),
+                end_date: NaiveDate::from_ymd_opt(year_num, 12, 31).unwrap(),
                 label: "Year".into(),
             }),
             _ => Err(AppError::Validation(vec![crate::error::FieldError {
@@ -96,53 +96,57 @@ impl Period {
 mod tests {
     use super::*;
 
+    fn nd(s: &str) -> NaiveDate {
+        s.parse().unwrap()
+    }
+
     #[test]
     fn parse_january() {
         let period = Period::parse("2026", "Jan").unwrap();
-        assert_eq!(period.start_date, "2026-01-01");
-        assert_eq!(period.end_date, "2026-01-31");
+        assert_eq!(period.start_date, nd("2026-01-01"));
+        assert_eq!(period.end_date, nd("2026-01-31"));
         assert_eq!(period.label, "Jan");
     }
 
     #[test]
     fn parse_february_non_leap() {
         let period = Period::parse("2026", "Feb").unwrap();
-        assert_eq!(period.end_date, "2026-02-28");
+        assert_eq!(period.end_date, nd("2026-02-28"));
     }
 
     #[test]
     fn parse_february_leap() {
         let period = Period::parse("2024", "Feb").unwrap();
-        assert_eq!(period.end_date, "2024-02-29");
+        assert_eq!(period.end_date, nd("2024-02-29"));
     }
 
     #[test]
     fn parse_december() {
         let period = Period::parse("2026", "Dec").unwrap();
-        assert_eq!(period.start_date, "2026-12-01");
-        assert_eq!(period.end_date, "2026-12-31");
+        assert_eq!(period.start_date, nd("2026-12-01"));
+        assert_eq!(period.end_date, nd("2026-12-31"));
     }
 
     #[test]
     fn parse_q1() {
         let period = Period::parse("2026", "Q1").unwrap();
-        assert_eq!(period.start_date, "2026-01-01");
-        assert_eq!(period.end_date, "2026-03-31");
+        assert_eq!(period.start_date, nd("2026-01-01"));
+        assert_eq!(period.end_date, nd("2026-03-31"));
         assert_eq!(period.label, "Q1");
     }
 
     #[test]
     fn parse_q4() {
         let period = Period::parse("2026", "Q4").unwrap();
-        assert_eq!(period.start_date, "2026-10-01");
-        assert_eq!(period.end_date, "2026-12-31");
+        assert_eq!(period.start_date, nd("2026-10-01"));
+        assert_eq!(period.end_date, nd("2026-12-31"));
     }
 
     #[test]
     fn parse_year() {
         let period = Period::parse("2026", "Year").unwrap();
-        assert_eq!(period.start_date, "2026-01-01");
-        assert_eq!(period.end_date, "2026-12-31");
+        assert_eq!(period.start_date, nd("2026-01-01"));
+        assert_eq!(period.end_date, nd("2026-12-31"));
         assert_eq!(period.label, "Year");
     }
 

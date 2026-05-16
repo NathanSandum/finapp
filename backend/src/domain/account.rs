@@ -1282,6 +1282,10 @@ mod tests {
 
     // ── Balance tests ───────────────────────────────────────────────────
 
+    fn nd(s: &str) -> chrono::NaiveDate {
+        s.parse().unwrap()
+    }
+
     fn make_entry(
         workspace: &Workspace,
         from: &Account,
@@ -1292,7 +1296,7 @@ mod tests {
     ) -> crate::domain::entry::Entry {
         NewEntry::new(
             workspace.as_ref().clone(),
-            date,
+            nd(date),
             "test",
             vec![
                 PostingInput::new(from.id.clone(), -amount),
@@ -1358,9 +1362,9 @@ mod tests {
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
         make_entry(&workspace, &chequing, &food, 800, "2026-01-20", &mut conn);
 
-        assert_eq!(food.balance_as_of("2026-01-15", &mut conn).unwrap(), 1200);
-        assert_eq!(food.balance_as_of("2026-01-20", &mut conn).unwrap(), 2000);
-        assert_eq!(food.balance_as_of("2026-01-14", &mut conn).unwrap(), 0);
+        assert_eq!(food.balance_as_of(nd("2026-01-15"), &mut conn).unwrap(), 1200);
+        assert_eq!(food.balance_as_of(nd("2026-01-20"), &mut conn).unwrap(), 2000);
+        assert_eq!(food.balance_as_of(nd("2026-01-14"), &mut conn).unwrap(), 0);
     }
 
     #[test]
@@ -1593,7 +1597,7 @@ mod tests {
         make_entry(&workspace, &chequing, &food, 800, "2026-01-20", &mut conn);
 
         // Range captures only middle entry
-        assert_eq!(food.balance_between("2026-01-11", "2026-01-19", &mut conn).unwrap(), 1200);
+        assert_eq!(food.balance_between(nd("2026-01-11"), nd("2026-01-19"), &mut conn).unwrap(), 1200);
     }
 
     #[test]
@@ -1604,7 +1608,7 @@ mod tests {
 
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
 
-        assert_eq!(food.balance_between("2026-01-15", "2026-01-15", &mut conn).unwrap(), 1200);
+        assert_eq!(food.balance_between(nd("2026-01-15"), nd("2026-01-15"), &mut conn).unwrap(), 1200);
     }
 
     #[test]
@@ -1615,7 +1619,7 @@ mod tests {
 
         make_entry(&workspace, &chequing, &food, 1200, "2026-01-15", &mut conn);
 
-        assert_eq!(food.balance_between("2026-02-01", "2026-02-28", &mut conn).unwrap(), 0);
+        assert_eq!(food.balance_between(nd("2026-02-01"), nd("2026-02-28"), &mut conn).unwrap(), 0);
     }
 
     #[test]
@@ -1631,7 +1635,7 @@ mod tests {
         make_entry(&workspace, &chequing, &cafes, 500, "2026-01-16", &mut conn);
 
         assert_eq!(
-            expenses.balance_between_with_descendants("2026-01-01", "2026-01-31", &mut conn).unwrap(),
+            expenses.balance_between_with_descendants(nd("2026-01-01"), nd("2026-01-31"), &mut conn).unwrap(),
             1700
         );
     }
@@ -1650,8 +1654,8 @@ mod tests {
         make_entry(&workspace, &chequing, &cafes, 500, "2026-02-10", &mut conn);
 
         // As of Jan 31: chequing has -1200 (only first entry), assets tree = -1200
-        assert_eq!(assets.balance_as_of_with_descendants("2026-01-31", &mut conn).unwrap(), -1200);
+        assert_eq!(assets.balance_as_of_with_descendants(nd("2026-01-31"), &mut conn).unwrap(), -1200);
         // As of Feb 28: chequing has -1700, assets tree = -1700
-        assert_eq!(assets.balance_as_of_with_descendants("2026-02-28", &mut conn).unwrap(), -1700);
+        assert_eq!(assets.balance_as_of_with_descendants(nd("2026-02-28"), &mut conn).unwrap(), -1700);
     }
 }

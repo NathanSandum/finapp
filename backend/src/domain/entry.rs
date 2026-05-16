@@ -500,7 +500,7 @@ mod tests {
         .insert(&mut conn)
         .unwrap();
 
-        assert_eq!(entry.date, "2026-01-15");
+        assert_eq!(entry.date, nd("2026-01-15"));
         assert_eq!(entry.description, "Lunch");
     }
 
@@ -718,7 +718,7 @@ mod tests {
         let updated = entry
             .update(
                 UpdateEntry {
-                    date: Some("2026-02-20".to_string()),
+                    date: Some(nd("2026-02-20")),
                     description: None,
                     postings: None,
                 },
@@ -726,7 +726,7 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(updated.date, "2026-02-20");
+        assert_eq!(updated.date, nd("2026-02-20"));
         assert_eq!(updated.description, "Groceries");
 
         let postings_after = updated.postings(&mut conn).unwrap();
@@ -756,7 +756,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(updated.description, "Updated description");
-        assert_eq!(updated.date, "2026-01-15");
+        assert_eq!(updated.date, nd("2026-01-15"));
     }
 
     #[test]
@@ -930,7 +930,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(merged.description, "Transfer to savings");
-        assert_eq!(merged.date, "2026-01-15");
+        assert_eq!(merged.date, nd("2026-01-15"));
 
         let postings = merged.postings(&mut conn).unwrap();
         assert_eq!(postings.len(), 2);
@@ -1013,7 +1013,7 @@ mod tests {
             &other_chequing,
             &other_food,
             500,
-            nd("2026-01-15"),
+            "2026-01-15",
             &mut conn,
         );
 

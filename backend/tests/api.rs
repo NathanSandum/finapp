@@ -521,7 +521,7 @@ async fn account_balance_reflects_postings() {
 
         NewEntry::new(
             workspace_ref,
-            "2026-01-15",
+            "2026-01-15".parse().unwrap(),
             "Lunch",
             vec![
                 PostingInput::new(chequing_ref, -1200),
