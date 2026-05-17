@@ -22,7 +22,8 @@
 		white-space: nowrap;
 	}
 	.ch {
-		display: inline-block;
+		display: inline-flex;
+		align-items: baseline;
 		position: relative;
 		vertical-align: baseline;
 		width: 1ch;
