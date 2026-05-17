@@ -44,7 +44,7 @@ pub fn build_router(db: DbPool, mode: Mode) -> Router {
     let auth_backend = AuthBackend::new(db.clone());
     let auth_layer = AuthManagerLayerBuilder::new(auth_backend, session_layer).build();
 
-    let mut router = Router::new()
+    let router = Router::new()
         .route("/health", get(health))
         .route("/auth/register", post(routes::auth::register))
         .route("/auth/login", post(routes::auth::login))
@@ -127,10 +127,6 @@ pub fn build_router(db: DbPool, mode: Mode) -> Router {
             "/workspaces/{workspace}/baselines/{baseline}/variance",
             get(routes::baselines::variance),
         );
-
-    if mode == Mode::Dev {
-        router = router.route("/auth/dev-login", post(routes::auth::dev_login));
-    }
 
     router.layer(auth_layer).layer(Extension(db))
 }

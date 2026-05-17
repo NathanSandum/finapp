@@ -1682,20 +1682,3 @@ async fn update_workspace_name() {
     assert_eq!(body["name"], "Renamed Finances");
 }
 
-// ── Dev login ───────────────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn dev_login_requires_seeded_user() {
-    let app = app();
-    let mut session = Session::default();
-    let (status, _) = post(&app, "/auth/dev-login", &mut session, json!({})).await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
-}
-
-#[tokio::test]
-async fn dev_login_not_registered_in_prod() {
-    let app = backend::build_router(test_pool(), Mode::Prod);
-    let mut session = Session::default();
-    let (status, _) = post(&app, "/auth/dev-login", &mut session, json!({})).await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
-}

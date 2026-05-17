@@ -1,3 +1,7 @@
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
+    Argon2,
+};
 use chrono::{NaiveDate, NaiveDateTime};
 use diesel::prelude::*;
 
@@ -12,7 +16,8 @@ use crate::DbPool;
 
 pub const DEV_USER_ID: &str = "00000000-0000-0000-0000-000000000001";
 pub const DEV_WORKSPACE_ID: &str = "00000000-0000-0000-0000-000000000002";
-pub const DEV_USER_EMAIL: &str = "dev@finapp.local";
+pub const DEV_USER_EMAIL: &str = "dev";
+pub const DEV_USER_PASSWORD: &str = "dev";
 pub const DEV_USER_DISPLAY_NAME: &str = "Dev User";
 
 pub fn populate(db: &DbPool, _config: &Config) -> Result<(), AppError> {
@@ -60,12 +65,18 @@ fn insert_dev_user(
     now: NaiveDateTime,
     conn: &mut SqliteConnection,
 ) -> Result<(), AppError> {
+    let salt = SaltString::generate(&mut OsRng);
+    let password_hash = Argon2::default()
+        .hash_password(DEV_USER_PASSWORD.as_bytes(), &salt)
+        .map_err(|err| AppError::Internal(format!("dev password hash failed: {err}")))?
+        .to_string();
+
     diesel::insert_into(users::table)
         .values((
             users::id.eq(user_ref.to_string()),
             users::email.eq(DEV_USER_EMAIL),
             users::display_name.eq(DEV_USER_DISPLAY_NAME),
-            users::password_hash.eq("dev-mode-no-password"),
+            users::password_hash.eq(password_hash),
             users::created_at.eq(now),
             users::updated_at.eq(now),
         ))

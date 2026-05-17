@@ -52,10 +52,12 @@
 			/>
 		</label>
 
-		{#if result?.status === 'fail'}
-			<FailView {result} />
-		{:else if result?.status === 'error'}
-			<ErrorView {result} />
+		{#if result !== null}
+			{#if result.status === 'fail'}
+				<FailView {result} />
+			{:else if result.status === 'error'}
+				<ErrorView {result} />
+			{/if}
 		{/if}
 
 		<button

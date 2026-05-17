@@ -6,7 +6,7 @@
 	import { tabState } from '$lib/tabs/state.svelte';
 	import { workspaceState } from '$lib/workspace/state.svelte';
 	import { listWorkspaces } from '$lib/workspace/api';
-	import { ensureSignedIn } from '$lib/api/auth';
+	import { fetchMe } from '$lib/api/auth';
 	import { authState } from '$lib/api/state.svelte';
 	import { goto } from '$app/navigation';
 
@@ -17,12 +17,12 @@
 	$effect(() => {
 		if (workspaceState.active) return;
 		(async () => {
-			const user = await ensureSignedIn();
-			if (!user) {
+			const me = await fetchMe();
+			if (me.status !== 'success') {
 				goto('/signin');
 				return;
 			}
-			authState.set(user);
+			authState.set(me.data.user);
 			const result = await listWorkspaces();
 			if (result.status !== 'success') {
 				bootError =

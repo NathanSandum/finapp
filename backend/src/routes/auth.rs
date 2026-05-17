@@ -6,7 +6,6 @@ use crate::auth_backend::{AuthBackend, Credentials};
 use crate::domain::user::{NewUser, User};
 use crate::error::AppError;
 use crate::jsend::JSend;
-use crate::seed;
 use crate::DbPool;
 
 type AuthSession = axum_login::AuthSession<AuthBackend>;
@@ -60,21 +59,6 @@ pub async fn logout(mut auth_session: AuthSession) -> Result<JSend<Value>, AppEr
 pub async fn me(auth_session: AuthSession) -> Result<JSend<Value>, AppError> {
     let user = auth_session.user.as_ref().ok_or(AppError::Unauthorized)?;
     Ok(JSend::success(user_payload(user)))
-}
-
-pub async fn dev_login(
-    Extension(db): Extension<DbPool>,
-    mut auth_session: AuthSession,
-) -> Result<JSend<Value>, AppError> {
-    let mut conn = db
-        .get()
-        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
-    let user = User::from_email(seed::DEV_USER_EMAIL, &mut conn)?
-        .ok_or_else(|| AppError::NotFound("dev user not seeded".into()))?;
-    drop(conn);
-
-    login_session(&mut auth_session, &user).await?;
-    Ok(JSend::success(user_payload(&user)))
 }
 
 async fn login_session(session: &mut AuthSession, user: &User) -> Result<(), AppError> {

@@ -25,9 +25,11 @@ async fn main() {
 
     if config.mode == Mode::Dev {
         println!();
-        println!("── Dev workspace ────────────────────────────────");
-        println!("  VITE_DEV_WORKSPACE = {}", seed::DEV_WORKSPACE_ID);
-        println!("  VITE_API_BASE      = http://{}", bind);
+        println!("── Dev credentials ──────────────────────────────");
+        println!("  email    = {}", seed::DEV_USER_EMAIL);
+        println!("  password = {}", seed::DEV_USER_PASSWORD);
+        println!("  workspace = {}", seed::DEV_WORKSPACE_ID);
+        println!("  api base  = http://{}", bind);
         println!("─────────────────────────────────────────────────");
     }
 
