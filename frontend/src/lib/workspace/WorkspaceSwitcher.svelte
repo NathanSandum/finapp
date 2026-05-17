@@ -3,6 +3,7 @@
 	import { createWorkspace, listWorkspaces, renameWorkspace, type Workspace } from './api';
 	import WorkspaceRow from './WorkspaceRow.svelte';
 	import WorkspaceCreate from './WorkspaceCreate.svelte';
+	import Popover from '$lib/components/Popover.svelte';
 
 	let { onClose }: { onClose: () => void } = $props();
 
@@ -67,11 +68,7 @@
 	}
 </script>
 
-<div
-	class="absolute -inset-x-2 top-full z-20 mt-1 bg-surface-overlay shadow-2xl shadow-black/60 ring-1 ring-inset ring-ink-inverse/25"
-	style="box-shadow: inset 0 1px 0 oklch(60% 0.04 260), inset 0 -1px 0 oklch(14% 0.02 260), 0 18px 40px -8px rgba(0,0,0,0.6);"
-	role="menu"
->
+<Popover direction="down" {onClose}>
 	<div class="border-y border-ink-inverse/10">
 		{#each workspaceState.list as workspace (workspace.workspace)}
 			<WorkspaceRow
@@ -98,4 +95,4 @@
 	{#if error}
 		<p class="px-4 py-1.5 text-xs text-negative">{error}</p>
 	{/if}
-</div>
+</Popover>

@@ -1,14 +1,16 @@
 use axum::{
     body::Body,
-    http::{header, Method, Request, StatusCode},
+    http::{header, HeaderMap, Method, Request, StatusCode},
     Router,
 };
 use diesel::r2d2::{self, ConnectionManager};
 use diesel::SqliteConnection;
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use tower::ServiceExt;
 
+use backend::config::Mode;
 use backend::database::MIGRATIONS;
 use backend::DbPool;
 
@@ -32,20 +34,52 @@ fn test_pool() -> DbPool {
 }
 
 fn app() -> Router {
-    backend::build_router(test_pool())
+    backend::build_router(test_pool(), Mode::Dev)
+}
+
+#[derive(Default, Clone, Debug)]
+struct Session {
+    cookies: HashMap<String, String>,
+}
+
+impl Session {
+    fn cookie_header(&self) -> Option<String> {
+        if self.cookies.is_empty() {
+            return None;
+        }
+        let mut parts: Vec<String> = self
+            .cookies
+            .iter()
+            .map(|(name, value)| format!("{name}={value}"))
+            .collect();
+        parts.sort();
+        Some(parts.join("; "))
+    }
+
+    fn capture(&mut self, headers: &HeaderMap) {
+        for value in headers.get_all(header::SET_COOKIE).iter() {
+            let Ok(raw) = value.to_str() else { continue };
+            let pair = raw.split(';').next().unwrap_or("");
+            let Some((name, val)) = pair.split_once('=') else {
+                continue;
+            };
+            self.cookies
+                .insert(name.trim().to_string(), val.trim().to_string());
+        }
+    }
 }
 
 async fn send(
     app: &Router,
     method: Method,
     uri: &str,
-    token: Option<&str>,
+    session: &mut Session,
     body: Option<Value>,
 ) -> (StatusCode, Value) {
     let mut builder = Request::builder().method(method).uri(uri);
 
-    if let Some(t) = token {
-        builder = builder.header(header::AUTHORIZATION, format!("Bearer {t}"));
+    if let Some(cookie) = session.cookie_header() {
+        builder = builder.header(header::COOKIE, cookie);
     }
 
     let req = if let Some(b) = body {
@@ -59,42 +93,49 @@ async fn send(
 
     let resp = app.clone().oneshot(req).await.unwrap();
     let status = resp.status();
+    session.capture(resp.headers());
     let bytes = resp.into_body().collect().await.unwrap().to_bytes();
     let envelope: Value = serde_json::from_slice(&bytes).unwrap_or(json!({}));
-    // Unwrap JSend envelope: return `data` for success/fail, or the full envelope
-    // for `error` (no data field) or non-JSend bodies.
     let body = match envelope.get("status").and_then(Value::as_str) {
-        Some("success") | Some("fail") => envelope
-            .get("data")
-            .cloned()
-            .unwrap_or(Value::Null),
+        Some("success") | Some("fail") => envelope.get("data").cloned().unwrap_or(Value::Null),
         _ => envelope,
     };
     (status, body)
 }
 
-async fn get(app: &Router, uri: &str, token: &str) -> (StatusCode, Value) {
-    send(app, Method::GET, uri, Some(token), None).await
+async fn get(app: &Router, uri: &str, session: &mut Session) -> (StatusCode, Value) {
+    send(app, Method::GET, uri, session, None).await
 }
 
-async fn post(app: &Router, uri: &str, token: Option<&str>, body: Value) -> (StatusCode, Value) {
-    send(app, Method::POST, uri, token, Some(body)).await
+async fn post(
+    app: &Router,
+    uri: &str,
+    session: &mut Session,
+    body: Value,
+) -> (StatusCode, Value) {
+    send(app, Method::POST, uri, session, Some(body)).await
 }
 
-async fn put(app: &Router, uri: &str, token: &str, body: Value) -> (StatusCode, Value) {
-    send(app, Method::PUT, uri, Some(token), Some(body)).await
+async fn put(
+    app: &Router,
+    uri: &str,
+    session: &mut Session,
+    body: Value,
+) -> (StatusCode, Value) {
+    send(app, Method::PUT, uri, session, Some(body)).await
 }
 
-async fn delete(app: &Router, uri: &str, token: &str) -> (StatusCode, Value) {
-    send(app, Method::DELETE, uri, Some(token), None).await
+async fn delete(app: &Router, uri: &str, session: &mut Session) -> (StatusCode, Value) {
+    send(app, Method::DELETE, uri, session, None).await
 }
 
-/// Register a user and return (token, user_id).
-async fn register(app: &Router, email: &str) -> (String, String) {
+/// Register a user and return (session, user_id).
+async fn register(app: &Router, email: &str) -> (Session, String) {
+    let mut session = Session::default();
     let (status, body) = post(
         app,
         "/auth/register",
-        None,
+        &mut session,
         json!({
             "email": email,
             "display_name": "Test User",
@@ -103,19 +144,18 @@ async fn register(app: &Router, email: &str) -> (String, String) {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "register failed: {body}");
-    let token = body["token"].as_str().unwrap().to_string();
     let user_id = body["user"]["id"].as_str().unwrap().to_string();
-    (token, user_id)
+    (session, user_id)
 }
 
-/// Register + create a workspace, return (token, user_id, workspace_id).
-async fn setup_workspace(app: &Router) -> (String, String, String) {
-    let (token, user) = register(app, "alice@example.com").await;
+/// Register + create a workspace, return (session, user_id, workspace_id).
+async fn setup_workspace(app: &Router) -> (Session, String, String) {
+    let (mut session, user_id) = register(app, "alice@example.com").await;
 
     let (status, body) = post(
         app,
         "/workspaces",
-        Some(&token),
+        &mut session,
         json!({ "name": "My Finances" }),
     )
     .await;
@@ -126,7 +166,7 @@ async fn setup_workspace(app: &Router) -> (String, String, String) {
     );
     let workspace = body["workspace"].as_str().unwrap().to_string();
 
-    (token, user, workspace)
+    (session, user_id, workspace)
 }
 
 // ── Auth tests ───────────────────────────────────────────────────────────────
@@ -134,7 +174,8 @@ async fn setup_workspace(app: &Router) -> (String, String, String) {
 #[tokio::test]
 async fn health_check() {
     let app = app();
-    let (status, body) = send(&app, Method::GET, "/health", None, None).await;
+    let mut session = Session::default();
+    let (status, body) = send(&app, Method::GET, "/health", &mut session, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["service"], "finapp");
 }
@@ -143,19 +184,20 @@ async fn health_check() {
 async fn register_and_login() {
     let app = app();
 
-    let (token, _) = register(&app, "alice@example.com").await;
-    assert!(!token.is_empty());
+    let (session, _) = register(&app, "alice@example.com").await;
+    assert!(session.cookie_header().is_some(), "register sets session cookie");
 
-    // Login with same credentials
+    let mut login_session = Session::default();
     let (status, body) = post(
         &app,
         "/auth/login",
-        None,
+        &mut login_session,
         json!({ "email": "alice@example.com", "password": "password123" }),
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body["token"].as_str().is_some());
+    assert_eq!(body["user"]["email"], "alice@example.com");
+    assert!(login_session.cookie_header().is_some(), "login sets session cookie");
 }
 
 #[tokio::test]
@@ -163,10 +205,11 @@ async fn login_wrong_password() {
     let app = app();
     register(&app, "alice@example.com").await;
 
+    let mut session = Session::default();
     let (status, _) = post(
         &app,
         "/auth/login",
-        None,
+        &mut session,
         json!({ "email": "alice@example.com", "password": "wrong" }),
     )
     .await;
@@ -174,22 +217,22 @@ async fn login_wrong_password() {
 }
 
 #[tokio::test]
-async fn logout_invalidates_token() {
+async fn logout_invalidates_session() {
     let app = app();
-    let (token, _) = register(&app, "alice@example.com").await;
+    let (mut session, _) = register(&app, "alice@example.com").await;
 
-    let (status, _) = post(&app, "/auth/logout", Some(&token), json!({})).await;
+    let (status, _) = post(&app, "/auth/logout", &mut session, json!({})).await;
     assert_eq!(status, StatusCode::OK);
 
-    // Token should no longer work
-    let (status, _) = get(&app, "/workspaces", &token).await;
+    let (status, _) = get(&app, "/workspaces", &mut session).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
 async fn unauthenticated_request_is_rejected() {
     let app = app();
-    let (status, _) = send(&app, Method::GET, "/workspaces", None, None).await;
+    let mut session = Session::default();
+    let (status, _) = send(&app, Method::GET, "/workspaces", &mut session, None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
@@ -198,9 +241,9 @@ async fn unauthenticated_request_is_rejected() {
 #[tokio::test]
 async fn create_and_list_workspaces() {
     let app = app();
-    let (token, _, _) = setup_workspace(&app).await;
+    let (mut session, _, _) = setup_workspace(&app).await;
 
-    let (status, body) = get(&app, "/workspaces", &token).await;
+    let (status, body) = get(&app, "/workspaces", &mut session).await;
     assert_eq!(status, StatusCode::OK);
     let workspaces = body["workspaces"].as_array().unwrap();
     assert_eq!(workspaces.len(), 1);
@@ -210,9 +253,9 @@ async fn create_and_list_workspaces() {
 #[tokio::test]
 async fn get_workspace_returns_members() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
-    let (status, body) = get(&app, &format!("/workspaces/{workspace_id}"), &token).await;
+    let (status, body) = get(&app, &format!("/workspaces/{workspace_id}"), &mut session).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["name"], "My Finances");
     assert_eq!(body["your_role"], "owner");
@@ -224,11 +267,11 @@ async fn non_member_cannot_access_workspace() {
     let app = app();
     let (_, _, workspace_id) = setup_workspace(&app).await;
 
-    let (outsider_token, _) = register(&app, "outsider@example.com").await;
+    let (mut outsider, _) = register(&app, "outsider@example.com").await;
     let (status, _) = get(
         &app,
         &format!("/workspaces/{workspace_id}"),
-        &outsider_token,
+        &mut outsider,
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
@@ -239,12 +282,12 @@ async fn non_member_cannot_access_workspace() {
 #[tokio::test]
 async fn workspace_has_default_accounts() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
-        &token,
+        &mut session,
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -253,7 +296,6 @@ async fn workspace_has_default_accounts() {
     // 5 roots + 4 asset + 1 liability + 1 revenue + 7 expense + 1 equity = 19
     assert_eq!(accounts.len(), 19);
 
-    // Check root accounts exist
     let root_names: Vec<&str> = accounts
         .iter()
         .filter(|a| a["parent_id"].is_null())
@@ -269,12 +311,12 @@ async fn workspace_has_default_accounts() {
 #[tokio::test]
 async fn accounts_response_includes_role() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
     let (_, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
-        &token,
+        &mut session,
     )
     .await;
     let accounts = body["accounts"].as_array().unwrap();
@@ -295,12 +337,12 @@ async fn accounts_response_includes_role() {
 #[tokio::test]
 async fn anchors_endpoint_returns_all_seven() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/anchors"),
-        &token,
+        &mut session,
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -319,13 +361,12 @@ async fn anchors_endpoint_returns_all_seven() {
 #[tokio::test]
 async fn create_child_account_via_api() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
-    // Find the Assets root account
     let (_, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
-        &token,
+        &mut session,
     )
     .await;
     let accounts = body["accounts"].as_array().unwrap();
@@ -333,13 +374,12 @@ async fn create_child_account_via_api() {
         .iter()
         .find(|a| a["name"] == "Assets" && a["parent_id"].is_null())
         .unwrap();
-    let assets_id = assets["id"].as_str().unwrap();
+    let assets_id = assets["id"].as_str().unwrap().to_string();
 
-    // Create child under Assets
     let (status, body) = post(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
-        Some(&token),
+        &mut session,
         json!({ "name": "Brokerage", "parent_id": assets_id }),
     )
     .await;
@@ -352,13 +392,12 @@ async fn create_child_account_via_api() {
 #[tokio::test]
 async fn create_root_account_via_api_rejected() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
-    // Roots are seeded; no public path to create them.
     let (status, body) = post(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
-        Some(&token),
+        &mut session,
         json!({ "name": "Custom Root" }),
     )
     .await;
@@ -368,26 +407,22 @@ async fn create_root_account_via_api_rejected() {
 #[tokio::test]
 async fn delete_leaf_account() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
-    // Find a non-anchor leaf account (Chequing is an anchor and cannot be deleted).
     let (_, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
-        &token,
+        &mut session,
     )
     .await;
     let accounts = body["accounts"].as_array().unwrap();
-    let savings = accounts
-        .iter()
-        .find(|a| a["name"] == "Savings")
-        .unwrap();
-    let savings_id = savings["id"].as_str().unwrap();
+    let savings = accounts.iter().find(|a| a["name"] == "Savings").unwrap();
+    let savings_id = savings["id"].as_str().unwrap().to_string();
 
     let (status, _) = delete(
         &app,
         &format!("/workspaces/{workspace_id}/accounts/{savings_id}"),
-        &token,
+        &mut session,
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -396,25 +431,22 @@ async fn delete_leaf_account() {
 #[tokio::test]
 async fn delete_anchor_account_rejected() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
     let (_, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
-        &token,
+        &mut session,
     )
     .await;
     let accounts = body["accounts"].as_array().unwrap();
-    let chequing = accounts
-        .iter()
-        .find(|a| a["name"] == "Chequing")
-        .unwrap();
-    let chequing_id = chequing["id"].as_str().unwrap();
+    let chequing = accounts.iter().find(|a| a["name"] == "Chequing").unwrap();
+    let chequing_id = chequing["id"].as_str().unwrap().to_string();
 
     let (status, _) = delete(
         &app,
         &format!("/workspaces/{workspace_id}/accounts/{chequing_id}"),
-        &token,
+        &mut session,
     )
     .await;
     assert_eq!(status, StatusCode::CONFLICT);
@@ -423,13 +455,12 @@ async fn delete_anchor_account_rejected() {
 #[tokio::test]
 async fn delete_account_with_children_rejected() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
-    // Find Assets root (has children)
     let (_, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
-        &token,
+        &mut session,
     )
     .await;
     let accounts = body["accounts"].as_array().unwrap();
@@ -437,12 +468,12 @@ async fn delete_account_with_children_rejected() {
         .iter()
         .find(|a| a["name"] == "Assets" && a["parent_id"].is_null())
         .unwrap();
-    let assets_id = assets["id"].as_str().unwrap();
+    let assets_id = assets["id"].as_str().unwrap().to_string();
 
     let (status, _) = delete(
         &app,
         &format!("/workspaces/{workspace_id}/accounts/{assets_id}"),
-        &token,
+        &mut session,
     )
     .await;
     assert_eq!(status, StatusCode::CONFLICT);
@@ -451,25 +482,22 @@ async fn delete_account_with_children_rejected() {
 #[tokio::test]
 async fn account_balance_zero_when_no_postings() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
     let (_, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
-        &token,
+        &mut session,
     )
     .await;
     let accounts = body["accounts"].as_array().unwrap();
-    let chequing = accounts
-        .iter()
-        .find(|a| a["name"] == "Chequing")
-        .unwrap();
-    let chequing_id = chequing["id"].as_str().unwrap();
+    let chequing = accounts.iter().find(|a| a["name"] == "Chequing").unwrap();
+    let chequing_id = chequing["id"].as_str().unwrap().to_string();
 
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/accounts/{chequing_id}/balance"),
-        &token,
+        &mut session,
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -479,14 +507,13 @@ async fn account_balance_zero_when_no_postings() {
 #[tokio::test]
 async fn account_balance_reflects_postings() {
     let pool = test_pool();
-    let app = backend::build_router(pool.clone());
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let app = backend::build_router(pool.clone(), Mode::Dev);
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
-    // Get account IDs via API
     let (_, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
-        &token,
+        &mut session,
     )
     .await;
     let accounts = body["accounts"].as_array().unwrap();
@@ -505,19 +532,15 @@ async fn account_balance_reflects_postings() {
         .unwrap()
         .to_string();
 
-    // Create entry via domain model (no route yet)
     {
         use backend::domain::account::AccountRef;
         use backend::domain::entry::{NewEntry, PostingInput};
         use backend::domain::workspace::WorkspaceRef;
 
         let mut conn = pool.get().unwrap();
-        let workspace_ref: WorkspaceRef =
-            serde_json::from_value(json!(workspace_id)).unwrap();
-        let chequing_ref: AccountRef =
-            serde_json::from_value(json!(chequing_id)).unwrap();
-        let food_ref: AccountRef =
-            serde_json::from_value(json!(food_id)).unwrap();
+        let workspace_ref: WorkspaceRef = serde_json::from_value(json!(workspace_id)).unwrap();
+        let chequing_ref: AccountRef = serde_json::from_value(json!(chequing_id)).unwrap();
+        let food_ref: AccountRef = serde_json::from_value(json!(food_id)).unwrap();
 
         NewEntry::new(
             workspace_ref,
@@ -532,11 +555,10 @@ async fn account_balance_reflects_postings() {
         .unwrap();
     }
 
-    // Verify balance via API
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/accounts/{chequing_id}/balance"),
-        &token,
+        &mut session,
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -545,7 +567,7 @@ async fn account_balance_reflects_postings() {
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/accounts/{food_id}/balance"),
-        &token,
+        &mut session,
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -557,12 +579,12 @@ async fn cross_workspace_account_access_denied() {
     let app = app();
     let (_, _, workspace_id) = setup_workspace(&app).await;
 
-    let (bob_token, _) = register(&app, "bob@example.com").await;
+    let (mut bob, _) = register(&app, "bob@example.com").await;
 
     let (status, _) = get(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
-        &bob_token,
+        &mut bob,
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
@@ -570,12 +592,16 @@ async fn cross_workspace_account_access_denied() {
 
 // ── Entry tests ─────────────────────────────────────────────────────────────
 
-/// Helper: find account ID by name from accounts list
-async fn find_account_id(app: &Router, workspace_id: &str, token: &str, name: &str) -> String {
+async fn find_account_id(
+    app: &Router,
+    workspace_id: &str,
+    session: &mut Session,
+    name: &str,
+) -> String {
     let (_, body) = get(
         app,
         &format!("/workspaces/{workspace_id}/accounts"),
-        token,
+        session,
     )
     .await;
     let accounts = body["accounts"].as_array().unwrap();
@@ -588,11 +614,10 @@ async fn find_account_id(app: &Router, workspace_id: &str, token: &str, name: &s
         .to_string()
 }
 
-/// Helper: create a simple 2-posting entry via API
 async fn create_entry(
     app: &Router,
     workspace_id: &str,
-    token: &str,
+    session: &mut Session,
     from_account: &str,
     to_account: &str,
     amount: i32,
@@ -602,7 +627,7 @@ async fn create_entry(
     post(
         app,
         &format!("/workspaces/{workspace_id}/entries"),
-        Some(token),
+        session,
         json!({
             "date": date,
             "description": description,
@@ -618,12 +643,19 @@ async fn create_entry(
 #[tokio::test]
 async fn create_entry_succeeds() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
 
     let (status, body) = create_entry(
-        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+        &app,
+        &workspace_id,
+        &mut session,
+        &chequing,
+        &food,
+        1200,
+        "2026-01-15",
+        "Lunch",
     )
     .await;
 
@@ -637,14 +669,14 @@ async fn create_entry_succeeds() {
 #[tokio::test]
 async fn create_entry_non_zero_sum_rejected() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
 
     let (status, _) = post(
         &app,
         &format!("/workspaces/{workspace_id}/entries"),
-        Some(&token),
+        &mut session,
         json!({
             "date": "2026-01-15",
             "description": "Bad",
@@ -662,25 +694,35 @@ async fn create_entry_non_zero_sum_rejected() {
 #[tokio::test]
 async fn list_entries_returns_all_with_postings() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
-    let rent = find_account_id(&app, &workspace_id, &token, "Rent").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
+    let rent = find_account_id(&app, &workspace_id, &mut session, "Rent").await;
 
-    create_entry(&app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch").await;
-    create_entry(&app, &workspace_id, &token, &chequing, &rent, 150000, "2026-01-16", "Rent").await;
+    create_entry(&app, &workspace_id, &mut session, &chequing, &food, 1200, "2026-01-15", "Lunch")
+        .await;
+    create_entry(
+        &app,
+        &workspace_id,
+        &mut session,
+        &chequing,
+        &rent,
+        150000,
+        "2026-01-16",
+        "Rent",
+    )
+    .await;
 
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/entries"),
-        &token,
+        &mut session,
     )
     .await;
 
     assert_eq!(status, StatusCode::OK);
     let entries = body["entries"].as_array().unwrap();
     assert_eq!(entries.len(), 2);
-    // Each entry has postings
     for entry in entries {
         assert!(!entry["postings"].as_array().unwrap().is_empty());
     }
@@ -689,20 +731,27 @@ async fn list_entries_returns_all_with_postings() {
 #[tokio::test]
 async fn get_single_entry() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
 
     let (_, created) = create_entry(
-        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+        &app,
+        &workspace_id,
+        &mut session,
+        &chequing,
+        &food,
+        1200,
+        "2026-01-15",
+        "Lunch",
     )
     .await;
-    let entry_id = created["id"].as_str().unwrap();
+    let entry_id = created["id"].as_str().unwrap().to_string();
 
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/entries/{entry_id}"),
-        &token,
+        &mut session,
     )
     .await;
 
@@ -714,29 +763,35 @@ async fn get_single_entry() {
 #[tokio::test]
 async fn delete_entry_soft_deletes() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
 
     let (_, created) = create_entry(
-        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+        &app,
+        &workspace_id,
+        &mut session,
+        &chequing,
+        &food,
+        1200,
+        "2026-01-15",
+        "Lunch",
     )
     .await;
-    let entry_id = created["id"].as_str().unwrap();
+    let entry_id = created["id"].as_str().unwrap().to_string();
 
     let (status, _) = delete(
         &app,
         &format!("/workspaces/{workspace_id}/entries/{entry_id}"),
-        &token,
+        &mut session,
     )
     .await;
     assert_eq!(status, StatusCode::OK);
 
-    // List should exclude deleted entry
     let (_, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/entries"),
-        &token,
+        &mut session,
     )
     .await;
     assert!(body["entries"].as_array().unwrap().is_empty());
@@ -746,12 +801,12 @@ async fn delete_entry_soft_deletes() {
 async fn cross_workspace_entry_denied() {
     let app = app();
     let (_, _, workspace_id) = setup_workspace(&app).await;
-    let (outsider_token, _) = register(&app, "outsider@example.com").await;
+    let (mut outsider, _) = register(&app, "outsider@example.com").await;
 
     let (status, _) = get(
         &app,
         &format!("/workspaces/{workspace_id}/entries"),
-        &outsider_token,
+        &mut outsider,
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
@@ -762,12 +817,12 @@ async fn cross_workspace_entry_denied() {
 #[tokio::test]
 async fn balance_sheet_empty_workspace() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/reports/balance-sheet?as_of=2026-12-31"),
-        &token,
+        &mut session,
     )
     .await;
 
@@ -780,18 +835,38 @@ async fn balance_sheet_empty_workspace() {
 #[tokio::test]
 async fn balance_sheet_with_entries() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let employment = find_account_id(&app, &workspace_id, &token, "Employment").await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let employment = find_account_id(&app, &workspace_id, &mut session, "Employment").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
 
-    create_entry(&app, &workspace_id, &token, &employment, &chequing, 500000, "2026-01-01", "Salary").await;
-    create_entry(&app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-05", "Lunch").await;
+    create_entry(
+        &app,
+        &workspace_id,
+        &mut session,
+        &employment,
+        &chequing,
+        500000,
+        "2026-01-01",
+        "Salary",
+    )
+    .await;
+    create_entry(
+        &app,
+        &workspace_id,
+        &mut session,
+        &chequing,
+        &food,
+        1200,
+        "2026-01-05",
+        "Lunch",
+    )
+    .await;
 
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/reports/balance-sheet?as_of=2026-01-31"),
-        &token,
+        &mut session,
     )
     .await;
 
@@ -804,18 +879,38 @@ async fn balance_sheet_with_entries() {
 #[tokio::test]
 async fn income_statement_for_period() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let employment = find_account_id(&app, &workspace_id, &token, "Employment").await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let employment = find_account_id(&app, &workspace_id, &mut session, "Employment").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
 
-    create_entry(&app, &workspace_id, &token, &employment, &chequing, 500000, "2026-01-01", "Salary").await;
-    create_entry(&app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-05", "Lunch").await;
+    create_entry(
+        &app,
+        &workspace_id,
+        &mut session,
+        &employment,
+        &chequing,
+        500000,
+        "2026-01-01",
+        "Salary",
+    )
+    .await;
+    create_entry(
+        &app,
+        &workspace_id,
+        &mut session,
+        &chequing,
+        &food,
+        1200,
+        "2026-01-05",
+        "Lunch",
+    )
+    .await;
 
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/reports/income-statement?start_date=2026-01-01&end_date=2026-01-31"),
-        &token,
+        &mut session,
     )
     .await;
 
@@ -828,12 +923,12 @@ async fn income_statement_for_period() {
 #[tokio::test]
 async fn balance_sheet_missing_date_rejected() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
     let (status, _) = get(
         &app,
         &format!("/workspaces/{workspace_id}/reports/balance-sheet"),
-        &token,
+        &mut session,
     )
     .await;
 
@@ -843,12 +938,12 @@ async fn balance_sheet_missing_date_rejected() {
 #[tokio::test]
 async fn income_statement_missing_dates_rejected() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
     let (status, _) = get(
         &app,
         &format!("/workspaces/{workspace_id}/reports/income-statement"),
-        &token,
+        &mut session,
     )
     .await;
 
@@ -860,13 +955,13 @@ async fn income_statement_missing_dates_rejected() {
 #[tokio::test]
 async fn create_baseline_succeeds() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
 
     let (status, body) = post(
         &app,
         &format!("/workspaces/{workspace_id}/baselines"),
-        Some(&token),
+        &mut session,
         json!({
             "account_id": food,
             "period_start": "2026-01-01",
@@ -883,13 +978,13 @@ async fn create_baseline_succeeds() {
 #[tokio::test]
 async fn create_duplicate_baseline_rejected() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
 
     post(
         &app,
         &format!("/workspaces/{workspace_id}/baselines"),
-        Some(&token),
+        &mut session,
         json!({ "account_id": food, "period_start": "2026-01-01", "amount": 50000 }),
     )
     .await;
@@ -897,7 +992,7 @@ async fn create_duplicate_baseline_rejected() {
     let (status, _) = post(
         &app,
         &format!("/workspaces/{workspace_id}/baselines"),
-        Some(&token),
+        &mut session,
         json!({ "account_id": food, "period_start": "2026-01-01", "amount": 60000 }),
     )
     .await;
@@ -908,21 +1003,21 @@ async fn create_duplicate_baseline_rejected() {
 #[tokio::test]
 async fn list_baselines() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
-    let rent = find_account_id(&app, &workspace_id, &token, "Rent").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
+    let rent = find_account_id(&app, &workspace_id, &mut session, "Rent").await;
 
     post(
         &app,
         &format!("/workspaces/{workspace_id}/baselines"),
-        Some(&token),
+        &mut session,
         json!({ "account_id": food, "period_start": "2026-01-01", "amount": 50000 }),
     )
     .await;
     post(
         &app,
         &format!("/workspaces/{workspace_id}/baselines"),
-        Some(&token),
+        &mut session,
         json!({ "account_id": rent, "period_start": "2026-01-01", "amount": 150000 }),
     )
     .await;
@@ -930,7 +1025,7 @@ async fn list_baselines() {
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/baselines"),
-        &token,
+        &mut session,
     )
     .await;
 
@@ -941,22 +1036,22 @@ async fn list_baselines() {
 #[tokio::test]
 async fn delete_baseline() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
 
     let (_, created) = post(
         &app,
         &format!("/workspaces/{workspace_id}/baselines"),
-        Some(&token),
+        &mut session,
         json!({ "account_id": food, "period_start": "2026-01-01", "amount": 50000 }),
     )
     .await;
-    let baseline_id = created["id"].as_str().unwrap();
+    let baseline_id = created["id"].as_str().unwrap().to_string();
 
     let (status, _) = delete(
         &app,
         &format!("/workspaces/{workspace_id}/baselines/{baseline_id}"),
-        &token,
+        &mut session,
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -964,7 +1059,7 @@ async fn delete_baseline() {
     let (_, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/baselines"),
-        &token,
+        &mut session,
     )
     .await;
     assert!(body["baselines"].as_array().unwrap().is_empty());
@@ -973,32 +1068,39 @@ async fn delete_baseline() {
 #[tokio::test]
 async fn baseline_variance_endpoint() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
 
-    // Create baseline: $500 food budget for January
     let (_, created) = post(
         &app,
         &format!("/workspaces/{workspace_id}/baselines"),
-        Some(&token),
+        &mut session,
         json!({ "account_id": food, "period_start": "2026-01-01", "amount": 50000 }),
     )
     .await;
-    let baseline_id = created["id"].as_str().unwrap();
+    let baseline_id = created["id"].as_str().unwrap().to_string();
 
-    // Spend $75 on food
-    create_entry(&app, &workspace_id, &token, &chequing, &food, 7500, "2026-01-15", "Groceries").await;
+    create_entry(
+        &app,
+        &workspace_id,
+        &mut session,
+        &chequing,
+        &food,
+        7500,
+        "2026-01-15",
+        "Groceries",
+    )
+    .await;
 
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/baselines/{baseline_id}/variance"),
-        &token,
+        &mut session,
     )
     .await;
 
     assert_eq!(status, StatusCode::OK);
-    // Variance = actual (7500) - budget (50000) = -42500 (under budget)
     assert_eq!(body["variance"], -42500);
     assert_eq!(body["amount"], 50000);
     assert_eq!(body["actual"], 7500);
@@ -1011,10 +1113,11 @@ async fn duplicate_registration_rejected() {
     let app = app();
     register(&app, "alice@example.com").await;
 
+    let mut session = Session::default();
     let (status, _) = post(
         &app,
         "/auth/register",
-        None,
+        &mut session,
         json!({
             "email": "alice@example.com",
             "display_name": "Alice Again",
@@ -1030,12 +1133,12 @@ async fn duplicate_registration_rejected() {
 #[tokio::test]
 async fn owner_can_leave_if_not_last_owner() {
     let app = app();
-    let (token, user_id, workspace_id) = setup_workspace(&app).await;
+    let (mut session, user_id, workspace_id) = setup_workspace(&app).await;
 
     let (status, body) = delete(
         &app,
         &format!("/workspaces/{workspace_id}/members/{user_id}"),
-        &token,
+        &mut session,
     )
     .await;
     assert_eq!(
@@ -1050,18 +1153,38 @@ async fn owner_can_leave_if_not_last_owner() {
 #[tokio::test]
 async fn period_income_statement_jan() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let employment = find_account_id(&app, &workspace_id, &token, "Employment").await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let employment = find_account_id(&app, &workspace_id, &mut session, "Employment").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
 
-    create_entry(&app, &workspace_id, &token, &employment, &chequing, 500000, "2026-01-01", "Salary").await;
-    create_entry(&app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-05", "Lunch").await;
+    create_entry(
+        &app,
+        &workspace_id,
+        &mut session,
+        &employment,
+        &chequing,
+        500000,
+        "2026-01-01",
+        "Salary",
+    )
+    .await;
+    create_entry(
+        &app,
+        &workspace_id,
+        &mut session,
+        &chequing,
+        &food,
+        1200,
+        "2026-01-05",
+        "Lunch",
+    )
+    .await;
 
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/2026/Jan/income-statement"),
-        &token,
+        &mut session,
     )
     .await;
 
@@ -1074,50 +1197,87 @@ async fn period_income_statement_jan() {
 #[tokio::test]
 async fn period_balance_sheet_q1() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let employment = find_account_id(&app, &workspace_id, &token, "Employment").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let employment = find_account_id(&app, &workspace_id, &mut session, "Employment").await;
 
-    create_entry(&app, &workspace_id, &token, &employment, &chequing, 500000, "2026-01-15", "Salary").await;
-    create_entry(&app, &workspace_id, &token, &employment, &chequing, 300000, "2026-03-15", "Salary").await;
+    create_entry(
+        &app,
+        &workspace_id,
+        &mut session,
+        &employment,
+        &chequing,
+        500000,
+        "2026-01-15",
+        "Salary",
+    )
+    .await;
+    create_entry(
+        &app,
+        &workspace_id,
+        &mut session,
+        &employment,
+        &chequing,
+        300000,
+        "2026-03-15",
+        "Salary",
+    )
+    .await;
 
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/2026/Q1/balance-sheet"),
-        &token,
+        &mut session,
     )
     .await;
 
     assert_eq!(status, StatusCode::OK);
-    // Q1 balance sheet = as of Mar 31, both entries included
     assert_eq!(body["total_assets"], 800000);
 }
 
 #[tokio::test]
 async fn period_entries_filtered_by_date() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let employment = find_account_id(&app, &workspace_id, &token, "Employment").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let employment = find_account_id(&app, &workspace_id, &mut session, "Employment").await;
 
-    create_entry(&app, &workspace_id, &token, &employment, &chequing, 500000, "2026-01-15", "Jan Salary").await;
-    create_entry(&app, &workspace_id, &token, &employment, &chequing, 300000, "2026-02-15", "Feb Salary").await;
+    create_entry(
+        &app,
+        &workspace_id,
+        &mut session,
+        &employment,
+        &chequing,
+        500000,
+        "2026-01-15",
+        "Jan Salary",
+    )
+    .await;
+    create_entry(
+        &app,
+        &workspace_id,
+        &mut session,
+        &employment,
+        &chequing,
+        300000,
+        "2026-02-15",
+        "Feb Salary",
+    )
+    .await;
 
-    // Jan only
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/2026/Jan/entries"),
-        &token,
+        &mut session,
     )
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["entries"].as_array().unwrap().len(), 1);
 
-    // Q1 gets both
     let (status, body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/2026/Q1/entries"),
-        &token,
+        &mut session,
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -1127,12 +1287,12 @@ async fn period_entries_filtered_by_date() {
 #[tokio::test]
 async fn period_invalid_period_rejected() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
     let (status, _) = get(
         &app,
         &format!("/workspaces/{workspace_id}/2026/Foo/income-statement"),
-        &token,
+        &mut session,
     )
     .await;
 
@@ -1144,20 +1304,27 @@ async fn period_invalid_period_rejected() {
 #[tokio::test]
 async fn update_entry_date() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
 
     let (_, created) = create_entry(
-        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+        &app,
+        &workspace_id,
+        &mut session,
+        &chequing,
+        &food,
+        1200,
+        "2026-01-15",
+        "Lunch",
     )
     .await;
-    let entry_id = created["id"].as_str().unwrap();
+    let entry_id = created["id"].as_str().unwrap().to_string();
 
     let (status, body) = put(
         &app,
         &format!("/workspaces/{workspace_id}/entries/{entry_id}"),
-        &token,
+        &mut session,
         json!({ "date": "2026-03-01" }),
     )
     .await;
@@ -1171,20 +1338,27 @@ async fn update_entry_date() {
 #[tokio::test]
 async fn update_entry_description() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
 
     let (_, created) = create_entry(
-        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+        &app,
+        &workspace_id,
+        &mut session,
+        &chequing,
+        &food,
+        1200,
+        "2026-01-15",
+        "Lunch",
     )
     .await;
-    let entry_id = created["id"].as_str().unwrap();
+    let entry_id = created["id"].as_str().unwrap().to_string();
 
     let (status, body) = put(
         &app,
         &format!("/workspaces/{workspace_id}/entries/{entry_id}"),
-        &token,
+        &mut session,
         json!({ "description": "Dinner" }),
     )
     .await;
@@ -1198,21 +1372,28 @@ async fn update_entry_description() {
 #[tokio::test]
 async fn update_entry_postings() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
-    let rent = find_account_id(&app, &workspace_id, &token, "Rent").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
+    let rent = find_account_id(&app, &workspace_id, &mut session, "Rent").await;
 
     let (_, created) = create_entry(
-        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+        &app,
+        &workspace_id,
+        &mut session,
+        &chequing,
+        &food,
+        1200,
+        "2026-01-15",
+        "Lunch",
     )
     .await;
-    let entry_id = created["id"].as_str().unwrap();
+    let entry_id = created["id"].as_str().unwrap().to_string();
 
     let (status, body) = put(
         &app,
         &format!("/workspaces/{workspace_id}/entries/{entry_id}"),
-        &token,
+        &mut session,
         json!({
             "postings": [
                 { "account_id": chequing, "amount": -5000 },
@@ -1226,7 +1407,6 @@ async fn update_entry_postings() {
     let postings = body["postings"].as_array().unwrap();
     assert_eq!(postings.len(), 2);
 
-    // Verify old postings replaced: should reference rent, not food
     let account_ids: Vec<&str> = postings
         .iter()
         .map(|p| p["account_id"].as_str().unwrap())
@@ -1238,30 +1418,31 @@ async fn update_entry_postings() {
 #[tokio::test]
 async fn update_entry_requires_editor() {
     let pool = test_pool();
-    let app = backend::build_router(pool.clone());
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let app = backend::build_router(pool.clone(), Mode::Dev);
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
 
     let (_, created) = create_entry(
-        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+        &app,
+        &workspace_id,
+        &mut session,
+        &chequing,
+        &food,
+        1200,
+        "2026-01-15",
+        "Lunch",
     )
     .await;
-    let entry_id = created["id"].as_str().unwrap();
+    let entry_id = created["id"].as_str().unwrap().to_string();
 
-    // Register a second user and add them as a viewer directly via DB
-    let (viewer_token, _viewer_id) = register(&app, "viewer@example.com").await;
+    let (mut viewer, viewer_id) = register(&app, "viewer@example.com").await;
     {
         use diesel::prelude::*;
         let mut connection = pool.get().unwrap();
-        let viewer_user_id: String = serde_json::from_value::<Value>(json!(_viewer_id))
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .to_string();
         diesel::sql_query(format!(
             "INSERT INTO workspace_members (workspace_id, user_id, role, joined_at) VALUES ('{}', '{}', 'viewer', datetime('now'))",
-            workspace_id, viewer_user_id
+            workspace_id, viewer_id
         ))
         .execute(&mut connection)
         .unwrap();
@@ -1270,7 +1451,7 @@ async fn update_entry_requires_editor() {
     let (status, _) = put(
         &app,
         &format!("/workspaces/{workspace_id}/entries/{entry_id}"),
-        &viewer_token,
+        &mut viewer,
         json!({ "description": "Hacked" }),
     )
     .await;
@@ -1281,13 +1462,13 @@ async fn update_entry_requires_editor() {
 #[tokio::test]
 async fn update_entry_not_found() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
     let fake_id = "00000000-0000-0000-0000-000000000000";
     let (status, _) = put(
         &app,
         &format!("/workspaces/{workspace_id}/entries/{fake_id}"),
-        &token,
+        &mut session,
         json!({ "description": "Ghost" }),
     )
     .await;
@@ -1300,13 +1481,13 @@ async fn update_entry_not_found() {
 #[tokio::test]
 async fn update_account_rename() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing_id = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing_id = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
 
     let (status, body) = put(
         &app,
         &format!("/workspaces/{workspace_id}/accounts/{chequing_id}"),
-        &token,
+        &mut session,
         json!({ "name": "Main Chequing" }),
     )
     .await;
@@ -1320,24 +1501,23 @@ async fn update_account_rename() {
 #[tokio::test]
 async fn update_account_reparent() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let food_id = find_account_id(&app, &workspace_id, &token, "Food").await;
-    let expenses_id = find_account_id(&app, &workspace_id, &token, "Expenses").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let food_id = find_account_id(&app, &workspace_id, &mut session, "Food").await;
+    let expenses_id = find_account_id(&app, &workspace_id, &mut session, "Expenses").await;
 
-    // Create a sub-category under Expenses
     let (_, created) = post(
         &app,
         &format!("/workspaces/{workspace_id}/accounts"),
-        Some(&token),
+        &mut session,
         json!({ "name": "Categories", "parent_id": expenses_id }),
     )
     .await;
-    let categories_id = created["id"].as_str().unwrap();
+    let categories_id = created["id"].as_str().unwrap().to_string();
 
     let (status, body) = put(
         &app,
         &format!("/workspaces/{workspace_id}/accounts/{food_id}"),
-        &token,
+        &mut session,
         json!({ "parent_id": categories_id }),
     )
     .await;
@@ -1350,12 +1530,11 @@ async fn update_account_reparent() {
 #[tokio::test]
 async fn update_account_rename_requires_editor() {
     let pool = test_pool();
-    let app = backend::build_router(pool.clone());
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing_id = find_account_id(&app, &workspace_id, &token, "Chequing").await;
+    let app = backend::build_router(pool.clone(), Mode::Dev);
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing_id = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
 
-    // Register a viewer
-    let (viewer_token, viewer_id) = register(&app, "viewer@example.com").await;
+    let (mut viewer, viewer_id) = register(&app, "viewer@example.com").await;
     {
         use diesel::prelude::*;
         let mut connection = pool.get().unwrap();
@@ -1370,7 +1549,7 @@ async fn update_account_rename_requires_editor() {
     let (status, _) = put(
         &app,
         &format!("/workspaces/{workspace_id}/accounts/{chequing_id}"),
-        &viewer_token,
+        &mut viewer,
         json!({ "name": "Hacked" }),
     )
     .await;
@@ -1383,27 +1562,41 @@ async fn update_account_rename_requires_editor() {
 #[tokio::test]
 async fn merge_entries_succeeds() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
-    let savings = find_account_id(&app, &workspace_id, &token, "Savings").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
+    let savings = find_account_id(&app, &workspace_id, &mut session, "Savings").await;
 
     let (_, entry_one) = create_entry(
-        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+        &app,
+        &workspace_id,
+        &mut session,
+        &chequing,
+        &food,
+        1200,
+        "2026-01-15",
+        "Lunch",
     )
     .await;
     let (_, entry_two) = create_entry(
-        &app, &workspace_id, &token, &chequing, &savings, 5000, "2026-01-16", "Savings",
+        &app,
+        &workspace_id,
+        &mut session,
+        &chequing,
+        &savings,
+        5000,
+        "2026-01-16",
+        "Savings",
     )
     .await;
 
-    let entry_one_id = entry_one["id"].as_str().unwrap();
-    let entry_two_id = entry_two["id"].as_str().unwrap();
+    let entry_one_id = entry_one["id"].as_str().unwrap().to_string();
+    let entry_two_id = entry_two["id"].as_str().unwrap().to_string();
 
     let (status, body) = post(
         &app,
         &format!("/workspaces/{workspace_id}/entries/merge"),
-        Some(&token),
+        &mut session,
         json!({
             "source_entry_ids": [entry_one_id, entry_two_id],
             "date": "2026-01-15",
@@ -1420,11 +1613,10 @@ async fn merge_entries_succeeds() {
     assert_eq!(body["description"], "Merged transfer");
     assert_eq!(body["postings"].as_array().unwrap().len(), 2);
 
-    // Verify originals are gone from list
     let (_, list_body) = get(
         &app,
         &format!("/workspaces/{workspace_id}/entries"),
-        &token,
+        &mut session,
     )
     .await;
     let entries = list_body["entries"].as_array().unwrap();
@@ -1435,20 +1627,27 @@ async fn merge_entries_succeeds() {
 #[tokio::test]
 async fn merge_entries_non_zero_sum_rejected() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
-    let chequing = find_account_id(&app, &workspace_id, &token, "Chequing").await;
-    let food = find_account_id(&app, &workspace_id, &token, "Food").await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
 
     let (_, entry_one) = create_entry(
-        &app, &workspace_id, &token, &chequing, &food, 1200, "2026-01-15", "Lunch",
+        &app,
+        &workspace_id,
+        &mut session,
+        &chequing,
+        &food,
+        1200,
+        "2026-01-15",
+        "Lunch",
     )
     .await;
-    let entry_one_id = entry_one["id"].as_str().unwrap();
+    let entry_one_id = entry_one["id"].as_str().unwrap().to_string();
 
     let (status, _) = post(
         &app,
         &format!("/workspaces/{workspace_id}/entries/merge"),
-        Some(&token),
+        &mut session,
         json!({
             "source_entry_ids": [entry_one_id],
             "date": "2026-01-15",
@@ -1469,12 +1668,12 @@ async fn merge_entries_non_zero_sum_rejected() {
 #[tokio::test]
 async fn update_workspace_name() {
     let app = app();
-    let (token, _, workspace_id) = setup_workspace(&app).await;
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
 
     let (status, body) = put(
         &app,
         &format!("/workspaces/{workspace_id}"),
-        &token,
+        &mut session,
         json!({ "name": "Renamed Finances" }),
     )
     .await;
@@ -1482,3 +1681,4 @@ async fn update_workspace_name() {
     assert_eq!(status, StatusCode::OK, "update workspace failed: {body}");
     assert_eq!(body["name"], "Renamed Finances");
 }
+

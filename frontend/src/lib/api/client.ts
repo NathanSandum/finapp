@@ -1,19 +1,19 @@
 import type { JSend } from '$lib/tabs/types';
 
 const PREFIX = import.meta.env.VITE_API_PREFIX ?? '/api';
-const TOKEN = import.meta.env.VITE_DEV_TOKEN ?? '';
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<JSend<T>> {
 	let response: Response;
 	try {
 		const headers = new Headers(init.headers ?? {});
-		if (TOKEN && !headers.has('Authorization')) {
-			headers.set('Authorization', `Bearer ${TOKEN}`);
-		}
 		if (init.body && !headers.has('Content-Type')) {
 			headers.set('Content-Type', 'application/json');
 		}
-		response = await fetch(`${PREFIX}${path}`, { ...init, headers });
+		response = await fetch(`${PREFIX}${path}`, {
+			...init,
+			headers,
+			credentials: 'include'
+		});
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		return { status: 'error', message };

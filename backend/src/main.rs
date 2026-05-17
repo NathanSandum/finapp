@@ -11,7 +11,7 @@ async fn main() {
         seed::populate(&db, &config).expect("dev seed failed");
     }
 
-    let app = backend::build_router(db);
+    let app = backend::build_router(db, config.mode);
 
     let bind = format!("127.0.0.1:{}", config.port);
     let listener = tokio::net::TcpListener::bind(&bind)
@@ -24,14 +24,13 @@ async fn main() {
     );
 
     if config.mode == Mode::Dev {
-        if let Some(token) = config.dev_token.as_deref() {
-            println!();
-            println!("── Dev credentials ──────────────────────────────");
-            println!("  VITE_DEV_TOKEN     = {token}");
-            println!("  VITE_DEV_WORKSPACE = {}", seed::DEV_WORKSPACE_ID);
-            println!("  VITE_API_BASE      = http://{}", bind);
-            println!("─────────────────────────────────────────────────");
-        }
+        println!();
+        println!("── Dev credentials ──────────────────────────────");
+        println!("  email    = {}", seed::DEV_USER_EMAIL);
+        println!("  password = {}", seed::DEV_USER_PASSWORD);
+        println!("  workspace = {}", seed::DEV_WORKSPACE_ID);
+        println!("  api base  = http://{}", bind);
+        println!("─────────────────────────────────────────────────");
     }
 
     axum::serve(listener, app).await.unwrap();
