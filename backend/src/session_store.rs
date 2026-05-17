@@ -8,11 +8,11 @@ use crate::schema::auth_sessions;
 use crate::DbPool;
 
 #[derive(Clone, Debug)]
-pub struct DieselSessionStore {
+pub struct DbSessionStore {
     pool: DbPool,
 }
 
-impl DieselSessionStore {
+impl DbSessionStore {
     pub fn new(pool: DbPool) -> Self {
         Self { pool }
     }
@@ -52,7 +52,7 @@ where
 }
 
 #[async_trait]
-impl SessionStore for DieselSessionStore {
+impl SessionStore for DbSessionStore {
     async fn save(&self, record: &Record) -> session_store::Result<()> {
         let row = SessionRow {
             id: record.id.to_string(),
@@ -129,7 +129,7 @@ mod tests {
 
     #[tokio::test]
     async fn save_then_load_round_trips() {
-        let store = DieselSessionStore::new(make_pool());
+        let store = DbSessionStore::new(make_pool());
         let record = make_record();
 
         store.save(&record).await.expect("save");
@@ -141,14 +141,14 @@ mod tests {
 
     #[tokio::test]
     async fn load_missing_returns_none() {
-        let store = DieselSessionStore::new(make_pool());
+        let store = DbSessionStore::new(make_pool());
         let loaded = store.load(&Id::default()).await.expect("load");
         assert!(loaded.is_none());
     }
 
     #[tokio::test]
     async fn delete_removes_record() {
-        let store = DieselSessionStore::new(make_pool());
+        let store = DbSessionStore::new(make_pool());
         let record = make_record();
         store.save(&record).await.unwrap();
 
@@ -159,7 +159,7 @@ mod tests {
 
     #[tokio::test]
     async fn save_overwrites_existing_record() {
-        let store = DieselSessionStore::new(make_pool());
+        let store = DbSessionStore::new(make_pool());
         let mut record = make_record();
         store.save(&record).await.unwrap();
 
@@ -172,7 +172,7 @@ mod tests {
 
     #[tokio::test]
     async fn load_expired_returns_none() {
-        let store = DieselSessionStore::new(make_pool());
+        let store = DbSessionStore::new(make_pool());
         let record = Record {
             id: Id::default(),
             data: HashMap::new(),

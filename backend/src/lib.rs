@@ -27,7 +27,7 @@ use time::Duration;
 use crate::auth_backend::AuthBackend;
 use crate::config::Mode;
 use crate::jsend::JSend;
-use crate::session_store::DieselSessionStore;
+use crate::session_store::DbSessionStore;
 
 pub type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 
@@ -36,7 +36,7 @@ async fn health() -> JSend<Value> {
 }
 
 pub fn build_router(db: DbPool, mode: Mode) -> Router {
-    let session_store = DieselSessionStore::new(db.clone());
+    let session_store = DbSessionStore::new(db.clone());
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(mode == Mode::Prod)
         .with_same_site(SameSite::Strict)
