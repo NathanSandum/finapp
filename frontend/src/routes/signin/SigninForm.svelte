@@ -1,21 +1,28 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { signIn, type UserPayload } from '$lib/api/auth';
+	import { signIn } from '$lib/api/auth';
 	import { authState } from '$lib/api/state.svelte';
 	import { discreteState } from '$lib/ui/discrete.svelte';
 	import { cache } from '$lib/api/cache.svelte';
+	import { tabState } from '$lib/tabs/state.svelte';
+	import { overviewEntrance } from '$lib/views/overview/entrance';
+	import { listWorkspaces } from '$lib/workspace/api';
+	import { workspaceState } from '$lib/workspace/state.svelte';
+	import { load as loadOverview } from '$lib/views/overview/loader';
 	import type { JSend } from '$lib/tabs/types';
 	import FailView from '$lib/components/FailView.svelte';
 	import ErrorView from '$lib/components/ErrorView.svelte';
 	import { prefersReducedMotion } from '$lib/utils/motion';
 
+	let { onSignedIn }: { onSignedIn: () => void } = $props();
+
 	let email = $state(import.meta.env.DEV ? 'dev' : '');
 	let password = $state(import.meta.env.DEV ? 'dev' : '');
 	let discrete = $state(discreteState.on);
-	let result = $state<JSend<UserPayload> | null>(null);
+	let result = $state<JSend<unknown> | null>(null);
 	let submitting = $state(false);
 	let entered = $state(false);
+	let exiting = $state(false);
 
 	let formEl = $state<HTMLFormElement | null>(null);
 	let emailEl = $state<HTMLInputElement | null>(null);
@@ -46,14 +53,46 @@
 	async function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
 		submitting = true;
-		result = await signIn(email, password);
-		submitting = false;
-		if (result.status === 'success') {
-			discreteState.set(discrete);
-			cache.invalidateAll();
-			authState.set(result.data.user);
-			goto('/');
+		const signInResult = await signIn(email, password);
+		if (signInResult.status !== 'success') {
+			result = signInResult;
+			submitting = false;
+			return;
 		}
+		discreteState.set(discrete);
+		cache.invalidateAll();
+		authState.set(signInResult.data.user);
+
+		const workspacesResult = await listWorkspaces();
+		if (workspacesResult.status !== 'success') {
+			result = workspacesResult;
+			submitting = false;
+			return;
+		}
+		workspaceState.setList(workspacesResult.data.workspaces);
+		const initial = workspaceState.pickInitial(workspacesResult.data.workspaces);
+		if (!initial) {
+			result = {
+				status: 'fail',
+				data: { message: 'No workspaces available' }
+			} as JSend<unknown>;
+			submitting = false;
+			return;
+		}
+		workspaceState.setActive(initial);
+
+		const overviewResult = await cache.load('overview', loadOverview);
+		if (overviewResult.status !== 'success') {
+			result = overviewResult;
+			submitting = false;
+			return;
+		}
+
+		tabState.set('overview');
+		overviewEntrance.arm();
+		submitting = false;
+		exiting = true;
+		onSignedIn();
 	}
 </script>
 
@@ -62,6 +101,7 @@
 	onsubmit={handleSubmit}
 	class="signin-form pointer-events-auto flex w-full max-w-sm flex-col gap-4 border border-border bg-surface-card p-6 shadow-2xl shadow-black/30"
 	class:entered
+	class:exiting
 	style:--signin-offset="{offset}px"
 >
 	<h1 class="font-display text-xl text-ink">Sign in</h1>
@@ -130,6 +170,13 @@
 	.signin-form.entered {
 		opacity: 1;
 		transform: translateY(var(--signin-offset, 0px));
+	}
+	.signin-form.exiting {
+		opacity: 0;
+		transform: translateY(calc(var(--signin-offset, 0px) - 16px));
+		transition:
+			opacity 420ms cubic-bezier(0.4, 0, 1, 1) 0ms,
+			transform 420ms cubic-bezier(0.4, 0, 1, 1) 0ms;
 	}
 	.result-block {
 		animation: result-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
