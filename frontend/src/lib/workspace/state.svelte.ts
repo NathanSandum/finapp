@@ -51,5 +51,9 @@ export const workspaceState = {
 		if (workspaces.length === 0) return null;
 		const persistedId = loadPersisted();
 		return workspaces.find((w) => w.workspace === persistedId) ?? workspaces[0];
+	},
+	clear() {
+		state.active = null;
+		state.list = [];
 	}
 };
