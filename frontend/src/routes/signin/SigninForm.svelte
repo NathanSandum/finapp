@@ -95,7 +95,7 @@
 			bind:checked={discrete}
 			class="h-3.5 w-3.5 accent-brand"
 		/>
-		<span>Discrete mode <span class="text-ink-faint">(censor amounts)</span></span>
+		<span>Discrete mode <span class="text-ink-faint">(hide balances and totals)</span></span>
 	</label>
 
 	{#if result !== null && result.status !== 'success'}
