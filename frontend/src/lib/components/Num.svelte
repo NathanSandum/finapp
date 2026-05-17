@@ -24,34 +24,51 @@
 	.ch {
 		display: inline-flex;
 		align-items: baseline;
+		justify-content: center;
 		position: relative;
 		vertical-align: baseline;
 		width: 1ch;
 		overflow: hidden;
-		transition: width 200ms ease;
+		transition: width 320ms cubic-bezier(0.22, 1, 0.36, 1);
 	}
 	.ch.collapsed {
 		width: 0;
-		transition: width 200ms 200ms ease;
+		transition: width 320ms cubic-bezier(0.22, 1, 0.36, 1) 320ms;
 	}
 	.real {
 		display: inline-block;
+		transform-origin: center;
+		transform: scale(1);
 		opacity: 1;
-		transition: opacity 200ms 200ms ease;
+		transition:
+			transform 320ms cubic-bezier(0.22, 1, 0.36, 1) 320ms,
+			opacity 320ms cubic-bezier(0.22, 1, 0.36, 1) 320ms;
 	}
 	.real.hidden {
+		transform: scale(0.15);
 		opacity: 0;
-		transition: opacity 200ms ease;
+		transition:
+			transform 320ms cubic-bezier(0.55, 0, 0.65, 0.4),
+			opacity 320ms cubic-bezier(0.55, 0, 0.65, 0.4);
 	}
 	.dot {
 		position: absolute;
 		left: 0;
+		right: 0;
 		top: 0;
+		text-align: center;
+		transform-origin: center;
+		transform: scale(0.15);
 		opacity: 0;
-		transition: opacity 200ms 200ms ease;
+		transition:
+			transform 320ms cubic-bezier(0.55, 0, 0.65, 0.4),
+			opacity 320ms cubic-bezier(0.55, 0, 0.65, 0.4);
 	}
 	.dot.shown {
+		transform: scale(1);
 		opacity: 1;
-		transition: opacity 200ms ease;
+		transition:
+			transform 320ms cubic-bezier(0.22, 1, 0.36, 1) 320ms,
+			opacity 320ms cubic-bezier(0.22, 1, 0.36, 1) 320ms;
 	}
 </style>
