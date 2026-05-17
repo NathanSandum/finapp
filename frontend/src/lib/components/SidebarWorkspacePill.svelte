@@ -12,16 +12,17 @@
 		blank?: boolean;
 		onclick?: () => void;
 	} = $props();
+
+	const stateClass = $derived(
+		blank
+			? ''
+			: open
+				? 'bg-surface-inverse-hover'
+				: 'hover:bg-surface-inverse-hover'
+	);
 </script>
 
-<svelte:element
-	this={blank ? 'div' : 'button'}
-	type={blank ? undefined : 'button'}
-	{onclick}
-	class="flex w-full items-center justify-between rounded px-2 py-1.5 {blank
-		? ''
-		: 'text-left transition-colors'} {!blank && (open ? 'bg-surface-inverse-hover' : 'hover:bg-surface-inverse-hover')}"
->
+{#snippet body()}
 	<span class="flex items-center gap-2">
 		<span
 			class="flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-bold text-ink {blank
@@ -42,4 +43,18 @@
 	>
 		<path fill-rule="evenodd" d="M5 8l5 5 5-5H5z" clip-rule="evenodd" />
 	</svg>
-</svelte:element>
+{/snippet}
+
+{#if blank}
+	<div class="flex w-full items-center justify-between rounded px-2 py-1.5">
+		{@render body()}
+	</div>
+{:else}
+	<button
+		type="button"
+		{onclick}
+		class="flex w-full items-center justify-between rounded px-2 py-1.5 text-left transition-colors {stateClass}"
+	>
+		{@render body()}
+	</button>
+{/if}

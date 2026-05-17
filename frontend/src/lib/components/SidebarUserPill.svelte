@@ -14,18 +14,7 @@
 	} = $props();
 </script>
 
-<svelte:element
-	this={blank ? 'div' : 'button'}
-	type={blank ? undefined : 'button'}
-	{onclick}
-	aria-haspopup={blank ? undefined : 'menu'}
-	aria-expanded={blank ? undefined : open}
-	class="flex w-full items-center gap-2 rounded p-2 {blank
-		? ''
-		: 'text-left transition-colors hover:bg-surface-inverse-hover'} {!blank && open
-		? 'bg-surface-inverse-hover'
-		: ''}"
->
+{#snippet body()}
 	<div
 		class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-avatar-from to-avatar-to text-xs font-semibold text-ink-inverse {blank
 			? 'invisible'
@@ -43,4 +32,22 @@
 			/>
 		</svg>
 	</span>
-</svelte:element>
+{/snippet}
+
+{#if blank}
+	<div class="flex w-full items-center gap-2 rounded p-2">
+		{@render body()}
+	</div>
+{:else}
+	<button
+		type="button"
+		{onclick}
+		aria-haspopup="menu"
+		aria-expanded={open}
+		class="flex w-full items-center gap-2 rounded p-2 text-left transition-colors hover:bg-surface-inverse-hover {open
+			? 'bg-surface-inverse-hover'
+			: ''}"
+	>
+		{@render body()}
+	</button>
+{/if}
