@@ -15,7 +15,7 @@
 	const on = $derived(discreteState.on);
 </script>
 
-<span class="num">{parsed.head}{#each chars as ch, i (i)}<span class="ch" class:collapsed={on && i >= 3}><span class="real" class:hidden={on}>{ch}</span><span class="dot" class:shown={on} aria-hidden="true">•</span></span>{/each}</span>
+<span class="num">{parsed.head}{#each chars as ch, i (i)}{@const survivor = i === 0 || Math.floor((i * 3) / chars.length) > Math.floor(((i - 1) * 3) / chars.length)}<span class="ch" class:collapsed={on && !survivor}><span class="real" class:hidden={on}>{ch}</span><span class="dot" class:shown={on} aria-hidden="true">•</span></span>{/each}</span>
 
 <style>
 	.num {
