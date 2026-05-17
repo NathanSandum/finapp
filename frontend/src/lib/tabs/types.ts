@@ -11,7 +11,6 @@ export type Tab = {
 	id: string;
 	label: string;
 	title: string;
-	hasPeriodHeader: boolean;
 	newEntryVerb?: VerbId;
 	view: Component<any>;
 	loader: () => Promise<JSend<any>>;

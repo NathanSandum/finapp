@@ -17,7 +17,6 @@ export const tabs: Tab[] = [
 		id: 'overview',
 		label: 'Overview',
 		title: 'Overview',
-		hasPeriodHeader: true,
 		newEntryVerb: 'spent',
 		view: OverviewView,
 		loader: loadOverview
@@ -26,7 +25,6 @@ export const tabs: Tab[] = [
 		id: 'income',
 		label: 'Income',
 		title: 'Income',
-		hasPeriodHeader: true,
 		newEntryVerb: 'spent',
 		view: IncomeView,
 		loader: loadIncome
@@ -35,7 +33,6 @@ export const tabs: Tab[] = [
 		id: 'cash-flow',
 		label: 'Cash Flow',
 		title: 'Cash Flow',
-		hasPeriodHeader: true,
 		newEntryVerb: 'contributed',
 		view: CashFlowView,
 		loader: loadCashFlow
@@ -44,7 +41,6 @@ export const tabs: Tab[] = [
 		id: 'balance-sheet',
 		label: 'Balance Sheet',
 		title: 'Balance Sheet',
-		hasPeriodHeader: true,
 		newEntryVerb: 'contributed',
 		view: BalanceSheetView,
 		loader: loadBalanceSheet
@@ -53,7 +49,6 @@ export const tabs: Tab[] = [
 		id: 'accounts',
 		label: 'Accounts',
 		title: 'Accounts',
-		hasPeriodHeader: true,
 		newEntryVerb: 'spent',
 		view: AccountsView,
 		loader: loadAccounts
@@ -62,7 +57,6 @@ export const tabs: Tab[] = [
 		id: 'entries',
 		label: 'Entries',
 		title: 'Entries',
-		hasPeriodHeader: true,
 		newEntryVerb: 'spent',
 		view: EntriesView,
 		loader: loadEntries

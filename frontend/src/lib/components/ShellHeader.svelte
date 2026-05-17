@@ -11,7 +11,7 @@
 
 	const currentIndex = $derived(Math.max(0, tabs.findIndex((t) => t.id === tabState.get())));
 	const current = $derived(tabs[currentIndex] ?? tabs[0]);
-	const showPeriod = $derived(current.hasPeriodHeader && periodState.initialized);
+	const showPeriod = $derived(periodState.initialized);
 	const label = $derived(
 		periodState.initialized
 			? periodLabel(periodState.year, periodState.month, periodState.granularity)
