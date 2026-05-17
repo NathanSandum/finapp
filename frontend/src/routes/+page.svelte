@@ -35,7 +35,7 @@
 	});
 </script>
 
-<main class="overflow-y-auto">
+<main class="relative overflow-hidden">
 	{#if workspaceState.active}
 		{#each tabs as tab (tab.id)}
 			<TabPanel {tab} active={current.id === tab.id} />

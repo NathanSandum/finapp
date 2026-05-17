@@ -15,7 +15,12 @@
 	});
 </script>
 
-<section class="h-full" style:display={active ? 'block' : 'none'}>
+<section
+	class="tab-panel absolute inset-0 overflow-y-auto"
+	class:active
+	inert={!active}
+	aria-hidden={!active}
+>
 	{#if result === undefined}
 		<p class="p-6 text-sm text-ink-muted">Loading…</p>
 	{:else if result.status === 'success'}
@@ -28,3 +33,25 @@
 		<ErrorView {result} />
 	{/if}
 </section>
+
+<style>
+	.tab-panel {
+		opacity: 0;
+		transform: translateY(6px);
+		pointer-events: none;
+		transition:
+			opacity 260ms cubic-bezier(0.22, 1, 0.36, 1),
+			transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	.tab-panel.active {
+		opacity: 1;
+		transform: none;
+		pointer-events: auto;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.tab-panel {
+			transition: opacity 0ms, transform 0ms;
+			transform: none;
+		}
+	}
+</style>

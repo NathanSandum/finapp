@@ -7,13 +7,15 @@
 		active = false,
 		blank = false,
 		fillDelay = 0,
-		onclick
+		onclick,
+		el = $bindable<HTMLButtonElement | undefined>(undefined)
 	}: {
 		tab: Tab;
 		active?: boolean;
 		blank?: boolean;
 		fillDelay?: number;
 		onclick?: () => void;
+		el?: HTMLButtonElement;
 	} = $props();
 
 	const stateClass = $derived(
@@ -26,6 +28,7 @@
 </script>
 
 <button
+	bind:this={el}
 	type="button"
 	onclick={blank ? undefined : onclick}
 	tabindex={blank ? -1 : 0}
@@ -33,9 +36,6 @@
 	class="relative flex items-center gap-2.5 rounded px-3 py-1.5 text-left text-sm transition-colors {stateClass}"
 	class:pointer-events-none={blank}
 >
-	{#if active && !blank}
-		<span class="absolute inset-y-1 -left-1 w-0.5 rounded-r bg-brand-soft"></span>
-	{/if}
 	<span
 		class="fill-target inline-flex shrink-0"
 		class:filled={!blank}
