@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { buildLine } from '$lib/views/income/lib';
 	import { fmt } from '$lib/format';
+	import Num from './Num.svelte';
 
 	export type TrendAccent = 'positive' | 'negative' | 'investing' | 'financing';
 	export type TrendRow = {
@@ -58,7 +59,7 @@
 						/>
 					</svg>
 				</td>
-				<td class="text-right font-mono font-semibold tabular-nums text-ink">{fmt(row.amount)}</td>
+				<td class="text-right font-mono font-semibold tabular-nums text-ink"><Num text={fmt(row.amount)} /></td>
 			</tr>
 		{/each}
 	</tbody>

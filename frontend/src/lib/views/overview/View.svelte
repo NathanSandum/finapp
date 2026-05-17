@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import PeriodHeader from '$lib/components/PeriodHeader.svelte';
 	import { fmt, pct } from '$lib/format';
+	import Num from '$lib/components/Num.svelte';
 	import {
 		latestActivityPeriod,
 		periodLabel,
@@ -69,7 +70,7 @@
 		<div>
 			<p class="text-[10px] font-medium uppercase tracking-[0.1em] text-ink-muted">Net Worth</p>
 			<p class="mt-2 font-mono text-5xl font-semibold tabular-nums text-ink">
-				{fmt(metrics.netWorth)}
+				<Num text={fmt(metrics.netWorth)} />
 			</p>
 			<p class="mt-1 font-mono text-xs tabular-nums text-positive">
 				{pct(metrics.netWorth, metrics.priorNetWorth)} vs prior
@@ -78,7 +79,7 @@
 		<div>
 			<p class="text-[10px] font-medium uppercase tracking-[0.1em] text-ink-muted">Income · 12 mo</p>
 			<p class="mt-2 font-mono text-5xl font-semibold tabular-nums text-ink">
-				{fmt(metrics.income12mo)}
+				<Num text={fmt(metrics.income12mo)} />
 			</p>
 			<p class="mt-1 font-mono text-xs tabular-nums text-positive">
 				{pct(metrics.income12mo, metrics.priorIncome12mo)} vs prior 12 mo

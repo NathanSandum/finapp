@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { buildLine } from '$lib/views/income/lib';
 	import { fmt, pct, shortFmt } from '$lib/format';
+	import Num from './Num.svelte';
 
 	let {
 		label,
@@ -29,7 +30,7 @@
 		<p
 			class="mt-0.5 flex items-baseline gap-2 font-mono text-3xl font-semibold tabular-nums text-ink"
 		>
-			{fmt(value)}
+			<Num text={fmt(value)} />
 			<span class="text-[13px] font-semibold text-positive">{pct(value, prior)}</span>
 		</p>
 	</div>
@@ -62,8 +63,8 @@
 	<div
 		class="pointer-events-none absolute right-2 top-4 flex h-[80px] flex-col justify-between font-mono text-[9px] tabular-nums text-ink-faint"
 	>
-		<span>{shortFmt(max)}</span>
-		<span>{shortFmt(min)}</span>
+		<span><Num text={shortFmt(max)} /></span>
+		<span><Num text={shortFmt(min)} /></span>
 	</div>
 	<div
 		class="grid px-5 pb-2 font-mono text-[9px] tabular-nums text-ink-faint"

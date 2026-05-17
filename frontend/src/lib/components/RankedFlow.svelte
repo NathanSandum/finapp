@@ -1,6 +1,7 @@
 <script lang="ts">
 	import RankedRows, { type RankedRow } from '$lib/components/RankedRows.svelte';
 	import { fmt, pct } from '$lib/format';
+	import Num from './Num.svelte';
 
 	type Line = { name: string; amount: number };
 
@@ -42,7 +43,7 @@
 	<div class="flex h-8 items-center justify-between border-b border-border">
 		<p class="text-[9px] font-semibold uppercase tracking-[0.1em] text-ink-muted">{netLabel}</p>
 		<p class="font-mono text-sm font-semibold tabular-nums {net >= 0 ? 'text-positive' : 'text-negative'}">
-			{fmt(net)}
+			<Num text={fmt(net)} />
 			<span class="text-[9px] text-ink-faint">{pct(net, priorNet)} vs {priorShortLabel}</span>
 		</p>
 	</div>

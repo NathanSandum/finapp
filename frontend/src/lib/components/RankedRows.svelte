@@ -9,6 +9,7 @@
 
 <script lang="ts">
 	import { fmt } from '$lib/format';
+	import Num from './Num.svelte';
 
 	let {
 		rows,
@@ -41,7 +42,7 @@
 					<div class="h-full {row.bar}" style:width="{f * 100}%"></div>
 				</div>
 			</div>
-			<span class="font-mono text-[11px] tabular-nums text-ink">{fmt(Math.abs(row.amount))}</span>
+			<span class="font-mono text-[11px] tabular-nums text-ink"><Num text={fmt(Math.abs(row.amount))} /></span>
 		</li>
 	{/each}
 </ul>

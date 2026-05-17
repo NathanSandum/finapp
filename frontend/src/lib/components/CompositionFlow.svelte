@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { fmt } from '$lib/format';
+	import Num from './Num.svelte';
 
 	type Line = { name: string; amount: number };
 	type Side = { lines: Line[]; total: number; label: string };
@@ -47,7 +48,7 @@
 	<div class="flex items-center gap-2 text-[10px]">
 		<span class="font-semibold uppercase tracking-[0.1em] {positiveText}">{positive.label}</span>
 		<div class="flex-1 border-t border-dashed border-border"></div>
-		<span class="font-mono tabular-nums text-ink">{fmt(positive.total)}</span>
+		<span class="font-mono tabular-nums text-ink"><Num text={fmt(positive.total)} /></span>
 	</div>
 
 	<div class="relative h-7 w-full bg-surface-sunken">
@@ -71,14 +72,14 @@
 	<div class="flex items-center gap-2 text-[10px]">
 		<span class="font-semibold uppercase tracking-[0.1em] {negativeText}">{negative.label}</span>
 		<div class="flex-1 border-t border-dashed border-border"></div>
-		<span class="font-mono tabular-nums {negativeText}">{negativeSignPrefix}{fmt(negative.total)}</span>
+		<span class="font-mono tabular-nums {negativeText}"><Num text="{negativeSignPrefix}{fmt(negative.total)}" /></span>
 	</div>
 
 	{#if showNet}
 		<div class="flex items-baseline justify-between border-t border-border pt-2">
 			<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{netLabel}</span>
 			<span class="font-mono text-lg font-semibold tabular-nums {net >= 0 ? 'text-positive' : 'text-negative'}">
-				{fmt(net)}
+				<Num text={fmt(net)} />
 			</span>
 		</div>
 	{/if}

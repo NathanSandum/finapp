@@ -11,6 +11,7 @@
 	} from '$lib/views/period';
 	import { entryAmount, type EntriesData } from './loader';
 	import { fmt } from '$lib/format';
+	import Num from '$lib/components/Num.svelte';
 	import EntryForm from './EntryForm.svelte';
 	import { entryIntent } from './intent.svelte';
 	import { tabState } from '$lib/tabs/state.svelte';
@@ -118,7 +119,7 @@
 							<span
 								class="font-mono text-xs tabular-nums {isSel ? 'text-ink-inverse' : 'text-ink-body'}"
 							>
-								{fmt(entryAmount(entry))}
+								<Num text={fmt(entryAmount(entry))} />
 							</span>
 						</span>
 						<span class="text-sm font-medium">{entry.description}</span>
@@ -146,7 +147,7 @@
 						<h3 class="text-lg font-semibold text-ink">{selected.description}</h3>
 						<p class="font-mono text-xs text-ink-muted">{selected.date} · {selected.id}</p>
 					</div>
-					<span class="font-mono text-xl tabular-nums text-ink">{fmt(entryAmount(selected))}</span>
+					<span class="font-mono text-xl tabular-nums text-ink"><Num text={fmt(entryAmount(selected))} /></span>
 				</header>
 
 				<ul class="divide-y divide-border-faint">
@@ -169,7 +170,7 @@
 								{/if}
 							</div>
 							<span class="font-mono text-base tabular-nums {isDebit ? 'text-ink' : 'text-ink-body'}">
-								{fmt(Math.abs(posting.amount))}
+								<Num text={fmt(Math.abs(posting.amount))} />
 							</span>
 						</li>
 					{/each}

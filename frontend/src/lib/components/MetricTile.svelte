@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { fmt, pct } from '$lib/format';
+	import Num from './Num.svelte';
 
 	let {
 		label,
@@ -55,10 +56,10 @@
 		</p>
 	</div>
 	<p class="mt-1 font-mono text-xl font-semibold tabular-nums leading-tight text-ink">
-		{fmt(displayTotal)}
+		<Num text={fmt(displayTotal)} />
 	</p>
 	<div class="mt-1 flex justify-between gap-2 font-mono text-[9px] tabular-nums text-ink-faint">
 		<span>{priorShortLabel}</span>
-		<span>{#if priorVerb}{priorVerb}{' '}{/if}{fmt(displayPrior)}</span>
+		<span>{#if priorVerb}{priorVerb}{' '}{/if}<Num text={fmt(displayPrior)} /></span>
 	</div>
 </div>
