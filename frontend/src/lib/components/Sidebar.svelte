@@ -69,27 +69,25 @@
 	{/each}
 </nav>
 <div class="relative mt-auto">
-	<div class="flex items-center gap-2 rounded p-2">
+	<button
+		type="button"
+		onclick={() => (userMenuOpen = !userMenuOpen)}
+		aria-haspopup="menu"
+		aria-expanded={userMenuOpen}
+		class="flex w-full items-center gap-2 rounded p-2 text-left transition-colors hover:bg-surface-inverse-hover {userMenuOpen ? 'bg-surface-inverse-hover' : ''}"
+	>
 		<div class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-avatar-from to-avatar-to text-xs font-semibold text-ink-inverse">
 			{userInitials}
 		</div>
 		<div class="flex flex-1 flex-col leading-tight">
 			<span class="text-sm text-ink-inverse-body">{displayName}</span>
 		</div>
-		<button
-			type="button"
-			onclick={() => (userMenuOpen = !userMenuOpen)}
-			title="More"
-			aria-label="More"
-			aria-haspopup="menu"
-			aria-expanded={userMenuOpen}
-			class="rounded p-1 text-ink-muted hover:bg-surface-inverse-hover hover:text-ink-inverse {userMenuOpen ? 'bg-surface-inverse-hover text-ink-inverse' : ''}"
-		>
+		<span class="text-ink-muted {userMenuOpen ? 'text-ink-inverse' : ''}">
 			<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
 				<path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" />
 			</svg>
-		</button>
-	</div>
+		</span>
+	</button>
 	{#if userMenuOpen}
 		<UserMenu onClose={() => (userMenuOpen = false)} />
 	{/if}
