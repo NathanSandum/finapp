@@ -86,11 +86,3 @@ export async function load(): Promise<JSend<EntriesData>> {
 export function entryAmount(entry: Entry): number {
 	return entry.postings.filter((p) => p.amount > 0).reduce((sum, p) => sum + p.amount, 0);
 }
-
-export function formatAmount(cents: number): string {
-	const sign = cents < 0 ? '-' : '';
-	const abs = Math.abs(cents);
-	const dollars = Math.floor(abs / 100);
-	const c = (abs % 100).toString().padStart(2, '0');
-	return `${sign}$${dollars.toLocaleString()}.${c}`;
-}

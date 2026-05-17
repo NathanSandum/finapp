@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { buildLine, fmt, pct } from '$lib/views/income/lib';
+	import { buildLine } from '$lib/views/income/lib';
+	import { fmt, pct, shortFmt } from '$lib/format';
 
 	let {
 		label,
@@ -20,14 +21,6 @@
 	const sparkline = $derived(buildLine(trail, 560, 80));
 	const min = $derived(Math.min(...trail));
 	const max = $derived(Math.max(...trail));
-
-	function shortFmt(cents: number): string {
-		const abs = Math.abs(cents);
-		const sign = cents < 0 ? '-' : '';
-		if (abs >= 1_000_000_00) return `${sign}$${(abs / 1_000_000_00).toFixed(1)}M`;
-		if (abs >= 1_000_00) return `${sign}$${Math.round(abs / 1_000_00)}k`;
-		return `${sign}$${Math.round(abs / 100)}`;
-	}
 </script>
 
 <section class="relative shrink-0 overflow-hidden border border-border bg-surface-card">

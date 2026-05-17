@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { fmt, pct } from '$lib/views/income/lib';
+	import { fmt, pct } from '$lib/format';
 
 	let {
 		label,

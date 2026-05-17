@@ -8,7 +8,7 @@
 </script>
 
 <script lang="ts">
-	import { fmt } from '$lib/views/income/lib';
+	import { fmt } from '$lib/format';
 
 	let {
 		rows,

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import RankedRows, { type RankedRow } from '$lib/components/RankedRows.svelte';
-	import { fmt, pct } from '$lib/views/income/lib';
+	import { fmt, pct } from '$lib/format';
 
 	type Line = { name: string; amount: number };
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import CompositionFlow from '$lib/components/CompositionFlow.svelte';
-	import { fmt } from '$lib/views/income/lib';
+	import { fmt } from '$lib/format';
 	import type { CashFlowSection } from '../compute';
 
 	let {

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { fmt } from '$lib/views/income/lib';
+	import { fmt } from '$lib/format';
 
 	type Line = { name: string; amount: number };
 	type Side = { lines: Line[]; total: number; label: string };

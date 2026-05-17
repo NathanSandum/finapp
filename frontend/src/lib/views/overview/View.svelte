@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import PeriodHeader from '$lib/components/PeriodHeader.svelte';
-	import { fmt, pct } from '$lib/views/income/lib';
+	import { fmt, pct } from '$lib/format';
 	import {
 		latestActivityPeriod,
 		periodLabel,

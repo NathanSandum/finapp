@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { buildLine, fmt } from '$lib/views/income/lib';
+	import { buildLine } from '$lib/views/income/lib';
+	import { fmt } from '$lib/format';
 
 	export type TrendAccent = 'positive' | 'negative' | 'investing' | 'financing';
 	export type TrendRow = {
