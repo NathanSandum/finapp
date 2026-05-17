@@ -16,7 +16,18 @@
 	} = $props();
 </script>
 
-{#snippet body()}
+<button
+	type="button"
+	onclick={blank ? undefined : onclick}
+	tabindex={blank ? -1 : 0}
+	aria-hidden={blank ? 'true' : undefined}
+	aria-haspopup={blank ? undefined : 'menu'}
+	aria-expanded={blank ? undefined : open}
+	class="flex w-full items-center gap-2 rounded p-2 text-left transition-colors {blank
+		? ''
+		: 'hover:bg-surface-inverse-hover'} {!blank && open ? 'bg-surface-inverse-hover' : ''}"
+	class:pointer-events-none={blank}
+>
 	<div
 		class="fill-target flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-avatar-from to-avatar-to text-xs font-semibold text-ink-inverse"
 		class:filled={!blank}
@@ -42,22 +53,4 @@
 			/>
 		</svg>
 	</span>
-{/snippet}
-
-{#if blank}
-	<div class="flex w-full items-center gap-2 rounded p-2">
-		{@render body()}
-	</div>
-{:else}
-	<button
-		type="button"
-		{onclick}
-		aria-haspopup="menu"
-		aria-expanded={open}
-		class="flex w-full items-center gap-2 rounded p-2 text-left transition-colors hover:bg-surface-inverse-hover {open
-			? 'bg-surface-inverse-hover'
-			: ''}"
-	>
-		{@render body()}
-	</button>
-{/if}
+</button>

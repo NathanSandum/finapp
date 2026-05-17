@@ -15,16 +15,19 @@
 		onclick?: () => void;
 	} = $props();
 
-	const stateClass = $derived(
-		blank
-			? ''
-			: open
-				? 'bg-surface-inverse-hover'
-				: 'hover:bg-surface-inverse-hover'
+	const hoverClass = $derived(
+		blank ? '' : open ? 'bg-surface-inverse-hover' : 'hover:bg-surface-inverse-hover'
 	);
 </script>
 
-{#snippet body()}
+<button
+	type="button"
+	onclick={blank ? undefined : onclick}
+	tabindex={blank ? -1 : 0}
+	aria-hidden={blank ? 'true' : undefined}
+	class="flex w-full items-center justify-between rounded px-2 py-1.5 text-left transition-colors {hoverClass}"
+	class:pointer-events-none={blank}
+>
 	<span class="flex items-center gap-2">
 		<span
 			class="fill-target flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-bold text-ink"
@@ -49,18 +52,4 @@
 	>
 		<path fill-rule="evenodd" d="M5 8l5 5 5-5H5z" clip-rule="evenodd" />
 	</svg>
-{/snippet}
-
-{#if blank}
-	<div class="flex w-full items-center justify-between rounded px-2 py-1.5">
-		{@render body()}
-	</div>
-{:else}
-	<button
-		type="button"
-		{onclick}
-		class="flex w-full items-center justify-between rounded px-2 py-1.5 text-left transition-colors {stateClass}"
-	>
-		{@render body()}
-	</button>
-{/if}
+</button>
