@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { discreteState } from '$lib/ui/discrete.svelte';
+	import { getDiscrete } from '$lib/ui/discrete.svelte';
 
 	let { text }: { text: string } = $props();
 
@@ -12,7 +12,7 @@
 	});
 
 	const chars = $derived(parsed.body.split(''));
-	const on = $derived(discreteState.on);
+	const on = $derived(getDiscrete());
 </script>
 
 <span class="num">{parsed.head}{#each chars as ch, i (i)}{@const survivor = i === 0 || Math.floor((i * 3) / chars.length) > Math.floor(((i - 1) * 3) / chars.length)}<span class="ch" class:collapsed={on && !survivor}><span class="real" class:hidden={on}>{ch}</span><span class="dot" class:shown={on} aria-hidden="true">•</span></span>{/each}</span>

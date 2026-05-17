@@ -1,33 +1,38 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { fade } from 'svelte/transition';
-	import { cubicOut } from 'svelte/easing';
 	import { buildLine } from '$lib/views/income/lib';
 	import { signinTrail } from '$lib/data/signinTrail';
 	import { prefersReducedMotion } from '$lib/utils/motion';
 
+	let { exiting = false }: { exiting?: boolean } = $props();
+
 	const sparkline = buildLine(signinTrail, 800, 360);
 
 	let pathEl = $state<SVGPolylineElement | null>(null);
-	let drawn = $state(false);
+	let revealing = $state(false);
+	let pathLength = $state(0);
 
 	onMount(() => {
 		if (!pathEl) return;
 		if (prefersReducedMotion()) {
-			drawn = true;
+			revealing = true;
 			return;
 		}
 		const length = pathEl.getTotalLength();
+		pathLength = length;
 		pathEl.style.strokeDasharray = `${length}`;
 		pathEl.style.strokeDashoffset = `${length}`;
 		pathEl.getBoundingClientRect();
 		pathEl.style.transition = 'stroke-dashoffset 1400ms cubic-bezier(0.22, 1, 0.36, 1)';
 		pathEl.style.strokeDashoffset = '0';
-		const onEnd = () => {
-			drawn = true;
-			pathEl?.removeEventListener('transitionend', onEnd);
-		};
-		pathEl.addEventListener('transitionend', onEnd);
+		revealing = true;
+	});
+
+	$effect(() => {
+		if (!exiting || !pathEl || pathLength === 0) return;
+		if (prefersReducedMotion()) return;
+		pathEl.style.transition = 'stroke-dashoffset 700ms cubic-bezier(0.4, 0, 1, 1)';
+		pathEl.style.strokeDashoffset = `${-pathLength}`;
 	});
 </script>
 
@@ -43,14 +48,14 @@
 			<stop offset="100%" style:stop-color="var(--color-positive-line)" stop-opacity="0" />
 		</linearGradient>
 	</defs>
-	{#if drawn}
-		<polygon
-			fill="url(#signinFill)"
-			points={sparkline.area}
-			transform="translate(0,40)"
-			in:fade={{ duration: 600, easing: cubicOut }}
-		/>
-	{/if}
+	<polygon
+		class="signin-fill"
+		class:revealing={revealing && !exiting}
+		class:exiting
+		fill="url(#signinFill)"
+		points={sparkline.area}
+		transform="translate(0,40)"
+	/>
 	<polyline
 		bind:this={pathEl}
 		fill="none"
@@ -62,3 +67,24 @@
 		transform="translate(0,40)"
 	/>
 </svg>
+
+<style>
+	.signin-fill {
+		clip-path: inset(0 100% 0 0);
+		transition: clip-path 1400ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	.signin-fill.revealing {
+		clip-path: inset(0 0 0 0);
+	}
+	.signin-fill.exiting {
+		clip-path: inset(0 0 0 100%);
+		transition: clip-path 700ms cubic-bezier(0.4, 0, 1, 1);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.signin-fill,
+		.signin-fill.revealing,
+		.signin-fill.exiting {
+			transition-duration: 0ms;
+		}
+	}
+</style>

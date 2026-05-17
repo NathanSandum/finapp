@@ -1,12 +1,21 @@
 <script lang="ts">
 	import type { OverviewMetrics } from '../compute';
 
-	let { metrics }: { metrics: OverviewMetrics } = $props();
+	let {
+		metrics,
+		entered = true,
+		entranceBaseDelay = null
+	}: {
+		metrics: OverviewMetrics;
+		entered?: boolean;
+		entranceBaseDelay?: number | null;
+	} = $props();
 
 	const SIZE = 200;
 	const CENTER = SIZE / 2;
 	const RADIUS = 78;
 	const STROKE = 12;
+	const TRACK_LEN = Math.PI * RADIUS;
 
 	const items = $derived([
 		{ label: 'Emergency Fund', ratio: metrics.emergencyFund },
@@ -15,19 +24,6 @@
 		{ label: 'Debt / Assets', ratio: metrics.debtToAssets }
 	]);
 
-	function arcPath(health: number): string {
-		const startAngle = 180;
-		const endAngle = 180 - 180 * health;
-		const startRad = (startAngle * Math.PI) / 180;
-		const endRad = (endAngle * Math.PI) / 180;
-		const x1 = CENTER + Math.cos(startRad) * RADIUS;
-		const y1 = CENTER + Math.sin(startRad) * RADIUS;
-		const x2 = CENTER + Math.cos(endRad) * RADIUS;
-		const y2 = CENTER + Math.sin(endRad) * RADIUS;
-		const largeArc = health > 0.5 ? 1 : 0;
-		return `M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${RADIUS} ${RADIUS} 0 ${largeArc} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
-	}
-
 	const trackPath = `M ${CENTER - RADIUS} ${CENTER} A ${RADIUS} ${RADIUS} 0 0 1 ${CENTER + RADIUS} ${CENTER}`;
 
 	function healthColor(h: number): string {
@@ -35,11 +31,23 @@
 		if (h >= 0.4) return 'var(--color-financing-line)';
 		return 'var(--color-negative-line)';
 	}
+
+	function fillOffset(health: number): number {
+		const clamped = Math.max(0, Math.min(1, health));
+		return TRACK_LEN * (1 - clamped);
+	}
 </script>
 
 <div class="grid grid-cols-4 gap-6">
-	{#each items as { label, ratio } (label)}
-		<div class="flex flex-col items-center px-3 py-3">
+	{#each items as { label, ratio }, i (label)}
+		{@const animating = entranceBaseDelay !== null}
+		{@const itemDelay = animating ? entranceBaseDelay! + i * 70 : 0}
+		{@const fillDelay = animating ? itemDelay + 60 : 0}
+		{@const offset = !animating || entered ? fillOffset(ratio.health) : TRACK_LEN}
+		<div
+			class="entrance-item flex flex-col items-center px-3 py-3"
+			style:--d="{itemDelay}ms"
+		>
 			<p class="text-[10px] font-medium uppercase tracking-[0.1em] text-ink-muted">{label}</p>
 			<svg width={SIZE} height={SIZE * 0.62} viewBox="0 0 {SIZE} {SIZE * 0.62}" class="mt-1">
 				<path
@@ -50,11 +58,14 @@
 					stroke-linecap="butt"
 				/>
 				<path
-					d={arcPath(ratio.health)}
+					d={trackPath}
 					fill="none"
 					stroke={healthColor(ratio.health)}
 					stroke-width={STROKE}
 					stroke-linecap="round"
+					stroke-dasharray={TRACK_LEN}
+					stroke-dashoffset={offset}
+					style="transition: stroke-dashoffset 820ms cubic-bezier(0.22, 1, 0.36, 1) {fillDelay}ms"
 				/>
 				<text
 					x={CENTER}
