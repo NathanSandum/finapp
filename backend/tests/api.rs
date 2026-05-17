@@ -206,7 +206,7 @@ async fn login_wrong_password() {
     register(&app, "alice@example.com").await;
 
     let mut session = Session::default();
-    let (status, _) = post(
+    let (status, body) = post(
         &app,
         "/auth/login",
         &mut session,
@@ -214,6 +214,7 @@ async fn login_wrong_password() {
     )
     .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(body["message"], "Invalid email or password");
 }
 
 #[tokio::test]
