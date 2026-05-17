@@ -14,6 +14,7 @@
 </script>
 
 <div class="flex h-full flex-col gap-4">
+	<p class="text-xs uppercase tracking-[0.08em] text-ink-muted">Click name to rename</p>
 	<div class="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto md:grid-cols-2 xl:grid-cols-3">
 		{#each subtrees as { key, tree } (key)}
 			<section class="flex flex-col border border-border bg-surface-card">

@@ -53,7 +53,8 @@ export const tabs: Tab[] = [
 		id: 'accounts',
 		label: 'Accounts',
 		title: 'Accounts',
-		hasPeriodHeader: false,
+		hasPeriodHeader: true,
+		newEntryVerb: 'spent',
 		view: AccountsView,
 		loader: loadAccounts
 	},

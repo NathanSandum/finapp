@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import GranularityPill from './GranularityPill.svelte';
 	import PeriodNav from './PeriodNav.svelte';
 	import RollingTitle from './RollingTitle.svelte';
@@ -17,6 +18,17 @@
 			: ''
 	);
 
+	const measureEls: (HTMLHeadingElement | undefined)[] = $state(Array(tabs.length).fill(undefined));
+	let titleMinWidth = $state(0);
+
+	onMount(() => {
+		let max = 0;
+		for (const el of measureEls) {
+			if (el) max = Math.max(max, el.getBoundingClientRect().width);
+		}
+		titleMinWidth = Math.ceil(max);
+	});
+
 	function newEntry() {
 		const verb = current.newEntryVerb;
 		if (!verb) return;
@@ -27,7 +39,10 @@
 
 <header class="flex shrink-0 items-baseline justify-between gap-3 p-6 pb-0">
 	<div class="flex items-baseline gap-3">
-		<h3 class="text-xl font-semibold text-ink">
+		<h3
+			class="text-xl font-semibold text-ink"
+			style:min-width={titleMinWidth ? `${titleMinWidth}px` : undefined}
+		>
 			<RollingTitle value={current.title} position={currentIndex} />
 		</h3>
 		{#if showPeriod}
@@ -37,6 +52,11 @@
 				onNext={() => periodState.shift(1)}
 			/>
 		{/if}
+	</div>
+	<div class="title-measure-rack" aria-hidden="true">
+		{#each tabs as t, i (t.id)}
+			<h3 bind:this={measureEls[i]} class="text-xl font-semibold">{t.title}</h3>
+		{/each}
 	</div>
 	<div class="flex items-baseline gap-3">
 		{#if current.newEntryVerb}
@@ -56,3 +76,17 @@
 		{/if}
 	</div>
 </header>
+
+<style>
+	.title-measure-rack {
+		position: absolute;
+		left: -9999px;
+		top: 0;
+		visibility: hidden;
+		pointer-events: none;
+		white-space: nowrap;
+	}
+	.title-measure-rack h3 {
+		display: inline-block;
+	}
+</style>

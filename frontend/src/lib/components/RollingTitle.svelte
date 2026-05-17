@@ -25,7 +25,7 @@
 			return;
 		}
 		const reduce = prefersReducedMotion();
-		const dir: 1 | -1 = pos >= prevPosition ? 1 : -1;
+		const dir: 1 | -1 = pos >= prevPosition ? -1 : 1;
 		step = { key: nextKey++, before: prevValue, after: curr, direction: dir };
 		prevValue = curr;
 		prevPosition = pos;
