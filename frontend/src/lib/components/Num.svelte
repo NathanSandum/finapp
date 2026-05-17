@@ -12,9 +12,10 @@
 	});
 
 	const chars = $derived(parsed.body.split(''));
+	const on = $derived(discreteState.on);
 </script>
 
-<span class="num" class:on={discreteState.on}>{parsed.head}{#each chars as ch, i (i)}<span class="ch" class:collapse={i >= 3}><span class="layer real">{ch}</span><span class="layer dot" aria-hidden="true">•</span></span>{/each}</span>
+<span class="num">{parsed.head}{#each chars as ch, i (i)}<span class="ch" class:collapsed={on && i >= 3}><span class="real" class:hidden={on}>{ch}</span><span class="dot" class:shown={on} aria-hidden="true">•</span></span>{/each}</span>
 
 <style>
 	.num {
@@ -28,27 +29,27 @@
 		overflow: hidden;
 		transition: width 200ms ease;
 	}
-	.num.on .ch.collapse {
+	.ch.collapsed {
 		width: 0;
 		transition: width 200ms 200ms ease;
 	}
-	.layer.real {
+	.real {
 		display: inline-block;
 		opacity: 1;
 		transition: opacity 200ms 200ms ease;
 	}
-	.num.on .layer.real {
+	.real.hidden {
 		opacity: 0;
 		transition: opacity 200ms ease;
 	}
-	.layer.dot {
+	.dot {
 		position: absolute;
 		left: 0;
 		top: 0;
 		opacity: 0;
 		transition: opacity 200ms 200ms ease;
 	}
-	.num.on .layer.dot {
+	.dot.shown {
 		opacity: 1;
 		transition: opacity 200ms ease;
 	}
