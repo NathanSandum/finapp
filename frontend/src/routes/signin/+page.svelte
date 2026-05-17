@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { signIn, type UserPayload } from '$lib/api/auth';
 	import { authState } from '$lib/api/state.svelte';
+	import { cache } from '$lib/api/cache.svelte';
 	import type { JSend } from '$lib/tabs/types';
 	import FailView from '$lib/components/FailView.svelte';
 	import ErrorView from '$lib/components/ErrorView.svelte';
@@ -17,6 +18,7 @@
 		result = await signIn(email, password);
 		submitting = false;
 		if (result.status === 'success') {
+			cache.invalidateAll();
 			authState.set(result.data.user);
 			goto('/');
 		}
@@ -33,7 +35,7 @@
 		<label class="flex flex-col gap-1 text-sm">
 			<span class="text-ink-muted">Email</span>
 			<input
-				type="email"
+				type={import.meta.env.DEV ? 'text' : 'email'}
 				bind:value={email}
 				required
 				autocomplete="email"
