@@ -7,7 +7,6 @@
 	import { signinTrail } from '$lib/data/signinTrail';
 	import { tabs } from '$lib/tabs/registry';
 	import { todayLabel } from '$lib/views/today';
-	import TabIcon from '$lib/components/TabIcon.svelte';
 
 	const dateLabel = todayLabel();
 	import type { JSend } from '$lib/tabs/types';
@@ -69,7 +68,7 @@
 		<nav class="flex flex-col gap-0.5">
 			{#each tabs as tab (tab.id)}
 				<div class="flex items-center gap-2.5 rounded px-3 py-1.5 text-sm text-ink-faint">
-					<TabIcon id={tab.id} class="h-4 w-4 shrink-0" />
+					<span class="invisible h-4 w-4 shrink-0"></span>
 					<span class="invisible">{tab.label}</span>
 				</div>
 			{/each}
