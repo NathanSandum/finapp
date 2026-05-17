@@ -63,7 +63,7 @@
 				<path fill-rule="evenodd" d="M5 8l5 5 5-5H5z" clip-rule="evenodd" />
 			</svg>
 		</div>
-		<p class="invisible mb-4 px-2 pt-0.5 font-mono text-[10px] uppercase tracking-[0.1em]">
+		<p class="mb-4 px-2 pt-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
 			{dateLabel}
 		</p>
 		<nav class="flex flex-col gap-0.5">
