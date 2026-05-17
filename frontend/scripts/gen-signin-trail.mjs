@@ -9,10 +9,10 @@ import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-const SEED = 0x5f3759df;
+const SEED = Number(process.argv[2]) || Date.now();
 const COUNT = 96;
 const START = 100;
-const DRIFT = 0.012;
+const DRIFT = 0.005;
 const VOL = 0.045;
 
 function mulberry32(seed) {
@@ -53,4 +53,4 @@ export const signinTrail: number[] = ${JSON.stringify(series, null, 2)};
 `;
 
 writeFileSync(out, body);
-console.log(`wrote ${out} (${series.length} points)`);
+console.log(`wrote ${out} (${series.length} points, seed=${SEED})`);
