@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { tabs } from '$lib/tabs/registry';
 	import type { Tab } from '$lib/tabs/types';
-	import { todayLabel } from '$lib/views/today';
 	import { workspaceState } from '$lib/workspace/state.svelte';
 	import WorkspaceSwitcher from '$lib/workspace/WorkspaceSwitcher.svelte';
 	import { authState, initials } from '$lib/api/state.svelte';
@@ -9,10 +8,10 @@
 	import SidebarWorkspacePill from './SidebarWorkspacePill.svelte';
 	import SidebarTabRow from './SidebarTabRow.svelte';
 	import SidebarUserPill from './SidebarUserPill.svelte';
+	import SidebarDate from './SidebarDate.svelte';
 
 	let { current, onSelect }: { current: Tab; onSelect: (tab: Tab) => void } = $props();
 
-	const dateLabel = todayLabel();
 	let switcherOpen = $state(false);
 	let userMenuOpen = $state(false);
 
@@ -34,9 +33,7 @@
 		<WorkspaceSwitcher onClose={() => (switcherOpen = false)} />
 	{/if}
 </div>
-<p class="mb-4 px-2 pt-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
-	{dateLabel}
-</p>
+<SidebarDate />
 <nav class="flex flex-col gap-0.5">
 	{#each tabs as tab (tab.id)}
 		<SidebarTabRow {tab} active={current.id === tab.id} onclick={() => onSelect(tab)} />
