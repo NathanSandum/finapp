@@ -7,56 +7,39 @@
 		computeNetCashTrail,
 		computeSectionTrails,
 		defaultTrailCount,
-		latestActivityPeriod,
-		shiftPeriod,
-		snapToGranularity,
-		type Granularity
+		latestActivityPeriod
 	} from './compute';
 	import MetricTile from '$lib/components/MetricTile.svelte';
 	import type { CashFlowRaw } from './loader';
 	import Detail from './variants/Detail.svelte';
 	import Summary from './variants/Summary.svelte';
 	import Trend from './variants/Trend.svelte';
-	import { entryIntent } from '$lib/views/entries/intent.svelte';
-	import { tabState } from '$lib/tabs/state.svelte';
-
-	function newEntry() {
-		entryIntent.set({ verb: 'contributed', sourceTab: 'cash-flow' });
-		tabState.set('entries');
-	}
+	import { periodState } from '$lib/views/period-state.svelte';
 
 	let { data }: { data: CashFlowRaw } = $props();
 
 	const initial = untrack(() => latestActivityPeriod(data.entries));
-	let selectedYear = $state(initial.year);
-	let selectedMonth = $state(initial.month);
-	let granularity = $state<Granularity>('month');
-
-	function shift(direction: 1 | -1) {
-		const next = shiftPeriod(selectedYear, selectedMonth, granularity, direction);
-		selectedYear = next.year;
-		selectedMonth = next.month;
-	}
-
-	function setGranularity(next: Granularity) {
-		const snapped = snapToGranularity(selectedYear, selectedMonth, next);
-		selectedYear = snapped.year;
-		selectedMonth = snapped.month;
-		granularity = next;
-	}
+	periodState.initIfNeeded(initial.year, initial.month);
 
 	const cf = $derived(
-		computeCashFlow(data.entries, data.accounts, data.anchors, selectedYear, selectedMonth, granularity)
+		computeCashFlow(
+			data.entries,
+			data.accounts,
+			data.anchors,
+			periodState.year,
+			periodState.month,
+			periodState.granularity
+		)
 	);
 	const netTrail = $derived(
 		computeNetCashTrail(
 			data.entries,
 			data.accounts,
 			data.anchors,
-			selectedYear,
-			selectedMonth,
-			granularity,
-			defaultTrailCount(granularity)
+			periodState.year,
+			periodState.month,
+			periodState.granularity,
+			defaultTrailCount(periodState.granularity)
 		)
 	);
 	const sectionTrails = $derived(
@@ -64,10 +47,10 @@
 			data.entries,
 			data.accounts,
 			data.anchors,
-			selectedYear,
-			selectedMonth,
-			granularity,
-			defaultTrailCount(granularity)
+			periodState.year,
+			periodState.month,
+			periodState.granularity,
+			defaultTrailCount(periodState.granularity)
 		)
 	);
 
@@ -77,24 +60,7 @@
 	);
 </script>
 
-<StatementView
-	title="Cash Flow"
-	periodLabel={cf.period_label}
-	{granularity}
-	onPrev={() => shift(-1)}
-	onNext={() => shift(1)}
-	onGranularity={setGranularity}
->
-	{#snippet actions()}
-		<button
-			type="button"
-			onclick={newEntry}
-			class="bg-surface-inverse px-3 py-1.5 text-xs font-medium uppercase tracking-[0.08em] text-ink-inverse transition-colors hover:bg-surface-inverse-hover"
-		>
-			+ New
-		</button>
-	{/snippet}
-
+<StatementView>
 	{#snippet hero()}
 		<NetHero
 			label="Net Change in Cash · {cf.period_label}"

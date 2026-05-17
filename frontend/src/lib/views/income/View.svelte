@@ -8,10 +8,7 @@
 		computeIncomeTrails,
 		computeNetTrail,
 		defaultTrailCount,
-		latestActivityMonth,
-		shiftPeriod,
-		snapToGranularity,
-		type Granularity
+		latestActivityMonth
 	} from './compute';
 	import {
 		totalExpenses,
@@ -23,55 +20,40 @@
 	import Detail from './variants/Detail.svelte';
 	import Summary from './variants/Summary.svelte';
 	import Trend from './variants/Trend.svelte';
-	import { entryIntent } from '$lib/views/entries/intent.svelte';
-	import { tabState } from '$lib/tabs/state.svelte';
-
-	function newEntry() {
-		entryIntent.set({ verb: 'spent', sourceTab: 'income' });
-		tabState.set('entries');
-	}
+	import { periodState } from '$lib/views/period-state.svelte';
 
 	let { data }: { data: IncomeRaw } = $props();
 
 	const initial = untrack(() => latestActivityMonth(data.entries, data.accounts));
-	let selectedYear = $state(initial.year);
-	let selectedMonth = $state(initial.month);
-	let granularity = $state<Granularity>('month');
-
-	function shift(direction: 1 | -1) {
-		const next = shiftPeriod(selectedYear, selectedMonth, granularity, direction);
-		selectedYear = next.year;
-		selectedMonth = next.month;
-	}
-
-	function setGranularity(next: Granularity) {
-		const snapped = snapToGranularity(selectedYear, selectedMonth, next);
-		selectedYear = snapped.year;
-		selectedMonth = snapped.month;
-		granularity = next;
-	}
+	periodState.initIfNeeded(initial.year, initial.month);
 
 	const income = $derived(
-		computeIncomeData(data.entries, data.accounts, selectedYear, selectedMonth, granularity)
+		computeIncomeData(
+			data.entries,
+			data.accounts,
+			periodState.year,
+			periodState.month,
+			periodState.granularity
+		)
 	);
 	const trail = $derived(
 		computeNetTrail(
 			data.entries,
 			data.accounts,
-			selectedYear,
-			selectedMonth,
-			granularity,
-			defaultTrailCount(granularity)
+			periodState.year,
+			periodState.month,
+			periodState.granularity,
+			defaultTrailCount(periodState.granularity)
 		)
 	);
 	const trails = $derived(
 		computeIncomeTrails(
 			data.entries,
 			data.accounts,
-			selectedYear,
-			selectedMonth,
-			granularity,
-			defaultTrailCount(granularity)
+			periodState.year,
+			periodState.month,
+			periodState.granularity,
+			defaultTrailCount(periodState.granularity)
 		)
 	);
 
@@ -83,23 +65,7 @@
 	const priorNet = $derived(priorRevenueTotal - priorExpenseTotal);
 </script>
 
-<StatementView
-	title="Income"
-	periodLabel={income.period_label}
-	{granularity}
-	onPrev={() => shift(-1)}
-	onNext={() => shift(1)}
-	onGranularity={setGranularity}
->
-	{#snippet actions()}
-		<button
-			type="button"
-			onclick={newEntry}
-			class="bg-surface-inverse px-3 py-1.5 text-xs font-medium uppercase tracking-[0.08em] text-ink-inverse transition-colors hover:bg-surface-inverse-hover"
-		>
-			+ New
-		</button>
-	{/snippet}
+<StatementView>
 	{#snippet hero()}
 		<NetHero
 			label="Net Income · {income.period_label}"

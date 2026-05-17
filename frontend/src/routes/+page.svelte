@@ -1,5 +1,6 @@
 <script lang="ts">
 	import TabPanel from '$lib/components/TabPanel.svelte';
+	import ShellHeader from '$lib/components/ShellHeader.svelte';
 	import { tabs } from '$lib/tabs/registry';
 	import { tabState } from '$lib/tabs/state.svelte';
 	import { workspaceState } from '$lib/workspace/state.svelte';
@@ -35,11 +36,14 @@
 	});
 </script>
 
-<main class="relative overflow-hidden">
+<main class="flex flex-col overflow-hidden">
 	{#if workspaceState.active}
-		{#each tabs as tab (tab.id)}
-			<TabPanel {tab} active={current.id === tab.id} />
-		{/each}
+		<ShellHeader />
+		<div class="relative flex-1 overflow-hidden">
+			{#each tabs as tab (tab.id)}
+				<TabPanel {tab} active={current.id === tab.id} />
+			{/each}
+		</div>
 	{:else if bootError}
 		<p class="p-6 text-sm text-negative">{bootError}</p>
 	{:else}

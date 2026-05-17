@@ -1,0 +1,57 @@
+<script lang="ts">
+	import GranularityPill from './GranularityPill.svelte';
+	import PeriodNav from './PeriodNav.svelte';
+	import RollingTitle from './RollingTitle.svelte';
+	import { tabs } from '$lib/tabs/registry';
+	import { tabState } from '$lib/tabs/state.svelte';
+	import { periodState } from '$lib/views/period-state.svelte';
+	import { periodLabel } from '$lib/views/period';
+	import { entryIntent } from '$lib/views/entries/intent.svelte';
+
+	const current = $derived(tabs.find((t) => t.id === tabState.get()) ?? tabs[0]);
+	const showPeriod = $derived(current.hasPeriodHeader && periodState.initialized);
+	const label = $derived(
+		periodState.initialized
+			? periodLabel(periodState.year, periodState.month, periodState.granularity)
+			: ''
+	);
+
+	function newEntry() {
+		const verb = current.newEntryVerb;
+		if (!verb) return;
+		entryIntent.set({ verb, sourceTab: current.id });
+		tabState.set('entries');
+	}
+</script>
+
+<header class="flex shrink-0 items-baseline justify-between gap-3 p-6 pb-0">
+	<div class="flex items-baseline gap-3">
+		<h3 class="text-xl font-semibold text-ink">
+			<RollingTitle value={current.title} />
+		</h3>
+		{#if showPeriod}
+			<PeriodNav
+				label={label}
+				onPrev={() => periodState.shift(-1)}
+				onNext={() => periodState.shift(1)}
+			/>
+		{/if}
+	</div>
+	<div class="flex items-baseline gap-3">
+		{#if current.newEntryVerb}
+			<button
+				type="button"
+				onclick={newEntry}
+				class="bg-surface-inverse px-3 py-1.5 text-xs font-medium uppercase tracking-[0.08em] text-ink-inverse transition-colors hover:bg-surface-inverse-hover"
+			>
+				+ New
+			</button>
+		{/if}
+		{#if showPeriod}
+			<GranularityPill
+				granularity={periodState.granularity}
+				onSelect={(g) => periodState.setGranularity(g)}
+			/>
+		{/if}
+	</div>
+</header>

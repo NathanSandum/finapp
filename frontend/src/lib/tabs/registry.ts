@@ -13,10 +13,57 @@ import { load as loadAccounts } from '$lib/views/accounts/loader';
 import type { Tab } from './types';
 
 export const tabs: Tab[] = [
-	{ id: 'overview', label: 'Overview', view: OverviewView, loader: loadOverview },
-	{ id: 'income', label: 'Income', view: IncomeView, loader: loadIncome },
-	{ id: 'cash-flow', label: 'Cash Flow', view: CashFlowView, loader: loadCashFlow },
-	{ id: 'balance-sheet', label: 'Balance Sheet', view: BalanceSheetView, loader: loadBalanceSheet },
-	{ id: 'accounts', label: 'Accounts', view: AccountsView, loader: loadAccounts },
-	{ id: 'entries', label: 'Entries', view: EntriesView, loader: loadEntries }
+	{
+		id: 'overview',
+		label: 'Overview',
+		title: 'Overview',
+		hasPeriodHeader: true,
+		newEntryVerb: 'spent',
+		view: OverviewView,
+		loader: loadOverview
+	},
+	{
+		id: 'income',
+		label: 'Income',
+		title: 'Income',
+		hasPeriodHeader: true,
+		newEntryVerb: 'spent',
+		view: IncomeView,
+		loader: loadIncome
+	},
+	{
+		id: 'cash-flow',
+		label: 'Cash Flow',
+		title: 'Cash Flow',
+		hasPeriodHeader: true,
+		newEntryVerb: 'contributed',
+		view: CashFlowView,
+		loader: loadCashFlow
+	},
+	{
+		id: 'balance-sheet',
+		label: 'Balance Sheet',
+		title: 'Balance Sheet',
+		hasPeriodHeader: true,
+		newEntryVerb: 'contributed',
+		view: BalanceSheetView,
+		loader: loadBalanceSheet
+	},
+	{
+		id: 'accounts',
+		label: 'Accounts',
+		title: 'Accounts',
+		hasPeriodHeader: false,
+		view: AccountsView,
+		loader: loadAccounts
+	},
+	{
+		id: 'entries',
+		label: 'Entries',
+		title: 'Entries',
+		hasPeriodHeader: true,
+		newEntryVerb: 'spent',
+		view: EntriesView,
+		loader: loadEntries
+	}
 ];

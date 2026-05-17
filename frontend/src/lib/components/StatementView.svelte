@@ -1,35 +1,19 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import type { Granularity } from '$lib/views/period';
 	import ModePill, { type Mode } from './ModePill.svelte';
-	import PeriodHeader from './PeriodHeader.svelte';
 
 	let {
-		title,
-		periodLabel,
-		granularity,
-		onPrev,
-		onNext,
-		onGranularity,
 		hero,
 		tiles,
 		summary,
 		detail,
-		trend,
-		actions
+		trend
 	}: {
-		title: string;
-		periodLabel: string;
-		granularity: Granularity;
-		onPrev: () => void;
-		onNext: () => void;
-		onGranularity: (g: Granularity) => void;
 		hero: Snippet;
 		tiles: Snippet;
 		summary: Snippet;
 		detail: Snippet;
 		trend: Snippet;
-		actions?: Snippet;
 	} = $props();
 
 	let mode = $state<Mode>('summary');
@@ -60,8 +44,6 @@
 </script>
 
 <div class="flex h-full flex-col gap-3 overflow-hidden">
-	<PeriodHeader {title} {periodLabel} {granularity} {onPrev} {onNext} {onGranularity} {actions} />
-
 	{@render hero()}
 	{@render tiles()}
 

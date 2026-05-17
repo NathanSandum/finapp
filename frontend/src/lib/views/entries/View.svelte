@@ -1,14 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import PeriodHeader from '$lib/components/PeriodHeader.svelte';
-	import {
-		latestActivityPeriod,
-		periodBounds,
-		periodLabel,
-		shiftPeriod,
-		snapToGranularity,
-		type Granularity
-	} from '$lib/views/period';
+	import { latestActivityPeriod, periodBounds } from '$lib/views/period';
+	import { periodState } from '$lib/views/period-state.svelte';
 	import { entryAmount, type EntriesData } from './loader';
 	import { fmt } from '$lib/format';
 	import Num from '$lib/components/Num.svelte';
@@ -20,9 +13,8 @@
 	let { data }: { data: EntriesData } = $props();
 
 	const initial = untrack(() => latestActivityPeriod(data.entries));
-	let selectedYear = $state(initial.year);
-	let selectedMonth = $state(initial.month);
-	let granularity = $state<Granularity>('month');
+	periodState.initIfNeeded(initial.year, initial.month);
+
 	let selectedId = $state<string | null>(null);
 	let creating = $state(false);
 	let formVerb = $state<VerbId>('spent');
@@ -49,20 +41,7 @@
 		returnToSourceTab();
 	}
 
-	function shift(direction: 1 | -1) {
-		const next = shiftPeriod(selectedYear, selectedMonth, granularity, direction);
-		selectedYear = next.year;
-		selectedMonth = next.month;
-	}
-
-	function setGranularity(next: Granularity) {
-		const snapped = snapToGranularity(selectedYear, selectedMonth, next);
-		selectedYear = snapped.year;
-		selectedMonth = snapped.month;
-		granularity = next;
-	}
-
-	const bounds = $derived(periodBounds(selectedYear, selectedMonth, granularity));
+	const bounds = $derived(periodBounds(periodState.year, periodState.month, periodState.granularity));
 	const filteredEntries = $derived(
 		data.entries.filter((e) => e.date >= bounds.start && e.date <= bounds.end)
 	);
@@ -77,29 +56,6 @@
 </script>
 
 <div class="flex h-full flex-col gap-4">
-	<PeriodHeader
-		title="Entries"
-		periodLabel={periodLabel(selectedYear, selectedMonth, granularity)}
-		{granularity}
-		onPrev={() => shift(-1)}
-		onNext={() => shift(1)}
-		onGranularity={setGranularity}
-	>
-		{#snippet actions()}
-			<button
-				type="button"
-				onclick={() => {
-					formVerb = 'spent';
-					creating = true;
-				}}
-				disabled={creating}
-				class="bg-surface-inverse px-3 py-1.5 text-xs font-medium uppercase tracking-[0.08em] text-ink-inverse transition-colors hover:bg-surface-inverse-hover disabled:opacity-50"
-			>
-				+ New
-			</button>
-		{/snippet}
-	</PeriodHeader>
-
 	<div class="grid min-h-0 flex-1 grid-cols-[320px_1fr] gap-0 overflow-hidden border border-border bg-surface-card">
 		<ul class="h-full divide-y divide-border-faint overflow-y-auto border-r border-ink-faint">
 			{#each filteredEntries as entry (entry.id)}
