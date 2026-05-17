@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tabs } from '$lib/tabs/registry';
-	import type { Tab } from '$lib/tabs/types';
+	import { tabState } from '$lib/tabs/state.svelte';
 	import { workspaceState } from '$lib/workspace/state.svelte';
 	import WorkspaceSwitcher from '$lib/workspace/WorkspaceSwitcher.svelte';
 	import { authState, initials } from '$lib/api/state.svelte';
@@ -10,13 +10,15 @@
 	import SidebarUserPill from './SidebarUserPill.svelte';
 	import SidebarDate from './SidebarDate.svelte';
 
-	let { current, onSelect }: { current: Tab; onSelect: (tab: Tab) => void } = $props();
-
 	let switcherOpen = $state(false);
 	let userMenuOpen = $state(false);
 
-	const activeName = $derived(workspaceState.active?.name ?? 'FinApp');
-	const initial = $derived(activeName.charAt(0).toUpperCase() || 'F');
+	const userBlank = $derived(authState.user === null);
+	const workspaceBlank = $derived(workspaceState.active === null);
+	const current = $derived(tabs.find((t) => t.id === tabState.get()) ?? tabs[0]);
+
+	const activeName = $derived(workspaceState.active?.name ?? '');
+	const initial = $derived(activeName.charAt(0).toUpperCase() || '');
 
 	const displayName = $derived(authState.user?.display_name ?? '');
 	const userInitials = $derived(displayName ? initials(displayName) : '?');
@@ -27,6 +29,8 @@
 		{initial}
 		name={activeName}
 		open={switcherOpen}
+		blank={workspaceBlank}
+		fillDelay={80}
 		onclick={() => (switcherOpen = !switcherOpen)}
 	/>
 	{#if switcherOpen}
@@ -35,8 +39,14 @@
 </div>
 <SidebarDate />
 <nav class="flex flex-col gap-0.5">
-	{#each tabs as tab (tab.id)}
-		<SidebarTabRow {tab} active={current.id === tab.id} onclick={() => onSelect(tab)} />
+	{#each tabs as tab, i (tab.id)}
+		<SidebarTabRow
+			{tab}
+			active={current.id === tab.id}
+			blank={userBlank}
+			fillDelay={160 + i * 50}
+			onclick={() => tabState.set(tab.id)}
+		/>
 	{/each}
 </nav>
 <div class="relative mt-auto">
@@ -44,6 +54,8 @@
 		{userInitials}
 		{displayName}
 		open={userMenuOpen}
+		blank={userBlank}
+		fillDelay={160 + tabs.length * 50}
 		onclick={() => (userMenuOpen = !userMenuOpen)}
 	/>
 	{#if userMenuOpen}

@@ -3,6 +3,7 @@
 	import { logout } from '$lib/api/auth';
 	import { authState } from '$lib/api/state.svelte';
 	import { cache } from '$lib/api/cache.svelte';
+	import { workspaceState } from '$lib/workspace/state.svelte';
 	import Popover from './Popover.svelte';
 
 	let { onClose }: { onClose: () => void } = $props();
@@ -11,6 +12,7 @@
 		onClose();
 		await logout();
 		authState.clear();
+		workspaceState.clear();
 		cache.invalidateAll();
 		goto('/signin');
 	}

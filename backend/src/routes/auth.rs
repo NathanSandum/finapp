@@ -38,7 +38,7 @@ pub async fn login(
 ) -> Result<JSend<Value>, AppError> {
     let user = match auth_session.authenticate(creds).await {
         Ok(Some(user)) => user,
-        Ok(None) => return Err(AppError::Unauthorized),
+        Ok(None) => return Err(AppError::InvalidCredentials),
         Err(axum_login::Error::Backend(err)) => return Err(err),
         Err(axum_login::Error::Session(err)) => {
             return Err(AppError::Internal(format!("session: {err}")))

@@ -1,6 +1,4 @@
 <script lang="ts">
-	import AppShell from '$lib/components/AppShell.svelte';
-	import Sidebar from '$lib/components/Sidebar.svelte';
 	import TabPanel from '$lib/components/TabPanel.svelte';
 	import { tabs } from '$lib/tabs/registry';
 	import { tabState } from '$lib/tabs/state.svelte';
@@ -37,20 +35,14 @@
 	});
 </script>
 
-{#if workspaceState.active}
-	<AppShell>
-		{#snippet sidebar()}
-			<Sidebar {current} onSelect={(tab) => tabState.set(tab.id)} />
-		{/snippet}
-
-		{#snippet main()}
-			{#each tabs as tab (tab.id)}
-				<TabPanel {tab} active={current.id === tab.id} />
-			{/each}
-		{/snippet}
-	</AppShell>
-{:else if bootError}
-	<p class="p-6 text-sm text-negative">{bootError}</p>
-{:else}
-	<p class="p-6 text-sm text-ink-muted">Loading…</p>
-{/if}
+<main class="overflow-y-auto">
+	{#if workspaceState.active}
+		{#each tabs as tab (tab.id)}
+			<TabPanel {tab} active={current.id === tab.id} />
+		{/each}
+	{:else if bootError}
+		<p class="p-6 text-sm text-negative">{bootError}</p>
+	{:else}
+		<p class="p-6 text-sm text-ink-muted">Loading…</p>
+	{/if}
+</main>

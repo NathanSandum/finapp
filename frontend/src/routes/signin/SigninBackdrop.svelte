@@ -1,8 +1,34 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { fade } from 'svelte/transition';
+	import { cubicOut } from 'svelte/easing';
 	import { buildLine } from '$lib/views/income/lib';
 	import { signinTrail } from '$lib/data/signinTrail';
+	import { prefersReducedMotion } from '$lib/utils/motion';
 
 	const sparkline = buildLine(signinTrail, 800, 360);
+
+	let pathEl = $state<SVGPolylineElement | null>(null);
+	let drawn = $state(false);
+
+	onMount(() => {
+		if (!pathEl) return;
+		if (prefersReducedMotion()) {
+			drawn = true;
+			return;
+		}
+		const length = pathEl.getTotalLength();
+		pathEl.style.strokeDasharray = `${length}`;
+		pathEl.style.strokeDashoffset = `${length}`;
+		pathEl.getBoundingClientRect();
+		pathEl.style.transition = 'stroke-dashoffset 1400ms cubic-bezier(0.22, 1, 0.36, 1)';
+		pathEl.style.strokeDashoffset = '0';
+		const onEnd = () => {
+			drawn = true;
+			pathEl?.removeEventListener('transitionend', onEnd);
+		};
+		pathEl.addEventListener('transitionend', onEnd);
+	});
 </script>
 
 <svg
@@ -17,8 +43,16 @@
 			<stop offset="100%" style:stop-color="var(--color-positive-line)" stop-opacity="0" />
 		</linearGradient>
 	</defs>
-	<polygon fill="url(#signinFill)" points={sparkline.area} transform="translate(0,40)" />
+	{#if drawn}
+		<polygon
+			fill="url(#signinFill)"
+			points={sparkline.area}
+			transform="translate(0,40)"
+			in:fade={{ duration: 600, easing: cubicOut }}
+		/>
+	{/if}
 	<polyline
+		bind:this={pathEl}
 		fill="none"
 		class="stroke-positive-line"
 		stroke-width="1.25"
