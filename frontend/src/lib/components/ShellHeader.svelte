@@ -8,23 +8,14 @@
 	import { periodLabel } from '$lib/views/period';
 	import { entryIntent } from '$lib/views/entries/intent.svelte';
 
-	const current = $derived(tabs.find((t) => t.id === tabState.get()) ?? tabs[0]);
+	const currentIndex = $derived(Math.max(0, tabs.findIndex((t) => t.id === tabState.get())));
+	const current = $derived(tabs[currentIndex] ?? tabs[0]);
 	const showPeriod = $derived(current.hasPeriodHeader && periodState.initialized);
 	const label = $derived(
 		periodState.initialized
 			? periodLabel(periodState.year, periodState.month, periodState.granularity)
 			: ''
 	);
-
-	let prevIndex = tabs.findIndex((t) => t.id === current.id);
-	let direction = $state<1 | -1>(1);
-
-	$effect(() => {
-		const idx = tabs.findIndex((t) => t.id === current.id);
-		if (idx === prevIndex) return;
-		direction = idx > prevIndex ? 1 : -1;
-		prevIndex = idx;
-	});
 
 	function newEntry() {
 		const verb = current.newEntryVerb;
@@ -37,7 +28,7 @@
 <header class="flex shrink-0 items-baseline justify-between gap-3 p-6 pb-0">
 	<div class="flex items-baseline gap-3">
 		<h3 class="text-xl font-semibold text-ink">
-			<RollingTitle value={current.title} {direction} />
+			<RollingTitle value={current.title} position={currentIndex} />
 		</h3>
 		{#if showPeriod}
 			<PeriodNav

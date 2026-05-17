@@ -3,10 +3,10 @@
 
 	let {
 		value,
-		direction = 1
+		position = 0
 	}: {
 		value: string;
-		direction?: 1 | -1;
+		position?: number;
 	} = $props();
 
 	type Step = { key: number; before: string; after: string; direction: 1 | -1 };
@@ -14,14 +14,21 @@
 	let step = $state<Step>({ key: 0, before: '', after: value, direction: 1 });
 	let rolled = $state(true);
 	let prevValue = value;
+	let prevPosition = position;
 	let nextKey = 1;
 
 	$effect(() => {
 		const curr = value;
-		if (curr === prevValue) return;
+		const pos = position;
+		if (curr === prevValue) {
+			prevPosition = pos;
+			return;
+		}
 		const reduce = prefersReducedMotion();
-		step = { key: nextKey++, before: prevValue, after: curr, direction };
+		const dir: 1 | -1 = pos >= prevPosition ? 1 : -1;
+		step = { key: nextKey++, before: prevValue, after: curr, direction: dir };
 		prevValue = curr;
+		prevPosition = pos;
 		if (reduce) {
 			rolled = true;
 		} else {
