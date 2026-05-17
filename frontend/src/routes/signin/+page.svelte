@@ -6,13 +6,10 @@
 	import { buildLine } from '$lib/views/income/lib';
 	import { signinTrail } from '$lib/data/signinTrail';
 	import { tabs } from '$lib/tabs/registry';
-	import { todayLabel } from '$lib/views/today';
 	import TabIcon from '$lib/components/TabIcon.svelte';
 	import type { JSend } from '$lib/tabs/types';
 	import FailView from '$lib/components/FailView.svelte';
 	import ErrorView from '$lib/components/ErrorView.svelte';
-
-	const dateLabel = todayLabel();
 
 	let email = $state('');
 	let password = $state('');
@@ -53,35 +50,22 @@
 </script>
 
 <div class="grid h-screen w-screen grid-cols-[240px_1fr] bg-surface-card">
-	<aside class="flex flex-col gap-0 bg-surface-inverse p-3 text-ink-inverse-body opacity-40 select-none">
-		<div class="flex w-full items-center justify-between rounded px-2 py-1.5">
-			<span class="flex items-center gap-2">
-				<span class="flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-bold text-ink">
-					F
-				</span>
-				<span class="text-sm font-medium text-ink-inverse">FinApp</span>
+	<aside class="flex flex-col bg-surface-inverse p-3 text-ink-inverse-body select-none">
+		<div class="px-2 py-1.5">
+			<span class="flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-bold text-ink">
+				F
 			</span>
-			<svg class="h-4 w-4 text-ink-muted" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-				<path fill-rule="evenodd" d="M5 8l5 5 5-5H5z" clip-rule="evenodd" />
-			</svg>
 		</div>
-		<p class="mb-4 px-2 pt-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
-			{dateLabel}
-		</p>
-		<nav class="flex flex-col gap-0.5">
+		<nav class="mt-4 flex flex-col gap-0.5">
 			{#each tabs as tab (tab.id)}
-				<div class="relative flex items-center gap-2.5 rounded px-3 py-1.5 text-left text-sm text-ink-faint">
+				<div class="flex items-center px-3 py-1.5 text-ink-faint">
 					<TabIcon id={tab.id} class="h-4 w-4 shrink-0" />
-					{tab.label}
 				</div>
 			{/each}
 		</nav>
-		<div class="mt-auto flex items-center gap-2 rounded p-2">
+		<div class="mt-auto p-2">
 			<div class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-avatar-from to-avatar-to text-xs font-semibold text-ink-inverse">
 				?
-			</div>
-			<div class="flex flex-1 flex-col leading-tight">
-				<span class="text-sm text-ink-inverse-body">&nbsp;</span>
 			</div>
 		</div>
 	</aside>
