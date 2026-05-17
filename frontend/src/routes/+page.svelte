@@ -6,6 +6,7 @@
 	import { tabState } from '$lib/tabs/state.svelte';
 	import { workspaceState } from '$lib/workspace/state.svelte';
 	import { listWorkspaces } from '$lib/workspace/api';
+	import { ensureSignedIn } from '$lib/api/auth';
 
 	const current = $derived(tabs.find((t) => t.id === tabState.get()) ?? tabs[0]);
 
@@ -14,6 +15,11 @@
 	$effect(() => {
 		if (workspaceState.active) return;
 		(async () => {
+			const user = await ensureSignedIn();
+			if (!user) {
+				bootError = 'Sign-in required';
+				return;
+			}
 			const result = await listWorkspaces();
 			if (result.status !== 'success') {
 				bootError =
