@@ -1,48 +1,87 @@
 <script lang="ts">
 	import { prefersReducedMotion } from '$lib/utils/motion';
-	import Reel from './RollingTitleReel.svelte';
 
-	let { value }: { value: string } = $props();
+	let {
+		value,
+		direction = 1
+	}: {
+		value: string;
+		direction?: 1 | -1;
+	} = $props();
 
-	type Slot = { key: number; before: string; after: string; animate: boolean };
+	type Step = { key: number; before: string; after: string; direction: 1 | -1 };
 
-	let slots = $state<Slot[]>([]);
-	let prevValue = '';
-	let nextKey = 0;
+	let step = $state<Step>({ key: 0, before: '', after: value, direction: 1 });
+	let rolled = $state(true);
+	let prevValue = value;
+	let nextKey = 1;
 
 	$effect(() => {
 		const curr = value;
-		if (curr === prevValue && slots.length > 0) return;
+		if (curr === prevValue) return;
 		const reduce = prefersReducedMotion();
-		const len = Math.max(prevValue.length, curr.length);
-		const next: Slot[] = [];
-		for (let i = 0; i < len; i++) {
-			const a = prevValue[i] ?? '';
-			const b = curr[i] ?? '';
-			if (a === b) {
-				next.push({ key: slots[i]?.key ?? nextKey++, before: a, after: b, animate: false });
-			} else {
-				next.push({ key: nextKey++, before: a, after: b, animate: !reduce });
-			}
-		}
-		slots = next;
+		step = { key: nextKey++, before: prevValue, after: curr, direction };
 		prevValue = curr;
+		if (reduce) {
+			rolled = true;
+		} else {
+			rolled = false;
+			requestAnimationFrame(() => requestAnimationFrame(() => (rolled = true)));
+		}
 	});
 </script>
 
-<span class="rolling-title inline-flex" aria-label={value}>
-	{#each slots as slot, i (slot.key)}
-		<Reel
-			before={slot.before}
-			after={slot.after}
-			delay={slot.animate ? i * 28 : 0}
-			animate={slot.animate}
-		/>
-	{/each}
+<span class="rolling-title" aria-label={value}>
+	{#key step.key}
+		<span class="reel" class:rolled class:down={step.direction === -1}>
+			<span class="track">
+				{#if step.direction === -1}
+					<span class="cell">{step.after || '\u00A0'}</span>
+					<span class="cell">{step.before || '\u00A0'}</span>
+				{:else}
+					<span class="cell">{step.before || '\u00A0'}</span>
+					<span class="cell">{step.after || '\u00A0'}</span>
+				{/if}
+			</span>
+		</span>
+	{/key}
 </span>
 
 <style>
 	.rolling-title {
+		display: inline-block;
 		line-height: 1.1;
+	}
+	.reel {
+		display: inline-block;
+		overflow: hidden;
+		line-height: 1.1;
+		height: 1.1em;
+		vertical-align: top;
+	}
+	.track {
+		display: flex;
+		flex-direction: column;
+		transition: transform 420ms cubic-bezier(0.7, 0, 0.25, 1);
+	}
+	.reel.rolled .track {
+		transform: translateY(-50%);
+	}
+	.reel.down .track {
+		transform: translateY(-50%);
+	}
+	.reel.down.rolled .track {
+		transform: translateY(0);
+	}
+	.cell {
+		display: block;
+		line-height: 1.1;
+		height: 1.1em;
+		white-space: nowrap;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.track {
+			transition: transform 0ms;
+		}
 	}
 </style>
