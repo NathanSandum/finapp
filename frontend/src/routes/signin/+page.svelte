@@ -7,11 +7,14 @@
 	import { signinTrail } from '$lib/data/signinTrail';
 	import { tabs } from '$lib/tabs/registry';
 	import { todayLabel } from '$lib/views/today';
-
-	const dateLabel = todayLabel();
+	import SidebarWorkspacePill from '$lib/components/SidebarWorkspacePill.svelte';
+	import SidebarTabRow from '$lib/components/SidebarTabRow.svelte';
+	import SidebarUserPill from '$lib/components/SidebarUserPill.svelte';
 	import type { JSend } from '$lib/tabs/types';
 	import FailView from '$lib/components/FailView.svelte';
 	import ErrorView from '$lib/components/ErrorView.svelte';
+
+	const dateLabel = todayLabel();
 
 	let email = $state(import.meta.env.DEV ? 'dev' : '');
 	let password = $state(import.meta.env.DEV ? 'dev' : '');
@@ -53,31 +56,17 @@
 
 <div class="grid h-screen w-screen grid-cols-[240px_1fr] bg-surface-card">
 	<aside class="flex flex-col bg-surface-inverse p-3 text-ink-inverse-body select-none">
-		<div class="flex w-full items-center justify-between rounded px-2 py-1.5">
-			<span class="flex items-center gap-2">
-				<span class="invisible h-6 w-6"></span>
-				<span class="invisible text-sm font-medium">FinApp</span>
-			</span>
-			<svg class="invisible h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-				<path fill-rule="evenodd" d="M5 8l5 5 5-5H5z" clip-rule="evenodd" />
-			</svg>
-		</div>
+		<SidebarWorkspacePill blank />
 		<p class="mb-4 px-2 pt-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
 			{dateLabel}
 		</p>
 		<nav class="flex flex-col gap-0.5">
 			{#each tabs as tab (tab.id)}
-				<div class="flex items-center gap-2.5 rounded px-3 py-1.5 text-sm text-ink-faint">
-					<span class="invisible h-4 w-4 shrink-0"></span>
-					<span class="invisible">{tab.label}</span>
-				</div>
+				<SidebarTabRow {tab} blank />
 			{/each}
 		</nav>
-		<div class="mt-auto flex items-center gap-2 rounded p-2">
-			<div class="invisible h-8 w-8"></div>
-			<div class="invisible flex flex-1 flex-col leading-tight">
-				<span class="text-sm">&nbsp;</span>
-			</div>
+		<div class="mt-auto">
+			<SidebarUserPill blank />
 		</div>
 	</aside>
 	<main class="relative overflow-hidden bg-surface">
