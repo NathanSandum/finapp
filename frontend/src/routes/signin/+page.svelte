@@ -56,9 +56,7 @@
 	<aside class="flex flex-col bg-surface-inverse p-3 text-ink-inverse-body select-none">
 		<div class="flex w-full items-center justify-between rounded px-2 py-1.5">
 			<span class="flex items-center gap-2">
-				<span class="flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-bold text-ink">
-					F
-				</span>
+				<span class="invisible h-6 w-6"></span>
 				<span class="invisible text-sm font-medium">FinApp</span>
 			</span>
 			<svg class="invisible h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -77,9 +75,7 @@
 			{/each}
 		</nav>
 		<div class="mt-auto flex items-center gap-2 rounded p-2">
-			<div class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-avatar-from to-avatar-to text-xs font-semibold text-ink-inverse">
-				?
-			</div>
+			<div class="invisible h-8 w-8"></div>
 			<div class="invisible flex flex-1 flex-col leading-tight">
 				<span class="text-sm">&nbsp;</span>
 			</div>
