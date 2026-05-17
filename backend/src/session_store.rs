@@ -1,8 +1,8 @@
 use async_trait::async_trait;
+use axum_login::tower_sessions::session::{Id, Record};
+use axum_login::tower_sessions::session_store::{self, SessionStore};
 use diesel::prelude::*;
 use time::OffsetDateTime;
-use tower_sessions::session::{Id, Record};
-use tower_sessions::session_store::{self, SessionStore};
 
 use crate::schema::auth_sessions;
 use crate::DbPool;
@@ -109,9 +109,9 @@ mod tests {
     use super::*;
     use crate::config::DatabaseLocation;
     use crate::database::run_migrations;
+    use axum_login::tower_sessions::session::Record;
     use std::collections::HashMap;
     use time::Duration;
-    use tower_sessions::session::Record;
 
     fn make_pool() -> DbPool {
         let pool = DatabaseLocation::Memory.connect();

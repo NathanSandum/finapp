@@ -1,6 +1,5 @@
 use chrono::{NaiveDate, NaiveDateTime};
 use diesel::prelude::*;
-use sha2::{Digest, Sha256};
 
 use crate::config::Config;
 use crate::domain::account::{create_default_tree, Account, AccountRef};
@@ -8,7 +7,7 @@ use crate::domain::entry::{NewEntry, PostingInput};
 use crate::domain::user::UserRef;
 use crate::domain::workspace::{Role, WorkspaceRef};
 use crate::error::AppError;
-use crate::schema::{membership_events, sessions, users, workspace_members, workspaces};
+use crate::schema::{membership_events, users, workspace_members, workspaces};
 use crate::DbPool;
 
 pub const DEV_USER_ID: &str = "00000000-0000-0000-0000-000000000001";
@@ -16,14 +15,7 @@ pub const DEV_WORKSPACE_ID: &str = "00000000-0000-0000-0000-000000000002";
 pub const DEV_USER_EMAIL: &str = "dev@finapp.local";
 pub const DEV_USER_DISPLAY_NAME: &str = "Dev User";
 
-const SESSION_DURATION_HOURS: i64 = 24 * 365;
-
-pub fn populate(db: &DbPool, config: &Config) -> Result<(), AppError> {
-    let dev_token = config
-        .dev_token
-        .as_deref()
-        .ok_or_else(|| AppError::Internal("seed requires dev_token".into()))?;
-
+pub fn populate(db: &DbPool, _config: &Config) -> Result<(), AppError> {
     let mut conn = db
         .get()
         .map_err(|err| AppError::Internal(format!("db: {err}")))?;
@@ -39,7 +31,6 @@ pub fn populate(db: &DbPool, config: &Config) -> Result<(), AppError> {
     insert_dev_user(&user_ref, now, &mut conn)?;
     insert_dev_workspace(&workspace_ref, &user_ref, now, &mut conn)?;
     create_default_tree(&workspace_ref, &mut conn)?;
-    insert_dev_session(&user_ref, dev_token, now, &mut conn)?;
     insert_fixture_entries(&workspace_ref, &mut conn)?;
 
     Ok(())
@@ -123,34 +114,6 @@ fn insert_dev_workspace(
         .map_err(|err| AppError::Internal(format!("dev membership event insert failed: {err}")))?;
 
     Ok(())
-}
-
-fn insert_dev_session(
-    user_ref: &UserRef,
-    dev_token: &str,
-    now: NaiveDateTime,
-    conn: &mut SqliteConnection,
-) -> Result<(), AppError> {
-    let token_hash = hash_token(dev_token);
-    let expires_at = now + chrono::Duration::hours(SESSION_DURATION_HOURS);
-
-    diesel::insert_into(sessions::table)
-        .values((
-            sessions::id.eq(uuid::Uuid::new_v4().to_string()),
-            sessions::user_id.eq(user_ref.to_string()),
-            sessions::token_hash.eq(token_hash),
-            sessions::expires_at.eq(expires_at),
-            sessions::created_at.eq(now),
-        ))
-        .execute(conn)
-        .map_err(|err| AppError::Internal(format!("dev session insert failed: {err}")))?;
-    Ok(())
-}
-
-fn hash_token(token: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    hex::encode(hasher.finalize())
 }
 
 fn account_by_name(
@@ -399,7 +362,6 @@ fn insert_fixture_entries(
 mod tests {
     use super::*;
     use crate::config::{DatabaseLocation, Mode};
-    use crate::domain::session::Session;
     use diesel_migrations::MigrationHarness;
 
     fn dev_config() -> Config {
@@ -407,7 +369,6 @@ mod tests {
             mode: Mode::Dev,
             database: DatabaseLocation::Memory,
             port: 3000,
-            dev_token: Some("dev-token-secret".into()),
         }
     }
 
@@ -467,19 +428,6 @@ mod tests {
             .get_result(&mut conn)
             .unwrap();
         assert!(count >= 5, "default tree should have at least 5 accounts");
-    }
-
-    #[test]
-    fn dev_token_validates_to_dev_user_session() {
-        let config = dev_config();
-        let db = populate_via_db(&config);
-        let mut conn = db.get().unwrap();
-
-        let user = Session::validate(config.dev_token.as_deref().unwrap(), &mut conn)
-            .expect("session validates")
-            .expect("dev token resolves to a user");
-
-        assert_eq!(user.id.to_string(), DEV_USER_ID);
     }
 
     #[test]

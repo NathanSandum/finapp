@@ -17,11 +17,17 @@ use axum::{
     routing::{delete, get, post, put},
     Router,
 };
+use axum_login::tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
+use axum_login::AuthManagerLayerBuilder;
 use diesel::r2d2::{self, ConnectionManager};
 use diesel::SqliteConnection;
 use serde_json::{json, Value};
+use time::Duration;
 
+use crate::auth_backend::AuthBackend;
+use crate::config::Mode;
 use crate::jsend::JSend;
+use crate::session_store::DieselSessionStore;
 
 pub type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 
@@ -29,12 +35,21 @@ async fn health() -> JSend<Value> {
     JSend::success(json!({ "service": "finapp" }))
 }
 
-pub fn build_router(db: DbPool) -> Router {
-    Router::new()
+pub fn build_router(db: DbPool, mode: Mode) -> Router {
+    let session_store = DieselSessionStore::new(db.clone());
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_secure(mode == Mode::Prod)
+        .with_same_site(SameSite::Strict)
+        .with_expiry(Expiry::OnInactivity(Duration::weeks(1)));
+    let auth_backend = AuthBackend::new(db.clone());
+    let auth_layer = AuthManagerLayerBuilder::new(auth_backend, session_layer).build();
+
+    let mut router = Router::new()
         .route("/health", get(health))
         .route("/auth/register", post(routes::auth::register))
         .route("/auth/login", post(routes::auth::login))
         .route("/auth/logout", post(routes::auth::logout))
+        .route("/auth/me", get(routes::auth::me))
         .route("/workspaces", post(routes::workspaces::create))
         .route("/workspaces", get(routes::workspaces::list))
         .route(
@@ -111,6 +126,11 @@ pub fn build_router(db: DbPool) -> Router {
         .route(
             "/workspaces/{workspace}/baselines/{baseline}/variance",
             get(routes::baselines::variance),
-        )
-        .layer(Extension(db))
+        );
+
+    if mode == Mode::Dev {
+        router = router.route("/auth/dev-login", post(routes::auth::dev_login));
+    }
+
+    router.layer(auth_layer).layer(Extension(db))
 }

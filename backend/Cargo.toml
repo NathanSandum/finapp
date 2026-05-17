@@ -22,7 +22,6 @@ diesel-derive-newtype = "2.1.2"
 clap = { version = "4", features = ["derive"] }
 figment = { version = "0.10", features = ["yaml", "env"] }
 axum-login = "0.18"
-tower-sessions = "0.15"
 async-trait = "0.1"
 time = "0.3"
 

@@ -1,39 +1,25 @@
-use axum::{
-    extract::FromRequestParts,
-    http::{header::AUTHORIZATION, request::Parts},
-};
+use axum::{extract::FromRequestParts, http::request::Parts};
 
-use crate::domain::session::Session;
+use crate::auth_backend::AuthBackend;
 use crate::domain::user::{User, UserRef};
 use crate::domain::workspace::{Role, Workspace, WorkspaceRef};
 use crate::error::AppError;
 use crate::DbPool;
 
+type AuthSession = axum_login::AuthSession<AuthBackend>;
+
+/// Extracts the authenticated user (without workspace context).
 pub struct AuthUser(pub User);
 
 impl<S: Send + Sync> FromRequestParts<S> for AuthUser {
     type Rejection = AppError;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        let token = parts
-            .headers
-            .get(AUTHORIZATION)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.strip_prefix("Bearer "))
-            .ok_or(AppError::Unauthorized)?;
-
-        let db = parts
-            .extensions
-            .get::<DbPool>()
-            .ok_or_else(|| AppError::Internal("missing db".into()))?;
-
-        let mut conn = db
-            .get()
-            .map_err(|err| AppError::Internal(format!("db: {err}")))?;
-
-        Session::validate(token, &mut conn)?
-            .map(AuthUser)
-            .ok_or(AppError::Unauthorized)
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let auth_session = AuthSession::from_request_parts(parts, state)
+            .await
+            .map_err(|_| AppError::Internal("auth layer missing".into()))?;
+        let user = auth_session.user.ok_or(AppError::Unauthorized)?;
+        Ok(AuthUser(user))
     }
 }
 
@@ -75,7 +61,10 @@ impl<S: Send + Sync> FromRequestParts<S> for WorkspaceMember {
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let AuthUser(user) = AuthUser::from_request_parts(parts, state).await?;
+        let auth_session = AuthSession::from_request_parts(parts, state)
+            .await
+            .map_err(|_| AppError::Internal("auth layer missing".into()))?;
+        let user = auth_session.user.ok_or(AppError::Unauthorized)?;
         let workspace_id = extract_workspace_id_from_uri(parts)?;
 
         let db = parts
