@@ -13,8 +13,8 @@
 	import FailView from '$lib/components/FailView.svelte';
 	import ErrorView from '$lib/components/ErrorView.svelte';
 
-	let email = $state('');
-	let password = $state('');
+	let email = $state(import.meta.env.DEV ? 'dev' : '');
+	let password = $state(import.meta.env.DEV ? 'dev' : '');
 	let result = $state<JSend<UserPayload> | null>(null);
 	let submitting = $state(false);
 
