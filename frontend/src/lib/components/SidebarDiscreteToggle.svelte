@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { discreteState } from '$lib/ui/discrete.svelte';
+	import { getDiscrete, setDiscrete } from '$lib/ui/discrete.svelte';
 
 	let {
 		blank = false,
@@ -9,12 +9,12 @@
 		fillDelay?: number;
 	} = $props();
 
-	const on = $derived(discreteState.on);
+	const on = $derived(getDiscrete());
 </script>
 
 <button
 	type="button"
-	onclick={blank ? undefined : () => discreteState.toggle()}
+	onclick={blank ? undefined : () => setDiscrete(!getDiscrete())}
 	tabindex={blank ? -1 : 0}
 	aria-hidden={blank ? 'true' : undefined}
 	aria-pressed={blank ? undefined : on}

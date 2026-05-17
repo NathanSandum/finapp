@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { signIn } from '$lib/api/auth';
 	import { authState } from '$lib/api/state.svelte';
-	import { discreteState } from '$lib/ui/discrete.svelte';
+	import { getDiscrete, setDiscrete } from '$lib/ui/discrete.svelte';
 	import { cache } from '$lib/api/cache.svelte';
 	import { tabState } from '$lib/tabs/state.svelte';
 	import { overviewEntrance } from '$lib/views/overview/entrance';
@@ -18,7 +18,6 @@
 
 	let email = $state(import.meta.env.DEV ? 'dev' : '');
 	let password = $state(import.meta.env.DEV ? 'dev' : '');
-	let discrete = $state(discreteState.on);
 	let result = $state<JSend<unknown> | null>(null);
 	let submitting = $state(false);
 	let entered = $state(false);
@@ -59,7 +58,6 @@
 			submitting = false;
 			return;
 		}
-		discreteState.set(discrete);
 		cache.invalidateAll();
 		authState.set(signInResult.data.user);
 
@@ -132,7 +130,8 @@
 	<label class="flex items-center gap-2 text-xs text-ink-muted">
 		<input
 			type="checkbox"
-			bind:checked={discrete}
+			checked={getDiscrete()}
+			onchange={(e) => setDiscrete((e.currentTarget as HTMLInputElement).checked)}
 			class="h-3.5 w-3.5 accent-brand"
 		/>
 		<span>Discrete mode <span class="text-ink-faint">(hide balances and totals)</span></span>
