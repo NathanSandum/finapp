@@ -4,6 +4,7 @@
 	import { authState } from '$lib/api/state.svelte';
 	import { cache } from '$lib/api/cache.svelte';
 	import { buildLine } from '$lib/views/income/lib';
+	import { signinTrail } from '$lib/data/signinTrail';
 	import type { JSend } from '$lib/tabs/types';
 	import FailView from '$lib/components/FailView.svelte';
 	import ErrorView from '$lib/components/ErrorView.svelte';
@@ -13,11 +14,7 @@
 	let result = $state<JSend<UserPayload> | null>(null);
 	let submitting = $state(false);
 
-	const trail = [
-		18, 22, 19, 28, 26, 34, 31, 42, 48, 45, 55, 52, 61, 68, 65, 74, 82, 79, 90, 96, 92, 105, 112,
-		118
-	];
-	const sparkline = buildLine(trail, 800, 360);
+	const sparkline = buildLine(signinTrail, 800, 360);
 
 	async function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
