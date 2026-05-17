@@ -1,6 +1,7 @@
 <script lang="ts">
 	import RankedRows, { type RankedRow } from '$lib/components/RankedRows.svelte';
-	import { fmt } from '$lib/views/income/lib';
+	import { fmt } from '$lib/format';
+	import Num from '$lib/components/Num.svelte';
 	import type { CashFlowSection } from '../compute';
 
 	let {
@@ -69,7 +70,7 @@
 					<span class="text-[9px] font-semibold uppercase text-ink-muted">
 						{section.total >= 0 ? verbPositive : verbNegative}
 					</span>
-					{fmt(Math.abs(section.total))}
+					<Num text={fmt(Math.abs(section.total))} />
 				</p>
 			</div>
 			{#if section.lines.length === 0}

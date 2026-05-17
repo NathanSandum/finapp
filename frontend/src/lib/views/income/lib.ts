@@ -16,30 +16,6 @@ export type LinePoints = {
 	area: string;
 };
 
-export function fmt(cents: number): string {
-	const sign = cents < 0 ? '-' : '';
-	const abs = Math.abs(cents);
-	const dollars = Math.floor(abs / 100);
-	const c = (abs % 100).toString().padStart(2, '0');
-	return `${sign}$${dollars.toLocaleString()}.${c}`;
-}
-
-export function pct(current: number, prior: number): string {
-	if (prior === 0) return current === 0 ? '0%' : '—';
-	const change = ((current - prior) / Math.abs(prior)) * 100;
-	const sign = change > 0 ? '+' : '';
-	return `${sign}${change.toFixed(1)}%`;
-}
-
-export function delta(current: number, prior: number): string {
-	const diff = current - prior;
-	const sign = diff > 0 ? '+' : diff < 0 ? '-' : '';
-	const abs = Math.abs(diff);
-	const dollars = Math.floor(abs / 100);
-	const c = (abs % 100).toString().padStart(2, '0');
-	return `${sign}$${dollars.toLocaleString()}.${c}`;
-}
-
 export function totalRevenue(data: IncomeData): number {
 	return data.revenue.reduce((sum, line) => sum + line.amount, 0);
 }

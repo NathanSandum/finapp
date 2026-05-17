@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { buildLine, fmt, pct } from '$lib/views/income/lib';
+	import { buildLine } from '$lib/views/income/lib';
+	import { fmt, pct, shortFmt } from '$lib/format';
+	import Num from './Num.svelte';
 
 	let {
 		label,
@@ -20,14 +22,6 @@
 	const sparkline = $derived(buildLine(trail, 560, 80));
 	const min = $derived(Math.min(...trail));
 	const max = $derived(Math.max(...trail));
-
-	function shortFmt(cents: number): string {
-		const abs = Math.abs(cents);
-		const sign = cents < 0 ? '-' : '';
-		if (abs >= 1_000_000_00) return `${sign}$${(abs / 1_000_000_00).toFixed(1)}M`;
-		if (abs >= 1_000_00) return `${sign}$${Math.round(abs / 1_000_00)}k`;
-		return `${sign}$${Math.round(abs / 100)}`;
-	}
 </script>
 
 <section class="relative shrink-0 overflow-hidden border border-border bg-surface-card">
@@ -36,7 +30,7 @@
 		<p
 			class="mt-0.5 flex items-baseline gap-2 font-mono text-3xl font-semibold tabular-nums text-ink"
 		>
-			{fmt(value)}
+			<Num text={fmt(value)} />
 			<span class="text-[13px] font-semibold text-positive">{pct(value, prior)}</span>
 		</p>
 	</div>
@@ -69,8 +63,8 @@
 	<div
 		class="pointer-events-none absolute right-2 top-4 flex h-[80px] flex-col justify-between font-mono text-[9px] tabular-nums text-ink-faint"
 	>
-		<span>{shortFmt(max)}</span>
-		<span>{shortFmt(min)}</span>
+		<span><Num text={shortFmt(max)} /></span>
+		<span><Num text={shortFmt(min)} /></span>
 	</div>
 	<div
 		class="grid px-5 pb-2 font-mono text-[9px] tabular-nums text-ink-faint"

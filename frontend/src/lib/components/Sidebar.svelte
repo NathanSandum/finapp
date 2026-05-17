@@ -9,6 +9,7 @@
 	import SidebarTabRow from './SidebarTabRow.svelte';
 	import SidebarUserPill from './SidebarUserPill.svelte';
 	import SidebarDate from './SidebarDate.svelte';
+	import SidebarDiscreteToggle from './SidebarDiscreteToggle.svelte';
 
 	let switcherOpen = $state(false);
 	let userMenuOpen = $state(false);
@@ -49,7 +50,10 @@
 		/>
 	{/each}
 </nav>
-<div class="relative mt-auto">
+<div class="mt-auto">
+	<SidebarDiscreteToggle blank={userBlank} fillDelay={160 + tabs.length * 50} />
+</div>
+<div class="relative">
 	<SidebarUserPill
 		{userInitials}
 		{displayName}

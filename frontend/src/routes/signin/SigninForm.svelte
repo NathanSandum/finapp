@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { signIn, type UserPayload } from '$lib/api/auth';
 	import { authState } from '$lib/api/state.svelte';
+	import { discreteState } from '$lib/ui/discrete.svelte';
 	import { cache } from '$lib/api/cache.svelte';
 	import type { JSend } from '$lib/tabs/types';
 	import FailView from '$lib/components/FailView.svelte';
@@ -11,6 +12,7 @@
 
 	let email = $state(import.meta.env.DEV ? 'dev' : '');
 	let password = $state(import.meta.env.DEV ? 'dev' : '');
+	let discrete = $state(discreteState.on);
 	let result = $state<JSend<UserPayload> | null>(null);
 	let submitting = $state(false);
 	let entered = $state(false);
@@ -47,6 +49,7 @@
 		result = await signIn(email, password);
 		submitting = false;
 		if (result.status === 'success') {
+			discreteState.set(discrete);
 			cache.invalidateAll();
 			authState.set(result.data.user);
 			goto('/');
@@ -84,6 +87,15 @@
 			autocomplete="current-password"
 			class="border border-border bg-surface px-2 py-1.5 font-mono text-sm text-ink focus:border-brand focus:outline-none"
 		/>
+	</label>
+
+	<label class="flex items-center gap-2 text-xs text-ink-muted">
+		<input
+			type="checkbox"
+			bind:checked={discrete}
+			class="h-3.5 w-3.5 accent-brand"
+		/>
+		<span>Discrete mode <span class="text-ink-faint">(hide balances and totals)</span></span>
 	</label>
 
 	{#if result !== null && result.status !== 'success'}

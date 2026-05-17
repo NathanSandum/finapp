@@ -1,6 +1,7 @@
 <script lang="ts">
 	import CompositionFlow from '$lib/components/CompositionFlow.svelte';
-	import { fmt } from '$lib/views/income/lib';
+	import { fmt } from '$lib/format';
+	import Num from '$lib/components/Num.svelte';
 	import type { CashFlowSection } from '../compute';
 
 	let {
@@ -55,17 +56,17 @@
 	<div class="grid grid-cols-3 gap-2 pt-2 text-center">
 		<div>
 			<p class="text-[10px] uppercase tracking-wide text-ink-muted">Opening</p>
-			<p class="font-mono text-base tabular-nums text-ink-body">{fmt(openingCash)}</p>
+			<p class="font-mono text-base tabular-nums text-ink-body"><Num text={fmt(openingCash)} /></p>
 		</div>
 		<div>
 			<p class="text-[10px] uppercase tracking-wide text-ink-muted">Change</p>
 			<p class="font-mono text-base font-semibold tabular-nums {netChange >= 0 ? 'text-positive' : 'text-negative'}">
-				{fmt(netChange)}
+				<Num text={fmt(netChange)} />
 			</p>
 		</div>
 		<div>
 			<p class="text-[10px] uppercase tracking-wide text-ink-muted">Closing</p>
-			<p class="font-mono text-base tabular-nums text-ink">{fmt(closingCash)}</p>
+			<p class="font-mono text-base tabular-nums text-ink"><Num text={fmt(closingCash)} /></p>
 		</div>
 	</div>
 </div>
