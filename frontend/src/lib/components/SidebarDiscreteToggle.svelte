@@ -18,7 +18,7 @@
 	tabindex={blank ? -1 : 0}
 	aria-hidden={blank ? 'true' : undefined}
 	aria-pressed={blank ? undefined : on}
-	class="flex items-center gap-2.5 rounded px-3 py-1.5 text-left text-sm transition-colors {blank
+	class="flex w-full items-center gap-2.5 rounded px-3 py-1.5 text-left text-sm transition-colors {blank
 		? 'text-ink-faint'
 		: on
 			? 'text-ink-inverse'
