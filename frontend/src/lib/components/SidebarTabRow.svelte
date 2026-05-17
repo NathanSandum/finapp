@@ -6,11 +6,13 @@
 		tab,
 		active = false,
 		blank = false,
+		fillDelay = 0,
 		onclick
 	}: {
 		tab: Tab;
 		active?: boolean;
 		blank?: boolean;
+		fillDelay?: number;
 		onclick?: () => void;
 	} = $props();
 
@@ -25,8 +27,18 @@
 	{#if active && !blank}
 		<span class="absolute inset-y-1 -left-1 w-0.5 rounded-r bg-brand-soft"></span>
 	{/if}
-	<TabIcon id={tab.id} class="h-4 w-4 shrink-0 {blank ? 'invisible' : ''}" />
-	<span class={blank ? 'invisible' : ''}>{tab.label}</span>
+	<span
+		class="fill-target inline-flex shrink-0"
+		class:filled={!blank}
+		style:--fill-delay="{fillDelay}ms"
+	>
+		<TabIcon id={tab.id} class="h-4 w-4" />
+	</span>
+	<span
+		class="fill-target"
+		class:filled={!blank}
+		style:--fill-delay="{fillDelay}ms"
+	>{tab.label}</span>
 {/snippet}
 
 {#if blank}

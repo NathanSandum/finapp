@@ -4,12 +4,14 @@
 		name = '',
 		open = false,
 		blank = false,
+		fillDelay = 0,
 		onclick
 	}: {
 		initial?: string;
 		name?: string;
 		open?: boolean;
 		blank?: boolean;
+		fillDelay?: number;
 		onclick?: () => void;
 	} = $props();
 
@@ -25,18 +27,22 @@
 {#snippet body()}
 	<span class="flex items-center gap-2">
 		<span
-			class="flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-bold text-ink {blank
-				? 'invisible'
-				: ''}"
+			class="fill-target flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-bold text-ink"
+			class:filled={!blank}
+			style:--fill-delay="{fillDelay}ms"
 		>
 			{initial}
 		</span>
-		<span class="text-sm font-medium text-ink-inverse {blank ? 'invisible' : ''}">{name}</span>
+		<span
+			class="fill-target text-sm font-medium text-ink-inverse"
+			class:filled={!blank}
+			style:--fill-delay="{fillDelay}ms"
+		>{name}</span>
 	</span>
 	<svg
-		class="h-4 w-4 text-ink-muted transition-transform {blank ? 'invisible' : ''} {open
-			? 'rotate-180'
-			: ''}"
+		class="fill-target h-4 w-4 text-ink-muted transition-transform {open ? 'rotate-180' : ''}"
+		class:filled={!blank}
+		style:--fill-delay="{fillDelay}ms"
 		viewBox="0 0 20 20"
 		fill="currentColor"
 		aria-hidden="true"
