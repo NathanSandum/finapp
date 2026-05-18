@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { prefersReducedMotion } from '$lib/utils/motion';
-
 	let {
 		value,
 		position = 0
@@ -9,10 +7,10 @@
 		position?: number;
 	} = $props();
 
-	type Step = { key: number; before: string; after: string; direction: 1 | -1 };
+	type Mode = 'up' | 'down' | 'none';
+	type Step = { key: number; before: string; after: string; mode: Mode };
 
-	let step = $state<Step>({ key: 0, before: '', after: value, direction: 1 });
-	let rolled = $state(true);
+	let step = $state<Step>({ key: 0, before: '', after: value, mode: 'none' });
 	let prevValue = value;
 	let prevPosition = position;
 	let nextKey = 1;
@@ -24,32 +22,18 @@
 			prevPosition = pos;
 			return;
 		}
-		const reduce = prefersReducedMotion();
-		const dir: 1 | -1 = pos >= prevPosition ? -1 : 1;
-		step = { key: nextKey++, before: prevValue, after: curr, direction: dir };
+		const mode: Mode = pos >= prevPosition ? 'up' : 'down';
+		step = { key: nextKey++, before: prevValue, after: curr, mode };
 		prevValue = curr;
 		prevPosition = pos;
-		if (reduce) {
-			rolled = true;
-		} else {
-			rolled = false;
-			requestAnimationFrame(() => requestAnimationFrame(() => (rolled = true)));
-		}
 	});
 </script>
 
 <span class="rolling-title" aria-label={value}>
 	{#key step.key}
-		<span class="reel" class:rolled class:down={step.direction === -1}>
-			<span class="track">
-				{#if step.direction === -1}
-					<span class="cell">{step.after || '\u00A0'}</span>
-					<span class="cell">{step.before || '\u00A0'}</span>
-				{:else}
-					<span class="cell">{step.before || '\u00A0'}</span>
-					<span class="cell">{step.after || '\u00A0'}</span>
-				{/if}
-			</span>
+		<span class="stage mode-{step.mode}">
+			<span class="cell before">{step.before || '\u00A0'}</span>
+			<span class="cell after">{step.after || '\u00A0'}</span>
 		</span>
 	{/key}
 </span>
@@ -57,38 +41,85 @@
 <style>
 	.rolling-title {
 		display: inline-block;
-		line-height: 1.1;
-	}
-	.reel {
-		display: inline-block;
-		overflow: hidden;
+		position: relative;
 		line-height: 1.1;
 		height: 1.1em;
+		overflow: hidden;
 		vertical-align: top;
 	}
-	.track {
-		display: flex;
-		flex-direction: column;
-		transition: transform 420ms cubic-bezier(0.7, 0, 0.25, 1);
-	}
-	.reel.rolled .track {
-		transform: translateY(-50%);
-	}
-	.reel.down .track {
-		transform: translateY(-50%);
-	}
-	.reel.down.rolled .track {
-		transform: translateY(0);
+	.stage {
+		position: absolute;
+		inset: 0;
 	}
 	.cell {
+		position: absolute;
+		inset: 0;
 		display: block;
 		line-height: 1.1;
-		height: 1.1em;
 		white-space: nowrap;
 	}
+
+	.stage.mode-none .before {
+		display: none;
+	}
+
+	.stage.mode-up .before {
+		animation: slide-out-up 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	}
+	.stage.mode-up .after {
+		animation: slide-in-up 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	}
+	.stage.mode-down .before {
+		animation: slide-out-down 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	}
+	.stage.mode-down .after {
+		animation: slide-in-down 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	}
+
+	@keyframes slide-in-up {
+		from {
+			transform: translateY(100%);
+			opacity: 0;
+		}
+		to {
+			transform: translateY(0);
+			opacity: 1;
+		}
+	}
+	@keyframes slide-out-up {
+		from {
+			transform: translateY(0);
+			opacity: 1;
+		}
+		to {
+			transform: translateY(-100%);
+			opacity: 0;
+		}
+	}
+	@keyframes slide-in-down {
+		from {
+			transform: translateY(-100%);
+			opacity: 0;
+		}
+		to {
+			transform: translateY(0);
+			opacity: 1;
+		}
+	}
+	@keyframes slide-out-down {
+		from {
+			transform: translateY(0);
+			opacity: 1;
+		}
+		to {
+			transform: translateY(100%);
+			opacity: 0;
+		}
+	}
+
 	@media (prefers-reduced-motion: reduce) {
-		.track {
-			transition: transform 0ms;
+		.cell {
+			animation: none !important;
 		}
 	}
 </style>
