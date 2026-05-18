@@ -11,6 +11,7 @@
 	import { accountsSelection } from '$lib/views/accounts/selection.svelte';
 	import type { VerbId } from '$lib/views/entries/verbs';
 	import type { Account } from '$lib/views/entries/loader';
+	import SolidButton from './SolidButton.svelte';
 
 	function intentForSelection(
 		account: Account
@@ -83,13 +84,7 @@
 	</div>
 	<div class="flex items-baseline gap-3">
 		{#if current.newEntryVerb}
-			<button
-				type="button"
-				onclick={newEntry}
-				class="bg-surface-inverse px-3 py-1.5 text-xs font-medium uppercase tracking-[0.08em] text-ink-inverse transition-colors hover:bg-surface-inverse-hover"
-			>
-				+ New
-			</button>
+			<SolidButton size="sm" onclick={newEntry}>+ New</SolidButton>
 		{/if}
 		<GranularityPill
 			granularity={periodState.granularity}

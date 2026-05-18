@@ -4,6 +4,7 @@
 	import { createEntry } from './api';
 	import { VERBS, verbConfig, buildVerbPostings, type VerbId } from './verbs';
 	import { today } from '../today';
+	import SolidButton from '$lib/components/SolidButton.svelte';
 
 	let {
 		accounts,
@@ -197,13 +198,9 @@
 	{/if}
 
 	<div class="flex gap-2 pt-2">
-		<button
-			type="submit"
-			disabled={submitting}
-			class="bg-surface-inverse px-4 py-2 text-sm font-medium text-ink-inverse transition-colors hover:bg-surface-inverse-hover disabled:opacity-50"
-		>
+		<SolidButton type="submit" disabled={submitting}>
 			{submitting ? 'Saving…' : 'Save entry'}
-		</button>
+		</SolidButton>
 		<button
 			type="button"
 			onclick={onClose}

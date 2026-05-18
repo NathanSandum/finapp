@@ -16,6 +16,7 @@
 	import { createAccount, deleteAccount } from './api';
 	import { fmt } from '$lib/format';
 	import Num from '$lib/components/Num.svelte';
+	import BorderButton from '$lib/components/BorderButton.svelte';
 	import { accountsSelection } from './selection.svelte';
 	import { onDestroy } from 'svelte';
 	import { periodState } from '$lib/views/period-state.svelte';
@@ -241,14 +242,14 @@
 						</span>
 					{/if}
 					{#if selectedCanDelete}
-						<button
-							type="button"
+						<BorderButton
+							tone="negative"
 							onclick={commitDeleteSelected}
 							disabled={deleteBusy}
-							class="ml-2 border border-border bg-surface-card px-2 py-1 text-[11px] font-medium uppercase tracking-[0.06em] text-ink-body transition-colors hover:border-negative-strong hover:text-negative-strong disabled:opacity-50"
+							class="ml-2"
 						>
 							delete
-						</button>
+						</BorderButton>
 					{/if}
 				</div>
 				<span class="font-mono text-[11px] text-ink-muted">{selected.children.length} children</span>
@@ -268,17 +269,15 @@
 					<header class="mb-2 flex items-center justify-between">
 						<h4 class="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Sub-accounts</h4>
 						{#if !adding}
-							<button
-								type="button"
+							<BorderButton
 								onclick={() => {
 									adding = true;
 									addError = null;
 								}}
-								class="inline-flex items-center gap-1 border border-border bg-surface-card px-2 py-1 text-[11px] font-medium uppercase tracking-[0.06em] text-ink-body transition-colors hover:border-indigo-500 hover:text-indigo-500"
 							>
 								<span class="text-sm leading-none">+</span>
 								<span>new</span>
-							</button>
+							</BorderButton>
 						{/if}
 					</header>
 					{#if selected.children.length > 0}

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { AccountNode } from './tree';
+	import BorderButton from '$lib/components/BorderButton.svelte';
 
 	let {
 		node,
@@ -42,23 +43,9 @@
 {/if}
 <div class="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
 	{#if canRename}
-		<button
-			type="button"
-			onclick={onStartEdit}
-			disabled={busy}
-			class="border border-border bg-surface-card px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em] text-ink-body hover:border-indigo-500 hover:text-indigo-500 disabled:opacity-50"
-		>
-			rename
-		</button>
+		<BorderButton size="xs" tone="indigo" onclick={onStartEdit} disabled={busy}>rename</BorderButton>
 	{/if}
 	{#if canDelete}
-		<button
-			type="button"
-			onclick={onDelete}
-			disabled={busy}
-			class="border border-border bg-surface-card px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em] text-ink-body hover:border-negative-strong hover:text-negative-strong disabled:opacity-50"
-		>
-			delete
-		</button>
+		<BorderButton size="xs" tone="negative" onclick={onDelete} disabled={busy}>delete</BorderButton>
 	{/if}
 </div>

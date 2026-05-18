@@ -11,6 +11,7 @@
 	import FailView from '$lib/components/FailView.svelte';
 	import ErrorView from '$lib/components/ErrorView.svelte';
 	import { prefersReducedMotion } from '$lib/utils/motion';
+	import SolidButton from '$lib/components/SolidButton.svelte';
 
 	let { onSignedIn }: { onSignedIn: () => void } = $props();
 
@@ -129,13 +130,9 @@
 		{/key}
 	{/if}
 
-	<button
-		type="submit"
-		disabled={submitting}
-		class="bg-surface-inverse px-4 py-2 text-sm font-medium text-ink-inverse transition-colors hover:bg-surface-inverse-hover disabled:opacity-50"
-	>
+	<SolidButton type="submit" disabled={submitting}>
 		{submitting ? 'Signing in…' : 'Sign in'}
-	</button>
+	</SolidButton>
 </form>
 
 <style>
