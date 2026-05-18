@@ -30,18 +30,20 @@
 
 	const domain = $derived(valueDomain(trail));
 	const yOf = (v: number): number => {
-		const range = domain.max - domain.min || 1;
+		const range = domain.max - domain.min;
+		if (range === 0) return HEIGHT / 2;
 		return HEIGHT - ((v - domain.min) / range) * HEIGHT;
 	};
 	const axisTicks = $derived.by(() => {
+		if (domain.min === domain.max) {
+			return [{ value: domain.max, y: HEIGHT / 2 + Y_OFFSET }];
+		}
 		const out: { value: number; y: number }[] = [];
 		out.push({ value: domain.max, y: yOf(domain.max) + Y_OFFSET });
 		if (domain.min < 0 && domain.max > 0) {
 			out.push({ value: 0, y: yOf(0) + Y_OFFSET });
 		}
-		if (domain.min !== domain.max) {
-			out.push({ value: domain.min, y: yOf(domain.min) + Y_OFFSET });
-		}
+		out.push({ value: domain.min, y: yOf(domain.min) + Y_OFFSET });
 		return out;
 	});
 
