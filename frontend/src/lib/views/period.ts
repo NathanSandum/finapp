@@ -151,6 +151,26 @@ export function trailKey(year: number, month: number, granularity: Granularity):
 	return `${year}`;
 }
 
+export function inferKeyGranularity(key: string): Granularity | undefined {
+	if (/^\d{4}$/.test(key)) return 'year';
+	if (/^\d{4}-Q[1-4]$/.test(key)) return 'quarter';
+	if (/^\d{4}-\d{2}$/.test(key)) return 'month';
+	return undefined;
+}
+
+export function parentKeyInGran(key: string, target: Granularity): string | undefined {
+	const src = inferKeyGranularity(key);
+	if (!src) return undefined;
+	if (src === target) return key;
+	if (target === 'year') return key.slice(0, 4);
+	if (target === 'quarter' && src === 'month') {
+		const y = key.slice(0, 4);
+		const m = parseInt(key.slice(5, 7), 10);
+		return `${y}-Q${quarterOf(m)}`;
+	}
+	return undefined;
+}
+
 export function latestActivityPeriod(
 	entries: { date: string }[]
 ): { year: number; month: number } {

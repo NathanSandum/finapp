@@ -1,7 +1,10 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { fmt, pct, shortFmt } from '$lib/format';
+	import AnimatedLabels from './AnimatedLabels.svelte';
 	import Num from './Num.svelte';
 	import Sparkline from './Sparkline.svelte';
+	import { TrailSlots } from './trailSlots.svelte';
 
 	let {
 		label,
@@ -26,6 +29,12 @@
 
 	const min = $derived(trail.length > 0 ? Math.min(...trail) : 0);
 	const max = $derived(trail.length > 0 ? Math.max(...trail) : 0);
+
+	const trailSlots = new TrailSlots();
+	$effect(() => {
+		trailSlots.sync(trailKeys, trail, WIDTH, HEIGHT);
+	});
+	onDestroy(() => trailSlots.destroy());
 </script>
 
 <section class="relative shrink-0 overflow-hidden border border-border bg-surface-card">
@@ -40,7 +49,7 @@
 	</div>
 	<svg width="100%" viewBox="0 0 {WIDTH} 100" class="overflow-visible" preserveAspectRatio="none">
 		<Sparkline
-			values={trail}
+			{trailSlots}
 			keys={trailKeys}
 			width={WIDTH}
 			height={HEIGHT}
@@ -49,6 +58,8 @@
 			{gradientId}
 			showMarker
 			markerClass="fill-positive-line"
+			showCurrentLine
+			currentLineClass="stroke-ink-faint"
 			yOffset={20}
 		/>
 	</svg>
@@ -58,10 +69,12 @@
 		<span><Num text={shortFmt(max)} /></span>
 		<span><Num text={shortFmt(min)} /></span>
 	</div>
-	<div
-		class="grid pb-2 font-mono text-[9px] tabular-nums text-ink-faint"
-		style:grid-template-columns="repeat({trailLabels.length}, 1fr)"
-	>
-		{#each trailLabels as label}<span class="text-center">{label}</span>{/each}
+	<div class="pb-2 font-mono text-[9px] tabular-nums text-ink-faint">
+		<AnimatedLabels
+			{trailSlots}
+			keys={trailKeys}
+			labels={trailLabels}
+			viewBoxWidth={WIDTH}
+		/>
 	</div>
 </section>
