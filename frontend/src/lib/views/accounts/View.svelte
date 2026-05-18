@@ -13,7 +13,7 @@
 	import ChildRow from './ChildRow.svelte';
 	import AddChildInput from './AddChildInput.svelte';
 	import { cache } from '$lib/api/cache.svelte';
-	import { createAccount } from './api';
+	import { createAccount, deleteAccount } from './api';
 
 	let { data }: { data: AccountsData } = $props();
 
@@ -21,6 +21,8 @@
 	let adding = $state(false);
 	let addError = $state<string | null>(null);
 	let addBusy = $state(false);
+	let deleteBusy = $state(false);
+	let deleteError = $state<string | null>(null);
 
 	const subtrees = $derived(
 		ROOT_ORDER.map((key) => ({
@@ -48,11 +50,40 @@
 	const selected = $derived(selectedTrail ? selectedTrail.nodes[selectedTrail.nodes.length - 1] : null);
 	const selectedRoot = $derived(selectedTrail?.key);
 	const badge = $derived(selected?.account.role ? ROLE_BADGE[selected.account.role] : undefined);
+	const selectedCanDelete = $derived(
+		!!selected && selected.account.role === null && selected.children.length === 0
+	);
+	const selectedParent = $derived(
+		selectedTrail && selectedTrail.nodes.length > 1
+			? selectedTrail.nodes[selectedTrail.nodes.length - 2]
+			: null
+	);
 
 	function select(id: string) {
 		selectedId = id;
 		adding = false;
 		addError = null;
+		deleteError = null;
+	}
+
+	async function commitDeleteSelected() {
+		if (!selected || !selectedCanDelete) return;
+		if (!confirm(`Delete "${selected.account.name}"?`)) return;
+		deleteBusy = true;
+		deleteError = null;
+		const result = await deleteAccount(selected.account.id);
+		deleteBusy = false;
+		if (result.status === 'success') {
+			const nextId = selectedParent?.account.id ?? null;
+			cache.invalidateAllExcept('accounts');
+			await cache.refresh('accounts', loadAccounts);
+			selectedId = nextId;
+		} else {
+			deleteError =
+				result.status === 'fail'
+					? String(Object.values(result.data)[0] ?? 'delete failed')
+					: result.message;
+		}
 	}
 
 	async function commitAdd(name: string) {
@@ -135,8 +166,23 @@
 						</span>
 					{/if}
 				</div>
-				<span class="font-mono text-[11px] text-ink-muted">{selected.children.length} children</span>
+				<div class="flex items-baseline gap-3">
+					<span class="font-mono text-[11px] text-ink-muted">{selected.children.length} children</span>
+					{#if selectedCanDelete}
+						<button
+							type="button"
+							onclick={commitDeleteSelected}
+							disabled={deleteBusy}
+							class="border border-border bg-surface-card px-2 py-1 text-[11px] font-medium uppercase tracking-[0.06em] text-ink-body transition-colors hover:border-negative-strong hover:text-negative-strong disabled:opacity-50"
+						>
+							delete
+						</button>
+					{/if}
+				</div>
 			</header>
+			{#if deleteError}
+				<p class="mb-3 text-[11px] text-negative">{deleteError}</p>
+			{/if}
 
 			<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 				<div>

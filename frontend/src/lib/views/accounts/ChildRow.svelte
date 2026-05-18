@@ -107,7 +107,7 @@
 					disabled={busy}
 					class="border border-border bg-surface-card px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em] text-ink-body hover:border-negative-strong hover:text-negative-strong disabled:opacity-50"
 				>
-					×
+					delete
 				</button>
 			{/if}
 		</div>
