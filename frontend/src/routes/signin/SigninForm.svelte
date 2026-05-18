@@ -6,7 +6,7 @@
 	import { cache } from '$lib/api/cache.svelte';
 	import { tabState } from '$lib/tabs/state.svelte';
 	import { overviewEntrance } from '$lib/views/overview/entrance';
-	import { bootWorkspace } from '$lib/workspace/boot';
+	import { bootWorkspace } from '$lib/workspace/boot.svelte';
 	import type { JSend } from '$lib/tabs/types';
 	import FailView from '$lib/components/FailView.svelte';
 	import ErrorView from '$lib/components/ErrorView.svelte';

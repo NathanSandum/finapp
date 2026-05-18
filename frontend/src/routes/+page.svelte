@@ -4,7 +4,7 @@
 	import { tabs } from '$lib/tabs/registry';
 	import { tabState } from '$lib/tabs/state.svelte';
 	import { workspaceState } from '$lib/workspace/state.svelte';
-	import { bootWorkspace, bootState } from '$lib/workspace/boot';
+	import { bootWorkspace, bootState } from '$lib/workspace/boot.svelte';
 	import { fetchMe } from '$lib/api/auth';
 	import { authState } from '$lib/api/state.svelte';
 	import { goto } from '$app/navigation';
