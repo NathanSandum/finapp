@@ -73,6 +73,7 @@
 			prior={priorNet}
 			trail={netTrail.values}
 			trailLabels={netTrail.labels}
+			trailKeys={netTrail.keys}
 			gradientId="balance-sheet-net-grad"
 		/>
 	{/snippet}
@@ -119,6 +120,8 @@
 			liabilities={bs.liabilities}
 			assetTrails={assetTrails.trails}
 			liabilityTrails={liabilityTrails.trails}
+			labels={assetTrails.labels}
+			keys={assetTrails.keys}
 		/>
 	{/snippet}
 </StatementView>

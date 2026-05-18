@@ -1,7 +1,10 @@
 <script lang="ts">
-	import { buildLine } from '$lib/views/income/lib';
+	import { onDestroy } from 'svelte';
 	import { fmt, pct, shortFmt } from '$lib/format';
+	import AnimatedLabels from './AnimatedLabels.svelte';
 	import Num from './Num.svelte';
+	import Sparkline from './Sparkline.svelte';
+	import { TrailSlots } from './trailSlots.svelte';
 
 	let {
 		label,
@@ -9,6 +12,7 @@
 		prior,
 		trail,
 		trailLabels,
+		trailKeys,
 		gradientId
 	}: {
 		label: string;
@@ -16,12 +20,21 @@
 		prior: number;
 		trail: number[];
 		trailLabels: string[];
+		trailKeys: string[];
 		gradientId: string;
 	} = $props();
 
-	const sparkline = $derived(buildLine(trail, 560, 80));
-	const min = $derived(Math.min(...trail));
-	const max = $derived(Math.max(...trail));
+	const WIDTH = 560;
+	const HEIGHT = 80;
+
+	const min = $derived(trail.length > 0 ? Math.min(...trail) : 0);
+	const max = $derived(trail.length > 0 ? Math.max(...trail) : 0);
+
+	const trailSlots = new TrailSlots();
+	$effect(() => {
+		trailSlots.sync(trailKeys, trail, WIDTH, HEIGHT);
+	});
+	onDestroy(() => trailSlots.destroy());
 </script>
 
 <section class="relative shrink-0 overflow-hidden border border-border bg-surface-card">
@@ -34,31 +47,21 @@
 			<span class="text-[13px] font-semibold text-positive">{pct(value, prior)}</span>
 		</p>
 	</div>
-	<svg width="100%" viewBox="0 0 560 100" class="overflow-visible" preserveAspectRatio="none">
-		<defs>
-			<linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-				<stop offset="0%" style:stop-color="var(--color-positive-line)" stop-opacity="0.30" />
-				<stop offset="100%" style:stop-color="var(--color-positive-line)" stop-opacity="0" />
-			</linearGradient>
-		</defs>
-		<polygon fill="url(#{gradientId})" points={sparkline.area} transform="translate(0,20)" />
-		<polyline
-			fill="none"
-			class="stroke-positive-line"
-			stroke-width="1.25"
-			stroke-linecap="round"
-			stroke-linejoin="round"
-			points={sparkline.path}
-			transform="translate(0,20)"
+	<svg width="100%" viewBox="0 0 {WIDTH} 100" class="overflow-visible" preserveAspectRatio="none">
+		<Sparkline
+			{trailSlots}
+			keys={trailKeys}
+			width={WIDTH}
+			height={HEIGHT}
+			lineClass="stroke-positive-line"
+			showArea
+			{gradientId}
+			showMarker
+			markerClass="fill-positive-line"
+			showCurrentLine
+			currentLineClass="stroke-ink-faint"
+			yOffset={20}
 		/>
-		{#if sparkline.points.length > 0}
-			<circle
-				cx={sparkline.points[sparkline.points.length - 1].x}
-				cy={sparkline.points[sparkline.points.length - 1].y + 20}
-				r="3"
-				class="fill-positive-line"
-			/>
-		{/if}
 	</svg>
 	<div
 		class="pointer-events-none absolute right-2 top-4 flex h-[80px] flex-col justify-between font-mono text-[9px] tabular-nums text-ink-faint"
@@ -66,10 +69,12 @@
 		<span><Num text={shortFmt(max)} /></span>
 		<span><Num text={shortFmt(min)} /></span>
 	</div>
-	<div
-		class="grid px-5 pb-2 font-mono text-[9px] tabular-nums text-ink-faint"
-		style:grid-template-columns="repeat({trailLabels.length}, 1fr)"
-	>
-		{#each trailLabels as label}<span class="text-center">{label}</span>{/each}
+	<div class="pb-2 font-mono text-[9px] tabular-nums text-ink-faint">
+		<AnimatedLabels
+			{trailSlots}
+			keys={trailKeys}
+			labels={trailLabels}
+			viewBoxWidth={WIDTH}
+		/>
 	</div>
 </section>

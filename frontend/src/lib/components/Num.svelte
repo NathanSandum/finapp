@@ -1,74 +1,79 @@
 <script lang="ts">
-	import { getDiscrete } from '$lib/ui/discrete.svelte';
+	import { untrack } from 'svelte';
+	import { prefersReducedMotion } from '$lib/utils/motion';
+	import NumCell from './NumCell.svelte';
 
 	let { text }: { text: string } = $props();
 
-	const parsed = $derived.by(() => {
-		const match = text.match(/^([+\-]?)(\$?)(.*)$/);
+	type Mode = 'up' | 'down' | 'none';
+	type Cell = { key: number; before: string; after: string; mode: Mode };
+
+	function parseHead(t: string) {
+		const match = t.match(/^([+\-\u2212]?)(\$?)(.*)$/);
 		return {
 			head: (match?.[1] ?? '') + (match?.[2] ?? ''),
-			body: match?.[3] ?? text
+			body: match?.[3] ?? t
 		};
-	});
+	}
 
-	const chars = $derived(parsed.body.split(''));
-	const on = $derived(getDiscrete());
+	function parseNum(t: string): number {
+		const cleaned = t.replace(/\u2212/g, '-').replace(/[^0-9.\-]/g, '');
+		const n = parseFloat(cleaned);
+		return isNaN(n) ? 0 : n;
+	}
+
+	const parsed = $derived(parseHead(text));
+
+	let nextKey = 1;
+	let prevBody = untrack(() => parseHead(text).body);
+	let prevNum = untrack(() => parseNum(text));
+	let cells = $state<Cell[]>(
+		untrack(() =>
+			parseHead(text)
+				.body.split('')
+				.map((ch) => ({
+					key: nextKey++,
+					before: ch,
+					after: ch,
+					mode: 'none' as Mode
+				}))
+		)
+	);
+
+	$effect(() => {
+		const body = parsed.body;
+		if (body === prevBody) return;
+		const num = parseNum(text);
+		const reduce = prefersReducedMotion();
+		const dir: Mode = reduce ? 'none' : num >= prevNum ? 'up' : 'down';
+		const oldChars = prevBody.split('');
+		const newChars = body.split('');
+		const oldLen = oldChars.length;
+		const newLen = newChars.length;
+		cells = newChars.map((ch, j) => {
+			const rightOffset = newLen - 1 - j;
+			const oldIdx = oldLen - 1 - rightOffset;
+			const before = oldIdx >= 0 ? oldChars[oldIdx] : ch;
+			const isNew = oldIdx < 0;
+			const mode: Mode = isNew || before === ch ? 'none' : dir;
+			return { key: nextKey++, before, after: ch, mode };
+		});
+		prevBody = body;
+		prevNum = num;
+	});
 </script>
 
-<span class="num">{parsed.head}{#each chars as ch, i (i)}{@const survivor = i === 0 || Math.floor((i * 3) / chars.length) > Math.floor(((i - 1) * 3) / chars.length)}<span class="ch" class:collapsed={on && !survivor}><span class="real" class:hidden={on}>{ch}</span><span class="dot" class:shown={on} aria-hidden="true">•</span></span>{/each}</span>
+<span class="num"
+	>{parsed.head}{#each cells as cell, i (cells.length - 1 - i)}{@const survivor =
+			i === 0 ||
+			Math.floor((i * 3) / cells.length) > Math.floor(((i - 1) * 3) / cells.length)}<NumCell
+			{cell}
+			{survivor}
+		/>{/each}</span
+>
 
 <style>
 	.num {
 		white-space: nowrap;
-	}
-	.ch {
-		display: inline-flex;
-		align-items: baseline;
-		justify-content: center;
-		position: relative;
-		vertical-align: baseline;
-		width: 1ch;
-		overflow: hidden;
-		transition: width 320ms cubic-bezier(0.22, 1, 0.36, 1);
-	}
-	.ch.collapsed {
-		width: 0;
-		transition: width 320ms cubic-bezier(0.22, 1, 0.36, 1) 320ms;
-	}
-	.real {
-		display: inline-block;
-		transform-origin: center;
-		transform: scale(1);
-		opacity: 1;
-		transition:
-			transform 320ms cubic-bezier(0.22, 1, 0.36, 1) 320ms,
-			opacity 320ms cubic-bezier(0.22, 1, 0.36, 1) 320ms;
-	}
-	.real.hidden {
-		transform: scale(0.15);
-		opacity: 0;
-		transition:
-			transform 320ms cubic-bezier(0.55, 0, 0.65, 0.4),
-			opacity 320ms cubic-bezier(0.55, 0, 0.65, 0.4);
-	}
-	.dot {
-		position: absolute;
-		left: 0;
-		right: 0;
-		top: 0;
-		text-align: center;
-		transform-origin: center;
-		transform: scale(0.15);
-		opacity: 0;
-		transition:
-			transform 320ms cubic-bezier(0.55, 0, 0.65, 0.4),
-			opacity 320ms cubic-bezier(0.55, 0, 0.65, 0.4);
-	}
-	.dot.shown {
-		transform: scale(1);
-		opacity: 1;
-		transition:
-			transform 320ms cubic-bezier(0.22, 1, 0.36, 1) 320ms,
-			opacity 320ms cubic-bezier(0.22, 1, 0.36, 1) 320ms;
 	}
 </style>

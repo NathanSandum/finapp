@@ -23,7 +23,7 @@
 </script>
 
 <ul>
-	{#each rows as row}
+	{#each rows as row (row.name)}
 		{@const f = Math.abs(row.amount) / max}
 		{@const prefix = signPrefix
 			? row.amount >= 0
@@ -39,10 +39,21 @@
 					</span>
 				</div>
 				<div class="mt-0.5 h-[2px] w-full bg-surface-sunken">
-					<div class="h-full {row.bar}" style:width="{f * 100}%"></div>
+					<div class="bar h-full {row.bar}" style:width="{f * 100}%"></div>
 				</div>
 			</div>
 			<span class="font-mono text-[11px] tabular-nums text-ink"><Num text={fmt(Math.abs(row.amount))} /></span>
 		</li>
 	{/each}
 </ul>
+
+<style>
+	.bar {
+		transition: width 520ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.bar {
+			transition: none;
+		}
+	}
+</style>

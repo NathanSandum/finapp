@@ -63,6 +63,7 @@
 			prior={priorNet}
 			trail={netTrail.values}
 			trailLabels={netTrail.labels}
+			trailKeys={netTrail.keys}
 			gradientId="cash-flow-net-grad"
 		/>
 	{/snippet}
@@ -124,6 +125,7 @@
 			investingTrail={sectionTrails.investing}
 			financingTrail={sectionTrails.financing}
 			labels={sectionTrails.labels}
+			keys={sectionTrails.keys}
 		/>
 	{/snippet}
 </StatementView>

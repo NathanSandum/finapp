@@ -8,6 +8,7 @@ import {
 	priorShortLabel,
 	shiftPeriod,
 	snapToGranularity,
+	trailKey,
 	trailLabel,
 	type Granularity
 } from '../period';
@@ -100,12 +101,13 @@ export function computeNetTrail(
 	month: number,
 	granularity: Granularity,
 	count: number
-): { values: number[]; labels: string[] } {
+): { values: number[]; labels: string[]; keys: string[] } {
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
 	const periods = priorPeriodList(year, month, granularity, count);
 
 	const values: number[] = [];
 	const labels: string[] = [];
+	const keys: string[] = [];
 	for (const period of periods) {
 		const { start, end } = periodBounds(period.year, period.month, granularity);
 		let revenue = 0;
@@ -121,8 +123,9 @@ export function computeNetTrail(
 		}
 		values.push(revenue - expense);
 		labels.push(trailLabel(period.year, period.month, granularity));
+		keys.push(trailKey(period.year, period.month, granularity));
 	}
-	return { values, labels };
+	return { values, labels, keys };
 }
 
 export function computeIncomeTrails(
@@ -136,6 +139,7 @@ export function computeIncomeTrails(
 	revenueTrails: Map<string, number[]>;
 	expenseTrails: Map<string, number[]>;
 	labels: string[];
+	keys: string[];
 } {
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
 	const periods = priorPeriodList(year, month, granularity, count);
@@ -143,6 +147,7 @@ export function computeIncomeTrails(
 	const revenueTrails = new Map<string, number[]>();
 	const expenseTrails = new Map<string, number[]>();
 	const labels: string[] = [];
+	const keys: string[] = [];
 	for (let pi = 0; pi < periods.length; pi++) {
 		const period = periods[pi];
 		const { start, end } = periodBounds(period.year, period.month, granularity);
@@ -177,8 +182,9 @@ export function computeIncomeTrails(
 			arr[pi] = sum;
 		}
 		labels.push(trailLabel(period.year, period.month, granularity));
+		keys.push(trailKey(period.year, period.month, granularity));
 	}
-	return { revenueTrails, expenseTrails, labels };
+	return { revenueTrails, expenseTrails, labels, keys };
 }
 
 export function latestActivityMonth(
