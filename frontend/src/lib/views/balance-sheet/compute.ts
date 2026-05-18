@@ -8,6 +8,7 @@ import {
 	priorShortLabel,
 	shiftPeriod,
 	snapToGranularity,
+	trailKey,
 	trailLabel,
 	type Granularity
 } from '../period';
@@ -110,12 +111,13 @@ export function computeNetWorthTrail(
 	month: number,
 	granularity: Granularity,
 	count: number
-): { values: number[]; labels: string[] } {
+): { values: number[]; labels: string[]; keys: string[] } {
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
 	const periods = priorPeriodList(year, month, granularity, count);
 
 	const values: number[] = [];
 	const labels: string[] = [];
+	const keys: string[] = [];
 	for (const period of periods) {
 		const asOf = asOfDate(period.year, period.month, granularity);
 		let assets = 0;
@@ -131,8 +133,9 @@ export function computeNetWorthTrail(
 		}
 		values.push(assets - liabilities);
 		labels.push(trailLabel(period.year, period.month, granularity));
+		keys.push(trailKey(period.year, period.month, granularity));
 	}
-	return { values, labels };
+	return { values, labels, keys };
 }
 
 function computeBalanceTrails(
@@ -143,13 +146,14 @@ function computeBalanceTrails(
 	granularity: Granularity,
 	count: number,
 	type: 'asset' | 'liability'
-): { trails: Map<string, number[]>; labels: string[] } {
+): { trails: Map<string, number[]>; labels: string[]; keys: string[] } {
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
 	const periods = priorPeriodList(year, month, granularity, count);
 
 	const sign = type === 'asset' ? 1 : -1;
 	const trails = new Map<string, number[]>();
 	const labels: string[] = [];
+	const keys: string[] = [];
 	for (let pi = 0; pi < periods.length; pi++) {
 		const period = periods[pi];
 		const asOf = asOfDate(period.year, period.month, granularity);
@@ -171,8 +175,9 @@ function computeBalanceTrails(
 			arr[pi] = sum;
 		}
 		labels.push(trailLabel(period.year, period.month, granularity));
+		keys.push(trailKey(period.year, period.month, granularity));
 	}
-	return { trails, labels };
+	return { trails, labels, keys };
 }
 
 export function computeAssetTrails(
@@ -182,7 +187,7 @@ export function computeAssetTrails(
 	month: number,
 	granularity: Granularity,
 	count: number
-): { trails: Map<string, number[]>; labels: string[] } {
+): { trails: Map<string, number[]>; labels: string[]; keys: string[] } {
 	return computeBalanceTrails(entries, accounts, year, month, granularity, count, 'asset');
 }
 
@@ -193,7 +198,7 @@ export function computeLiabilityTrails(
 	month: number,
 	granularity: Granularity,
 	count: number
-): { trails: Map<string, number[]>; labels: string[] } {
+): { trails: Map<string, number[]>; labels: string[]; keys: string[] } {
 	return computeBalanceTrails(entries, accounts, year, month, granularity, count, 'liability');
 }
 

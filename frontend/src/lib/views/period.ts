@@ -145,6 +145,12 @@ export function trailLabel(year: number, month: number, granularity: Granularity
 	return `'${(year % 100).toString().padStart(2, '0')}`;
 }
 
+export function trailKey(year: number, month: number, granularity: Granularity): string {
+	if (granularity === 'month') return `${year}-${pad2(month)}`;
+	if (granularity === 'quarter') return `${year}-Q${quarterOf(month)}`;
+	return `${year}`;
+}
+
 export function latestActivityPeriod(
 	entries: { date: string }[]
 ): { year: number; month: number } {

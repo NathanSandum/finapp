@@ -10,6 +10,7 @@ import {
 	priorShortLabel,
 	shiftPeriod,
 	snapToGranularity,
+	trailKey,
 	trailLabel,
 	type Granularity
 } from '../period';
@@ -170,19 +171,21 @@ export function computeNetCashTrail(
 	month: number,
 	granularity: Granularity,
 	count: number
-): { values: number[]; labels: string[] } {
+): { values: number[]; labels: string[]; keys: string[] } {
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
 	const cashAnchorId = anchors.cash.id;
 	const periods = priorPeriodList(year, month, granularity, count);
 	const values: number[] = [];
 	const labels: string[] = [];
+	const keys: string[] = [];
 	for (const period of periods) {
 		const { start, end } = periodBounds(period.year, period.month, granularity);
 		const sections = buildSections(entries, accountIndex, cashAnchorId, start, end);
 		values.push(sections.operating.total + sections.investing.total + sections.financing.total);
 		labels.push(trailLabel(period.year, period.month, granularity));
+		keys.push(trailKey(period.year, period.month, granularity));
 	}
-	return { values, labels };
+	return { values, labels, keys };
 }
 
 export function computeSectionTrails(
@@ -198,6 +201,7 @@ export function computeSectionTrails(
 	investing: number[];
 	financing: number[];
 	labels: string[];
+	keys: string[];
 } {
 	const accountIndex = new Map(accounts.map((a) => [a.id, a]));
 	const cashAnchorId = anchors.cash.id;
@@ -206,6 +210,7 @@ export function computeSectionTrails(
 	const investing: number[] = [];
 	const financing: number[] = [];
 	const labels: string[] = [];
+	const keys: string[] = [];
 	for (const period of periods) {
 		const { start, end } = periodBounds(period.year, period.month, granularity);
 		const sections = buildSections(entries, accountIndex, cashAnchorId, start, end);
@@ -213,8 +218,9 @@ export function computeSectionTrails(
 		investing.push(sections.investing.total);
 		financing.push(sections.financing.total);
 		labels.push(trailLabel(period.year, period.month, granularity));
+		keys.push(trailKey(period.year, period.month, granularity));
 	}
-	return { operating, investing, financing, labels };
+	return { operating, investing, financing, labels, keys };
 }
 
 export { asOfDate };

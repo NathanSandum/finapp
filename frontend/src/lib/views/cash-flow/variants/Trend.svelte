@@ -5,12 +5,14 @@
 		operatingTrail,
 		investingTrail,
 		financingTrail,
-		labels
+		labels,
+		keys
 	}: {
 		operatingTrail: number[];
 		investingTrail: number[];
 		financingTrail: number[];
 		labels: string[];
+		keys: string[];
 	} = $props();
 
 	const rows = $derived<TrendRow[]>([
@@ -35,4 +37,4 @@
 	]);
 </script>
 
-<TrendList {rows} {labels} />
+<TrendList {rows} {labels} {keys} />

@@ -11,7 +11,11 @@
 <script lang="ts">
 	import TrendRowView from './TrendRow.svelte';
 
-	let { rows, labels }: { rows: TrendRow[]; labels: string[] } = $props();
+	let {
+		rows,
+		labels,
+		keys
+	}: { rows: TrendRow[]; labels: string[]; keys: string[] } = $props();
 
 	const STROKE: Record<TrendAccent, string> = {
 		positive: 'stroke-positive-line',
@@ -37,7 +41,7 @@
 	</thead>
 	<tbody>
 		{#each rows as row (row.name)}
-			<TrendRowView {row} {labels} stroke={STROKE[row.accent]} txt={TXT[row.accent]} />
+			<TrendRowView {row} {labels} {keys} stroke={STROKE[row.accent]} txt={TXT[row.accent]} />
 		{/each}
 	</tbody>
 </table>

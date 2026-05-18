@@ -68,6 +68,7 @@
 			prior={priorNet}
 			trail={trail.values}
 			trailLabels={trail.labels}
+			trailKeys={trail.keys}
 			gradientId="income-net-grad"
 		/>
 	{/snippet}
@@ -120,6 +121,7 @@
 			revenueTrails={trails.revenueTrails}
 			expenseTrails={trails.expenseTrails}
 			labels={trails.labels}
+			keys={trails.keys}
 		/>
 	{/snippet}
 </StatementView>
