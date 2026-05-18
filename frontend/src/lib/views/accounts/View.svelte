@@ -165,20 +165,18 @@
 							{badge}
 						</span>
 					{/if}
-				</div>
-				<div class="flex items-baseline gap-3">
-					<span class="font-mono text-[11px] text-ink-muted">{selected.children.length} children</span>
 					{#if selectedCanDelete}
 						<button
 							type="button"
 							onclick={commitDeleteSelected}
 							disabled={deleteBusy}
-							class="border border-border bg-surface-card px-2 py-1 text-[11px] font-medium uppercase tracking-[0.06em] text-ink-body transition-colors hover:border-negative-strong hover:text-negative-strong disabled:opacity-50"
+							class="ml-2 border border-border bg-surface-card px-2 py-1 text-[11px] font-medium uppercase tracking-[0.06em] text-ink-body transition-colors hover:border-negative-strong hover:text-negative-strong disabled:opacity-50"
 						>
 							delete
 						</button>
 					{/if}
 				</div>
+				<span class="font-mono text-[11px] text-ink-muted">{selected.children.length} children</span>
 			</header>
 			{#if deleteError}
 				<p class="mb-3 text-[11px] text-negative">{deleteError}</p>
