@@ -6,9 +6,7 @@
 	import { cache } from '$lib/api/cache.svelte';
 	import { tabState } from '$lib/tabs/state.svelte';
 	import { overviewEntrance } from '$lib/views/overview/entrance';
-	import { listWorkspaces } from '$lib/workspace/api';
-	import { workspaceState } from '$lib/workspace/state.svelte';
-	import { load as loadOverview } from '$lib/views/overview/loader';
+	import { bootWorkspace } from '$lib/workspace/boot.svelte';
 	import type { JSend } from '$lib/tabs/types';
 	import FailView from '$lib/components/FailView.svelte';
 	import ErrorView from '$lib/components/ErrorView.svelte';
@@ -61,27 +59,9 @@
 		cache.invalidateAll();
 		authState.set(signInResult.data.user);
 
-		const workspacesResult = await listWorkspaces();
-		if (workspacesResult.status !== 'success') {
-			result = workspacesResult;
-			submitting = false;
-			return;
-		}
-		workspaceState.setList(workspacesResult.data.workspaces);
-		const initial = workspaceState.pickInitial(workspacesResult.data.workspaces);
-		if (!initial) {
-			result = {
-				status: 'fail',
-				data: { message: 'No workspaces available' }
-			} as JSend<unknown>;
-			submitting = false;
-			return;
-		}
-		workspaceState.setActive(initial);
-
-		const overviewResult = await cache.load('overview', loadOverview);
-		if (overviewResult.status !== 'success') {
-			result = overviewResult;
+		const bootResult = await bootWorkspace();
+		if (bootResult.status !== 'success') {
+			result = bootResult;
 			submitting = false;
 			return;
 		}

@@ -18,6 +18,26 @@
 	const workspaceBlank = $derived(workspaceState.active === null);
 	const current = $derived(tabs.find((t) => t.id === tabState.get()) ?? tabs[0]);
 
+	let navEl = $state<HTMLElement | undefined>(undefined);
+	const rowEls: (HTMLButtonElement | undefined)[] = $state(Array(tabs.length).fill(undefined));
+	let indicator = $state({ top: 0, height: 0 });
+	let indicatorReady = $state(false);
+
+	$effect(() => {
+		const id = current.id;
+		void userBlank;
+		if (!navEl) return;
+		const idx = tabs.findIndex((t) => t.id === id);
+		const el = rowEls[idx];
+		if (!el) return;
+		const navRect = navEl.getBoundingClientRect();
+		const r = el.getBoundingClientRect();
+		indicator = { top: r.top - navRect.top, height: r.height };
+		if (!indicatorReady) {
+			requestAnimationFrame(() => requestAnimationFrame(() => (indicatorReady = true)));
+		}
+	});
+
 	const activeName = $derived(workspaceState.active?.name ?? '');
 	const initial = $derived(activeName.charAt(0).toUpperCase() || '');
 
@@ -39,10 +59,18 @@
 	{/if}
 </div>
 <SidebarDate />
-<nav class="flex flex-col gap-0.5">
+<nav bind:this={navEl} class="relative flex flex-col gap-0.5">
+	<span
+		class="tab-indicator pointer-events-none absolute -left-1 w-0.5 rounded-r bg-brand-soft"
+		class:ready={indicatorReady && !userBlank}
+		style:transform="translateY({indicator.top + 4}px)"
+		style:height="{Math.max(0, indicator.height - 8)}px"
+		aria-hidden="true"
+	></span>
 	{#each tabs as tab, i (tab.id)}
 		<SidebarTabRow
 			{tab}
+			bind:el={rowEls[i]}
 			active={current.id === tab.id}
 			blank={userBlank}
 			fillDelay={160 + i * 50}
@@ -66,3 +94,24 @@
 		<UserMenu onClose={() => (userMenuOpen = false)} />
 	{/if}
 </div>
+
+<style>
+	.tab-indicator {
+		top: 0;
+		opacity: 0;
+		transition: opacity 200ms ease;
+	}
+	.tab-indicator.ready {
+		opacity: 1;
+		transition:
+			transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+			height 320ms cubic-bezier(0.22, 1, 0.36, 1),
+			opacity 200ms ease;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.tab-indicator,
+		.tab-indicator.ready {
+			transition: opacity 0ms;
+		}
+	}
+</style>

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import MetricTile from '$lib/components/MetricTile.svelte';
 	import NetHero from '$lib/components/NetHero.svelte';
 	import StatementView from '$lib/components/StatementView.svelte';
@@ -8,75 +7,53 @@
 		computeBalanceSheet,
 		computeLiabilityTrails,
 		computeNetWorthTrail,
-		defaultTrailCount,
-		latestActivityPeriod,
-		shiftPeriod,
-		snapToGranularity,
-		type Granularity
+		defaultTrailCount
 	} from './compute';
 	import type { BalanceSheetRaw } from './loader';
 	import Detail from './variants/Detail.svelte';
 	import Summary from './variants/Summary.svelte';
 	import Trend from './variants/Trend.svelte';
-	import { entryIntent } from '$lib/views/entries/intent.svelte';
-	import { tabState } from '$lib/tabs/state.svelte';
-
-	function newEntry() {
-		entryIntent.set({ verb: 'contributed', sourceTab: 'balance-sheet' });
-		tabState.set('entries');
-	}
+	import { periodState } from '$lib/views/period-state.svelte';
 
 	let { data }: { data: BalanceSheetRaw } = $props();
 
-	const initial = untrack(() => latestActivityPeriod(data.entries, data.accounts));
-	let selectedYear = $state(initial.year);
-	let selectedMonth = $state(initial.month);
-	let granularity = $state<Granularity>('month');
-
-	function shift(direction: 1 | -1) {
-		const next = shiftPeriod(selectedYear, selectedMonth, granularity, direction);
-		selectedYear = next.year;
-		selectedMonth = next.month;
-	}
-
-	function setGranularity(next: Granularity) {
-		const snapped = snapToGranularity(selectedYear, selectedMonth, next);
-		selectedYear = snapped.year;
-		selectedMonth = snapped.month;
-		granularity = next;
-	}
-
 	const bs = $derived(
-		computeBalanceSheet(data.entries, data.accounts, selectedYear, selectedMonth, granularity)
+		computeBalanceSheet(
+			data.entries,
+			data.accounts,
+			periodState.year,
+			periodState.month,
+			periodState.granularity
+		)
 	);
 	const netTrail = $derived(
 		computeNetWorthTrail(
 			data.entries,
 			data.accounts,
-			selectedYear,
-			selectedMonth,
-			granularity,
-			defaultTrailCount(granularity)
+			periodState.year,
+			periodState.month,
+			periodState.granularity,
+			defaultTrailCount(periodState.granularity)
 		)
 	);
 	const assetTrails = $derived(
 		computeAssetTrails(
 			data.entries,
 			data.accounts,
-			selectedYear,
-			selectedMonth,
-			granularity,
-			defaultTrailCount(granularity)
+			periodState.year,
+			periodState.month,
+			periodState.granularity,
+			defaultTrailCount(periodState.granularity)
 		)
 	);
 	const liabilityTrails = $derived(
 		computeLiabilityTrails(
 			data.entries,
 			data.accounts,
-			selectedYear,
-			selectedMonth,
-			granularity,
-			defaultTrailCount(granularity)
+			periodState.year,
+			periodState.month,
+			periodState.granularity,
+			defaultTrailCount(periodState.granularity)
 		)
 	);
 
@@ -88,24 +65,7 @@
 	const priorNet = $derived(priorAssets - priorLiab);
 </script>
 
-<StatementView
-	title="Balance Sheet"
-	periodLabel="As of {bs.as_of_label}"
-	{granularity}
-	onPrev={() => shift(-1)}
-	onNext={() => shift(1)}
-	onGranularity={setGranularity}
->
-	{#snippet actions()}
-		<button
-			type="button"
-			onclick={newEntry}
-			class="bg-surface-inverse px-3 py-1.5 text-xs font-medium uppercase tracking-[0.08em] text-ink-inverse transition-colors hover:bg-surface-inverse-hover"
-		>
-			+ New
-		</button>
-	{/snippet}
-
+<StatementView>
 	{#snippet hero()}
 		<NetHero
 			label="Net Worth · {bs.as_of_label}"
