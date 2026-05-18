@@ -25,7 +25,7 @@
 			return;
 		}
 		const reduce = prefersReducedMotion();
-		const mode: Mode = reduce ? 'none' : pos >= prevPosition ? 'up' : 'down';
+		const mode: Mode = reduce ? 'none' : pos >= prevPosition ? 'down' : 'up';
 		step = { key: nextKey++, before: prevValue, after: curr, mode };
 		prevValue = curr;
 		prevPosition = pos;
