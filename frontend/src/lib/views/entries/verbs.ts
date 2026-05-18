@@ -16,7 +16,7 @@ export const VERBS: VerbConfig[] = [
 	{ id: 'contributed', label: 'Contributed', counterpartyType: 'asset', counterpartyPreposition: 'to', chequingSide: 'credit' },
 	{ id: 'withdrew', label: 'Withdrew', counterpartyType: 'asset', counterpartyPreposition: 'from', chequingSide: 'debit' },
 	{ id: 'borrowed', label: 'Borrowed', counterpartyType: 'liability', counterpartyPreposition: 'via', chequingSide: 'debit' },
-	{ id: 'repaid', label: 'Repaid', counterpartyType: 'liability', counterpartyPreposition: 'on', chequingSide: 'credit' }
+	{ id: 'repaid', label: 'Repaid', counterpartyType: 'liability', counterpartyPreposition: '', chequingSide: 'credit' }
 ];
 
 const VERB_BY_ID: Record<VerbId, VerbConfig> = Object.fromEntries(

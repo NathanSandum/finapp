@@ -41,6 +41,17 @@
 			.sort((a, b) => a.name.localeCompare(b.name))
 	);
 
+	const counterpartyName = $derived(
+		accounts.find((a) => a.id === counterpartyId)?.name ?? ''
+	);
+	const defaultDescription = $derived(
+		counterpartyName
+			? config.counterpartyPreposition
+				? `${config.label} ${config.counterpartyPreposition} ${counterpartyName}`
+				: `${config.label} ${counterpartyName}`
+			: config.label
+	);
+
 	$effect(() => {
 		if (counterpartyId && !counterparties.some((a) => a.id === counterpartyId)) {
 			counterpartyId = '';
@@ -76,7 +87,7 @@
 		try {
 			const result = await createEntry({
 				date,
-				description: description.trim() || config.label,
+				description: description.trim() || defaultDescription,
 				postings,
 				note: note.trim() || undefined
 			});
@@ -140,7 +151,7 @@
 
 	<label class="flex flex-col gap-1">
 		<span class="text-xs uppercase tracking-wide text-ink-muted">
-			{config.label} {config.counterpartyPreposition}
+			{config.label}{config.counterpartyPreposition ? ` ${config.counterpartyPreposition}` : ''}
 		</span>
 		<select
 			bind:value={counterpartyId}
@@ -161,7 +172,7 @@
 		<span class="text-xs uppercase tracking-wide text-ink-muted">Description (optional)</span>
 		<input
 			type="text"
-			placeholder={config.label}
+			placeholder={defaultDescription}
 			bind:value={description}
 			class="border border-border bg-surface-card px-2 py-1.5"
 		/>
