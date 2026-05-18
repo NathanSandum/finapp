@@ -76,6 +76,9 @@
 	}
 
 	const RECENT_LIMIT = 10;
+	const displaySign = $derived(
+		selected && ['expense', 'revenue', 'equity'].includes(selected.account.account_type) ? -1 : 1
+	);
 	const recentEntries = $derived.by(() => {
 		if (!selected) return [] as { id: string; date: string; description: string; amount: number }[];
 		const ids = new Set<string>();
@@ -91,7 +94,7 @@
 					}
 				}
 				return touched
-					? { id: entry.id, date: entry.date, description: entry.description, amount }
+					? { id: entry.id, date: entry.date, description: entry.description, amount: amount * displaySign }
 					: null;
 			})
 			.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
