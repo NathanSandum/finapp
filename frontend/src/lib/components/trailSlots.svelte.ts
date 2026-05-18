@@ -95,12 +95,25 @@ export class TrailSlots {
 			const oldEndX = oldSlots[oldSlots.length - 1].pos.current.x;
 			const oldRange = oldEndTime - oldStartTime || 1;
 
-			const orphanStart = (k: string, targetY: number) => {
+			const timeInterpStart = (k: string, targetY: number) => {
 				const t = timeOrder(k);
 				if (t < oldStartTime) return { x: -stepX, y: targetY };
 				if (t > oldEndTime) return { x: width + stepX, y: targetY };
 				const f = (t - oldStartTime) / oldRange;
-				return { x: oldStartX + (oldEndX - oldStartX) * f, y: targetY };
+				const x = oldStartX + (oldEndX - oldStartX) * f;
+				let y = targetY;
+				for (let j = 0; j < oldSlots.length - 1; j++) {
+					const a = oldSlots[j];
+					const b = oldSlots[j + 1];
+					if (x >= a.pos.current.x && x <= b.pos.current.x) {
+						const u = b.pos.current.x === a.pos.current.x
+							? 0
+							: (x - a.pos.current.x) / (b.pos.current.x - a.pos.current.x);
+						y = a.pos.current.y + (b.pos.current.y - a.pos.current.y) * u;
+						break;
+					}
+				}
+				return { x, y };
 			};
 
 			for (let i = 0; i < keys.length; i++) {
@@ -109,20 +122,13 @@ export class TrailSlots {
 				let startPos: { x: number; y: number };
 
 				if (isMerge) {
-					const children = oldSlots.filter((s) => parentKeyInGran(s.key, newGran!) === k);
-					if (children.length > 0) {
-						const cx = children.reduce((s, c) => s + c.pos.current.x, 0) / children.length;
-						const cy = children.reduce((s, c) => s + c.pos.current.y, 0) / children.length;
-						startPos = { x: cx, y: cy };
-					} else {
-						startPos = orphanStart(k, target.y);
-					}
+					startPos = timeInterpStart(k, target.y);
 				} else {
 					const parent = parentKeyInGran(k, oldGran!);
 					const parentSlot = parent ? oldSlotByKey.get(parent) : undefined;
 					startPos = parentSlot
 						? { x: parentSlot.pos.current.x, y: parentSlot.pos.current.y }
-						: orphanStart(k, target.y);
+						: timeInterpStart(k, target.y);
 				}
 
 				const slot: TrailSlot = {
