@@ -71,3 +71,32 @@ export function countDescendants(node: AccountNode): number {
 export function rootIdFor(anchors: Anchors, key: RootKey): string {
 	return anchors[key].id;
 }
+
+export function collectIds(node: AccountNode, out: Set<string>): void {
+	out.add(node.account.id);
+	for (const child of node.children) collectIds(child, out);
+}
+
+export type AccountTrail = { key: RootKey; nodes: AccountNode[] };
+
+export function pathTo(
+	subtrees: { key: RootKey; tree: AccountNode }[],
+	id: string
+): AccountTrail | null {
+	for (const { key, tree } of subtrees) {
+		const trail: AccountNode[] = [];
+		const found = walk(tree, id, trail);
+		if (found) return { key, nodes: trail };
+	}
+	return null;
+}
+
+function walk(node: AccountNode, id: string, trail: AccountNode[]): boolean {
+	trail.push(node);
+	if (node.account.id === id) return true;
+	for (const child of node.children) {
+		if (walk(child, id, trail)) return true;
+	}
+	trail.pop();
+	return false;
+}
