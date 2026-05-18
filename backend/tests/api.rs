@@ -391,6 +391,57 @@ async fn create_child_account_via_api() {
 }
 
 #[tokio::test]
+async fn create_delete_create_user_account_via_api() {
+    let app = app();
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+
+    let (_, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts"),
+        &mut session,
+    )
+    .await;
+    let accounts = body["accounts"].as_array().unwrap();
+    let expenses = accounts
+        .iter()
+        .find(|a| a["name"] == "Expenses" && a["parent_id"].is_null())
+        .unwrap();
+    let expenses_id = expenses["id"].as_str().unwrap().to_string();
+
+    let (status, body) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts"),
+        &mut session,
+        json!({ "name": "test", "parent_id": expenses_id }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "first create: {body}");
+    let first_id = body["id"].as_str().unwrap().to_string();
+
+    let (status, _) = delete(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts/{first_id}"),
+        &mut session,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, body) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/accounts"),
+        &mut session,
+        json!({ "name": "test", "parent_id": expenses_id }),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "recreate after delete must not conflict: {body}"
+    );
+    assert_eq!(body["id"], first_id, "should restore same id");
+}
+
+#[tokio::test]
 async fn create_root_account_via_api_rejected() {
     let app = app();
     let (mut session, _, workspace_id) = setup_workspace(&app).await;

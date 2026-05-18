@@ -145,6 +145,11 @@ export function trailLabel(year: number, month: number, granularity: Granularity
 	return `'${(year % 100).toString().padStart(2, '0')}`;
 }
 
+export function periodPrefix(year: number, month: number, granularity: Granularity): string {
+	if (granularity === 'year') return `${year}`;
+	return `${trailLabel(year, month, granularity)} ${year}`;
+}
+
 export function trailKey(year: number, month: number, granularity: Granularity): string {
 	if (granularity === 'month') return `${year}-${pad2(month)}`;
 	if (granularity === 'quarter') return `${year}-Q${quarterOf(month)}`;

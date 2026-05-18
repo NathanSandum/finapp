@@ -14,6 +14,7 @@
 	let selectedId = $state<string | null>(null);
 	let creating = $state(false);
 	let formVerb = $state<VerbId>('spent');
+	let formCounterpartyId = $state('');
 
 	const incomingIntent = $derived(entryIntent.get());
 	$effect(() => {
@@ -21,6 +22,7 @@
 		if (intent) {
 			creating = true;
 			formVerb = intent.verb;
+			formCounterpartyId = intent.counterpartyId ?? '';
 		}
 	});
 
@@ -90,6 +92,7 @@
 						accounts={data.accounts}
 						anchors={data.anchors}
 						initialVerb={formVerb}
+						initialCounterpartyId={formCounterpartyId}
 						onClose={closeForm}
 					/>
 				{/key}

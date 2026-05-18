@@ -24,6 +24,19 @@ export const cache = {
 		return promise;
 	},
 
+	async refresh<T>(key: string, fetcher: () => Promise<JSend<T>>): Promise<JSend<T>> {
+		const existing = inFlight.get(key);
+		if (existing) return existing as Promise<JSend<T>>;
+
+		const promise = fetcher().then((result) => {
+			store[key] = result;
+			inFlight.delete(key);
+			return result;
+		});
+		inFlight.set(key, promise as Promise<JSend<unknown>>);
+		return promise;
+	},
+
 	invalidate(key: string) {
 		delete store[key];
 		inFlight.delete(key);
@@ -32,5 +45,14 @@ export const cache = {
 	invalidateAll() {
 		for (const key of Object.keys(store)) delete store[key];
 		inFlight.clear();
+	},
+
+	invalidateAllExcept(keep: string) {
+		for (const key of Object.keys(store)) {
+			if (key !== keep) delete store[key];
+		}
+		for (const key of inFlight.keys()) {
+			if (key !== keep) inFlight.delete(key);
+		}
 	}
 };

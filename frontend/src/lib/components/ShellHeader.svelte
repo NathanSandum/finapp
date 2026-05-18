@@ -8,6 +8,30 @@
 	import { periodState } from '$lib/views/period-state.svelte';
 	import { periodLabel } from '$lib/views/period';
 	import { entryIntent } from '$lib/views/entries/intent.svelte';
+	import { accountsSelection } from '$lib/views/accounts/selection.svelte';
+	import type { VerbId } from '$lib/views/entries/verbs';
+	import type { Account } from '$lib/views/entries/loader';
+	import SolidButton from './SolidButton.svelte';
+
+	function intentForSelection(
+		account: Account
+	): { verb: VerbId; counterpartyId: string } | null {
+		if (account.role === 'cash') return null;
+		const isRoot = account.parent_id === null;
+		const counterpartyId = isRoot ? '' : account.id;
+		switch (account.account_type) {
+			case 'expense':
+				return { verb: 'spent', counterpartyId };
+			case 'revenue':
+				return { verb: 'earned', counterpartyId };
+			case 'asset':
+				return { verb: 'contributed', counterpartyId };
+			case 'liability':
+				return { verb: 'borrowed', counterpartyId };
+			default:
+				return null;
+		}
+	}
 
 	const currentIndex = $derived(Math.max(0, tabs.findIndex((t) => t.id === tabState.get())));
 	const current = $derived(tabs[currentIndex] ?? tabs[0]);
@@ -25,9 +49,15 @@
 	});
 
 	function newEntry() {
-		const verb = current.newEntryVerb;
-		if (!verb) return;
-		entryIntent.set({ verb, sourceTab: current.id });
+		const defaultVerb = current.newEntryVerb;
+		if (!defaultVerb) return;
+		const selection = current.id === 'accounts' ? accountsSelection.get() : null;
+		const override = selection ? intentForSelection(selection) : null;
+		entryIntent.set({
+			verb: override?.verb ?? defaultVerb,
+			counterpartyId: override?.counterpartyId,
+			sourceTab: current.id
+		});
 		tabState.set('entries');
 	}
 </script>
@@ -54,13 +84,7 @@
 	</div>
 	<div class="flex items-baseline gap-3">
 		{#if current.newEntryVerb}
-			<button
-				type="button"
-				onclick={newEntry}
-				class="bg-surface-inverse px-3 py-1.5 text-xs font-medium uppercase tracking-[0.08em] text-ink-inverse transition-colors hover:bg-surface-inverse-hover"
-			>
-				+ New
-			</button>
+			<SolidButton size="sm" onclick={newEntry}>+ New</SolidButton>
 		{/if}
 		<GranularityPill
 			granularity={periodState.granularity}

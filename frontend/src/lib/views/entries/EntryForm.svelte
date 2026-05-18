@@ -4,17 +4,20 @@
 	import { createEntry } from './api';
 	import { VERBS, verbConfig, buildVerbPostings, type VerbId } from './verbs';
 	import { today } from '../today';
+	import SolidButton from '$lib/components/SolidButton.svelte';
 
 	let {
 		accounts,
 		anchors,
 		initialVerb = 'spent',
+		initialCounterpartyId = '',
 		onClose,
 		onCreated
 	}: {
 		accounts: Account[];
 		anchors: Anchors;
 		initialVerb?: VerbId;
+		initialCounterpartyId?: string;
 		onClose: () => void;
 		onCreated?: () => void;
 	} = $props();
@@ -22,7 +25,7 @@
 	const chequing = $derived(anchors.cash);
 
 	let verb = $state<VerbId>(initialVerb);
-	let counterpartyId = $state('');
+	let counterpartyId = $state(initialCounterpartyId);
 	let amountText = $state('');
 	let date = $state(today());
 	let description = $state('');
@@ -37,6 +40,17 @@
 		accounts
 			.filter((a) => a.account_type === config.counterpartyType && a.id !== chequing.id)
 			.sort((a, b) => a.name.localeCompare(b.name))
+	);
+
+	const counterpartyName = $derived(
+		accounts.find((a) => a.id === counterpartyId)?.name ?? ''
+	);
+	const defaultDescription = $derived(
+		counterpartyName
+			? config.counterpartyPreposition
+				? `${config.label} ${config.counterpartyPreposition} ${counterpartyName}`
+				: `${config.label} ${counterpartyName}`
+			: config.label
 	);
 
 	$effect(() => {
@@ -74,7 +88,7 @@
 		try {
 			const result = await createEntry({
 				date,
-				description: description.trim() || config.label,
+				description: description.trim() || defaultDescription,
 				postings,
 				note: note.trim() || undefined
 			});
@@ -138,7 +152,7 @@
 
 	<label class="flex flex-col gap-1">
 		<span class="text-xs uppercase tracking-wide text-ink-muted">
-			{config.label} {config.counterpartyPreposition}
+			{config.label}{config.counterpartyPreposition ? ` ${config.counterpartyPreposition}` : ''}
 		</span>
 		<select
 			bind:value={counterpartyId}
@@ -159,7 +173,7 @@
 		<span class="text-xs uppercase tracking-wide text-ink-muted">Description (optional)</span>
 		<input
 			type="text"
-			placeholder={config.label}
+			placeholder={defaultDescription}
 			bind:value={description}
 			class="border border-border bg-surface-card px-2 py-1.5"
 		/>
@@ -184,13 +198,9 @@
 	{/if}
 
 	<div class="flex gap-2 pt-2">
-		<button
-			type="submit"
-			disabled={submitting}
-			class="bg-surface-inverse px-4 py-2 text-sm font-medium text-ink-inverse transition-colors hover:bg-surface-inverse-hover disabled:opacity-50"
-		>
+		<SolidButton type="submit" disabled={submitting}>
 			{submitting ? 'Saving…' : 'Save entry'}
-		</button>
+		</SolidButton>
 		<button
 			type="button"
 			onclick={onClose}

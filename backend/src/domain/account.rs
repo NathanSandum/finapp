@@ -1430,6 +1430,24 @@ mod tests {
     }
 
     #[test]
+    fn create_delete_create_user_account_restores_same_id() {
+        let (mut conn, workspace) = setup();
+        let expenses = find_account("Expenses", &workspace, &mut conn);
+
+        let first = NewAccount::child(&expenses, "test").insert(&mut conn).unwrap();
+        let original_id = first.id.clone();
+
+        first.soft_delete(&mut conn).unwrap();
+
+        let recreated = NewAccount::child(&expenses, "test")
+            .insert(&mut conn)
+            .expect("recreation after soft delete must succeed without conflict");
+
+        assert_eq!(recreated.id, original_id);
+        assert!(recreated.deleted_at.is_none());
+    }
+
+    #[test]
     fn account_with_only_deleted_entry_postings_can_be_deleted() {
         let (mut conn, workspace) = setup();
         let chequing = find_account("Chequing", &workspace, &mut conn);

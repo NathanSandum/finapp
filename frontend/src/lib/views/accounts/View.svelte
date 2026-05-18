@@ -1,9 +1,14 @@
 <script lang="ts">
-	import AccountRow from './AccountRow.svelte';
-	import { buildSubtree, countDescendants, ROOT_ACCENT, ROOT_LABEL, ROOT_ORDER } from './tree';
+	import { buildSubtree, pathTo, ROOT_ORDER } from './tree';
 	import type { AccountsData } from './loader';
+	import AccountsSidebar from './AccountsSidebar.svelte';
+	import AccountDetail from './AccountDetail.svelte';
+	import { accountsSelection } from './selection.svelte';
+	import { onDestroy } from 'svelte';
 
 	let { data }: { data: AccountsData } = $props();
+
+	let selectedId = $state<string | null>(null);
 
 	const subtrees = $derived(
 		ROOT_ORDER.map((key) => ({
@@ -11,25 +16,37 @@
 			tree: buildSubtree(data.anchors[key].id, data.accounts)
 		}))
 	);
+
+	const selectedTrail = $derived(selectedId ? pathTo(subtrees, selectedId) : null);
+	const selected = $derived(
+		selectedTrail ? selectedTrail.nodes[selectedTrail.nodes.length - 1] : null
+	);
+
+	$effect(() => {
+		accountsSelection.set(selected ? selected.account : null);
+	});
+
+	onDestroy(() => accountsSelection.set(null));
+
+	function select(id: string) {
+		selectedId = id;
+	}
 </script>
 
-<div class="flex h-full flex-col gap-4">
-	<p class="text-xs uppercase tracking-[0.08em] text-ink-muted">Click name to rename</p>
-	<div class="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto md:grid-cols-2 xl:grid-cols-3">
-		{#each subtrees as { key, tree } (key)}
-			<section class="flex flex-col border border-border bg-surface-card">
-				<header class="flex items-baseline justify-between border-b border-border-faint px-4 py-2">
-					<h3 class="font-display text-sm font-semibold uppercase tracking-[0.08em] {ROOT_ACCENT[key]}">
-						{ROOT_LABEL[key]}
-					</h3>
-					<span class="font-mono text-[11px] text-ink-muted">
-						{countDescendants(tree)} accounts
-					</span>
-				</header>
-				<div class="flex-1 px-3 py-2">
-					<AccountRow node={tree} />
-				</div>
-			</section>
-		{/each}
-	</div>
+<div class="grid h-full grid-cols-[320px_1fr] border border-border bg-surface-card">
+	<AccountsSidebar {subtrees} {selectedId} onSelect={select} />
+
+	{#if selected && selectedTrail}
+		<AccountDetail
+			{selected}
+			trail={selectedTrail}
+			entries={data.entries}
+			onSelect={select}
+			onAfterDelete={(nextId) => (selectedId = nextId)}
+		/>
+	{:else}
+		<section class="h-full overflow-y-auto p-6">
+			<p class="text-sm text-ink-muted">Select an account on the left.</p>
+		</section>
+	{/if}
 </div>

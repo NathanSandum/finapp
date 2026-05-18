@@ -3,6 +3,7 @@ import type { VerbId } from './verbs';
 export type EntryIntent = {
 	verb: VerbId;
 	sourceTab: string;
+	counterpartyId?: string;
 };
 
 const state: { current: EntryIntent | null } = $state({ current: null });
