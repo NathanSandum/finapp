@@ -52,35 +52,35 @@ function offscreenSideX(slotTime: number, referenceStart: number, stepX: number,
 
 export class TrailSlots {
 	slots = $state<TrailSlot[]>([]);
-	#duration: number;
-	#pendingSwap = 0;
+	private duration: number;
+	private pendingSwap = 0;
 
 	constructor(duration = 520) {
-		this.#duration = duration;
+		this.duration = duration;
 	}
 
 	destroy() {
-		this.#pendingSwap++;
+		this.pendingSwap++;
 	}
 
 	sync(keys: string[], values: number[], width: number, height: number) {
-		untrack(() => this.#syncImpl(keys, values, width, height));
+		untrack(() => this.syncImpl(keys, values, width, height));
 	}
 
-	#fresh(keys: string[], layout: Point[]): TrailSlot[] {
+	private fresh(keys: string[], layout: Point[]): TrailSlot[] {
 		return keys.map((k, i) => ({
 			key: k,
-			pos: new Tween(layout[i], { duration: this.#duration, easing: cubicOut })
+			pos: new Tween(layout[i], { duration: this.duration, easing: cubicOut })
 		}));
 	}
 
-	#applyTarget(slot: TrailSlot, target: Point, reduce: boolean) {
+	private applyTarget(slot: TrailSlot, target: Point, reduce: boolean) {
 		if (reduce) slot.pos.set(target, { duration: 0 });
 		else slot.pos.target = target;
 	}
 
-	#syncImpl(keys: string[], values: number[], width: number, height: number) {
-		const token = ++this.#pendingSwap;
+	private syncImpl(keys: string[], values: number[], width: number, height: number) {
+		const token = ++this.pendingSwap;
 		const layout = layoutFor(values, width, height);
 
 		if (keys.length === 0) {
@@ -88,13 +88,13 @@ export class TrailSlots {
 			return;
 		}
 		if (this.slots.length === 0) {
-			this.slots = this.#fresh(keys, layout);
+			this.slots = this.fresh(keys, layout);
 			return;
 		}
 
 		const oldSlots = this.slots.filter((s) => !s.key.startsWith('__spawn:'));
 		if (oldSlots.length === 0) {
-			this.slots = this.#fresh(keys, layout);
+			this.slots = this.fresh(keys, layout);
 			return;
 		}
 
@@ -105,17 +105,17 @@ export class TrailSlots {
 		const stepX = width / keys.length;
 
 		if (granChange && granRank(newGran) < granRank(oldGran)) {
-			this.#syncMerge(keys, layout, oldSlots, newGran!, stepX, width, reduce, token);
+			this.syncMerge(keys, layout, oldSlots, newGran!, stepX, width, reduce, token);
 			return;
 		}
 		if (granChange) {
-			this.#syncSplit(keys, layout, oldSlots, oldGran!, stepX, width, reduce);
+			this.syncSplit(keys, layout, oldSlots, oldGran!, stepX, width, reduce);
 			return;
 		}
-		this.#syncSameGran(keys, layout, oldSlots, stepX, width, reduce);
+		this.syncSameGran(keys, layout, oldSlots, stepX, width, reduce);
 	}
 
-	#syncMerge(
+	private syncMerge(
 		keys: string[],
 		layout: Point[],
 		oldSlots: TrailSlot[],
@@ -142,7 +142,7 @@ export class TrailSlots {
 				const x = offscreenSideX(timeOrder(old.key), newStartTime, stepX, width);
 				target = { x, y: old.pos.current.y };
 			}
-			this.#applyTarget(old, target, reduce);
+			this.applyTarget(old, target, reduce);
 			combined.push(old);
 		}
 
@@ -155,27 +155,27 @@ export class TrailSlots {
 				key: `__spawn:${newKey}`,
 				pos: new Tween(
 					{ x: startX, y: target.y },
-					{ duration: this.#duration, easing: cubicOut }
+					{ duration: this.duration, easing: cubicOut }
 				)
 			};
-			this.#applyTarget(slot, target, reduce);
+			this.applyTarget(slot, target, reduce);
 			combined.push(slot);
 		}
 
 		this.slots = combined;
-		this.#scheduleFinalize(keys, layout, token, reduce);
+		this.scheduleFinalize(keys, layout, token, reduce);
 	}
 
-	#scheduleFinalize(keys: string[], layout: Point[], token: number, reduce: boolean) {
+	private scheduleFinalize(keys: string[], layout: Point[], token: number, reduce: boolean) {
 		const finalize = () => {
-			if (token !== this.#pendingSwap) return;
-			this.slots = this.#fresh(keys, layout);
+			if (token !== this.pendingSwap) return;
+			this.slots = this.fresh(keys, layout);
 		};
 		if (reduce) finalize();
-		else setTimeout(finalize, this.#duration + 16);
+		else setTimeout(finalize, this.duration + 16);
 	}
 
-	#syncSplit(
+	private syncSplit(
 		keys: string[],
 		layout: Point[],
 		oldSlots: TrailSlot[],
@@ -221,16 +221,16 @@ export class TrailSlots {
 				: timeInterpStart(k, target.y);
 			const slot: TrailSlot = {
 				key: k,
-				pos: new Tween(startPos, { duration: this.#duration, easing: cubicOut })
+				pos: new Tween(startPos, { duration: this.duration, easing: cubicOut })
 			};
-			this.#applyTarget(slot, target, reduce);
+			this.applyTarget(slot, target, reduce);
 			return slot;
 		});
 
 		this.slots = nextSlots;
 	}
 
-	#syncSameGran(
+	private syncSameGran(
 		keys: string[],
 		layout: Point[],
 		oldSlots: TrailSlot[],
@@ -254,7 +254,7 @@ export class TrailSlots {
 			const target = layout[i];
 			const existing = oldSlotByKey.get(k);
 			if (existing) {
-				this.#applyTarget(existing, target, reduce);
+				this.applyTarget(existing, target, reduce);
 				return existing;
 			}
 			const enterRight = minSurvivor === undefined ? k > lastOldKey : k >= minSurvivor;
@@ -264,10 +264,10 @@ export class TrailSlots {
 				key: k,
 				pos: new Tween(
 					{ x: startX, y: startY },
-					{ duration: this.#duration, easing: cubicOut }
+					{ duration: this.duration, easing: cubicOut }
 				)
 			};
-			this.#applyTarget(slot, target, reduce);
+			this.applyTarget(slot, target, reduce);
 			return slot;
 		});
 
