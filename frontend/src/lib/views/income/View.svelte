@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import MetricTile from '$lib/components/MetricTile.svelte';
 	import NetHero from '$lib/components/NetHero.svelte';
 	import StatementView from '$lib/components/StatementView.svelte';
@@ -7,8 +6,7 @@
 		computeIncomeData,
 		computeIncomeTrails,
 		computeNetTrail,
-		defaultTrailCount,
-		latestActivityMonth
+		defaultTrailCount
 	} from './compute';
 	import {
 		totalExpenses,
@@ -23,9 +21,6 @@
 	import { periodState } from '$lib/views/period-state.svelte';
 
 	let { data }: { data: IncomeRaw } = $props();
-
-	const initial = untrack(() => latestActivityMonth(data.entries, data.accounts));
-	periodState.initIfNeeded(initial.year, initial.month);
 
 	const income = $derived(
 		computeIncomeData(

@@ -4,12 +4,13 @@
 	import { tabs } from '$lib/tabs/registry';
 	import { tabState } from '$lib/tabs/state.svelte';
 	import { workspaceState } from '$lib/workspace/state.svelte';
-	import { listWorkspaces } from '$lib/workspace/api';
+	import { bootWorkspace } from '$lib/workspace/boot';
 	import { fetchMe } from '$lib/api/auth';
 	import { authState } from '$lib/api/state.svelte';
 	import { goto } from '$app/navigation';
 
 	const current = $derived(tabs.find((t) => t.id === tabState.get()) ?? tabs[0]);
+	const booted = $derived(workspaceState.active !== null);
 
 	let bootError = $state<string | null>(null);
 
@@ -22,22 +23,19 @@
 				return;
 			}
 			authState.set(me.data.user);
-			const result = await listWorkspaces();
-			if (result.status !== 'success') {
+			const result = await bootWorkspace();
+			if (result.status === 'fail') {
 				bootError =
-					result.status === 'error' ? result.message : 'Failed to load workspaces';
-				return;
+					typeof result.data.message === 'string' ? result.data.message : 'Failed to load workspace';
+			} else if (result.status === 'error') {
+				bootError = result.message;
 			}
-			workspaceState.setList(result.data.workspaces);
-			const initial = workspaceState.pickInitial(result.data.workspaces);
-			if (initial) workspaceState.setActive(initial);
-			else bootError = 'No workspaces available';
 		})();
 	});
 </script>
 
 <main class="flex flex-col overflow-hidden">
-	{#if workspaceState.active}
+	{#if booted}
 		<ShellHeader />
 		<div class="relative flex-1 overflow-hidden">
 			{#each tabs as tab (tab.id)}

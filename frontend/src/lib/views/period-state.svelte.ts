@@ -4,10 +4,9 @@ type PeriodState = {
 	year: number;
 	month: number;
 	granularity: Granularity;
-	initialized: boolean;
 };
 
-const state: PeriodState = $state({ year: 0, month: 0, granularity: 'month', initialized: false });
+const state: PeriodState = $state({ year: 0, month: 0, granularity: 'month' });
 
 export const periodState = {
 	get year() {
@@ -19,14 +18,9 @@ export const periodState = {
 	get granularity() {
 		return state.granularity;
 	},
-	get initialized() {
-		return state.initialized;
-	},
-	initIfNeeded(year: number, month: number) {
-		if (state.initialized) return;
+	init(year: number, month: number) {
 		state.year = year;
 		state.month = month;
-		state.initialized = true;
 	},
 	shift(direction: 1 | -1) {
 		const next = shiftPeriod(state.year, state.month, state.granularity, direction);

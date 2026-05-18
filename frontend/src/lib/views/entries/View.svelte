@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
-	import { latestActivityPeriod, periodBounds } from '$lib/views/period';
+	import { periodBounds } from '$lib/views/period';
 	import { periodState } from '$lib/views/period-state.svelte';
 	import { entryAmount, type EntriesData } from './loader';
 	import { fmt } from '$lib/format';
@@ -11,9 +10,6 @@
 	import type { VerbId } from './verbs';
 
 	let { data }: { data: EntriesData } = $props();
-
-	const initial = untrack(() => latestActivityPeriod(data.entries));
-	periodState.initIfNeeded(initial.year, initial.month);
 
 	let selectedId = $state<string | null>(null);
 	let creating = $state(false);

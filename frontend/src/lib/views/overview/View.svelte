@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { onMount, untrack } from 'svelte';
+	import { onMount } from 'svelte';
 	import { fmt, pct } from '$lib/format';
 	import Num from '$lib/components/Num.svelte';
-	import { latestActivityPeriod } from '$lib/views/period';
 	import { periodState } from '$lib/views/period-state.svelte';
 	import { computeOverview } from './compute';
 	import type { OverviewRaw } from './loader';
@@ -19,9 +18,6 @@
 		if (!animateEntrance) return;
 		requestAnimationFrame(() => requestAnimationFrame(() => (entered = true)));
 	});
-
-	const initial = untrack(() => latestActivityPeriod(data.entries));
-	periodState.initIfNeeded(initial.year, initial.month);
 
 	const metrics = $derived(
 		computeOverview(

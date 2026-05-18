@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import MetricTile from '$lib/components/MetricTile.svelte';
 	import NetHero from '$lib/components/NetHero.svelte';
 	import StatementView from '$lib/components/StatementView.svelte';
@@ -8,8 +7,7 @@
 		computeBalanceSheet,
 		computeLiabilityTrails,
 		computeNetWorthTrail,
-		defaultTrailCount,
-		latestActivityPeriod
+		defaultTrailCount
 	} from './compute';
 	import type { BalanceSheetRaw } from './loader';
 	import Detail from './variants/Detail.svelte';
@@ -18,9 +16,6 @@
 	import { periodState } from '$lib/views/period-state.svelte';
 
 	let { data }: { data: BalanceSheetRaw } = $props();
-
-	const initial = untrack(() => latestActivityPeriod(data.entries, data.accounts));
-	periodState.initIfNeeded(initial.year, initial.month);
 
 	const bs = $derived(
 		computeBalanceSheet(

@@ -11,12 +11,7 @@
 
 	const currentIndex = $derived(Math.max(0, tabs.findIndex((t) => t.id === tabState.get())));
 	const current = $derived(tabs[currentIndex] ?? tabs[0]);
-	const showPeriod = $derived(periodState.initialized);
-	const label = $derived(
-		periodState.initialized
-			? periodLabel(periodState.year, periodState.month, periodState.granularity)
-			: ''
-	);
+	const label = $derived(periodLabel(periodState.year, periodState.month, periodState.granularity));
 
 	const measureEls: (HTMLHeadingElement | undefined)[] = $state(Array(tabs.length).fill(undefined));
 	let titleMinWidth = $state(0);
@@ -45,13 +40,11 @@
 		>
 			<RollingTitle value={current.label} position={currentIndex} />
 		</h3>
-		{#if showPeriod}
-			<PeriodNav
-				label={label}
-				onPrev={() => periodState.shift(-1)}
-				onNext={() => periodState.shift(1)}
-			/>
-		{/if}
+		<PeriodNav
+			label={label}
+			onPrev={() => periodState.shift(-1)}
+			onNext={() => periodState.shift(1)}
+		/>
 	</div>
 	<div class="title-measure-rack" aria-hidden="true">
 		{#each tabs as t, i (t.id)}
@@ -68,12 +61,10 @@
 				+ New
 			</button>
 		{/if}
-		{#if showPeriod}
-			<GranularityPill
-				granularity={periodState.granularity}
-				onSelect={(g) => periodState.setGranularity(g)}
-			/>
-		{/if}
+		<GranularityPill
+			granularity={periodState.granularity}
+			onSelect={(g) => periodState.setGranularity(g)}
+		/>
 	</div>
 </header>
 

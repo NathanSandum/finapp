@@ -1,13 +1,11 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import NetHero from '$lib/components/NetHero.svelte';
 	import StatementView from '$lib/components/StatementView.svelte';
 	import {
 		computeCashFlow,
 		computeNetCashTrail,
 		computeSectionTrails,
-		defaultTrailCount,
-		latestActivityPeriod
+		defaultTrailCount
 	} from './compute';
 	import MetricTile from '$lib/components/MetricTile.svelte';
 	import type { CashFlowRaw } from './loader';
@@ -17,9 +15,6 @@
 	import { periodState } from '$lib/views/period-state.svelte';
 
 	let { data }: { data: CashFlowRaw } = $props();
-
-	const initial = untrack(() => latestActivityPeriod(data.entries));
-	periodState.initIfNeeded(initial.year, initial.month);
 
 	const cf = $derived(
 		computeCashFlow(
