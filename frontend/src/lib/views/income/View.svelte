@@ -119,6 +119,7 @@
 			expenses={income.expenses}
 			revenueTrails={trails.revenueTrails}
 			expenseTrails={trails.expenseTrails}
+			labels={trails.labels}
 		/>
 	{/snippet}
 </StatementView>

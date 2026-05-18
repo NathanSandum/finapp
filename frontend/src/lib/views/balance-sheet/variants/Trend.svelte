@@ -6,12 +6,14 @@
 		assets,
 		liabilities,
 		assetTrails,
-		liabilityTrails
+		liabilityTrails,
+		labels
 	}: {
 		assets: Line[];
 		liabilities: Line[];
 		assetTrails: Map<string, number[]>;
 		liabilityTrails: Map<string, number[]>;
+		labels: string[];
 	} = $props();
 
 	const rows = $derived<TrendRow[]>([
@@ -30,4 +32,4 @@
 	]);
 </script>
 
-<TrendList {rows} />
+<TrendList {rows} {labels} />

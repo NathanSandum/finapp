@@ -6,12 +6,14 @@
 		revenue,
 		expenses,
 		revenueTrails,
-		expenseTrails
+		expenseTrails,
+		labels
 	}: {
 		revenue: Line[];
 		expenses: Line[];
 		revenueTrails: Map<string, number[]>;
 		expenseTrails: Map<string, number[]>;
+		labels: string[];
 	} = $props();
 
 	const rows = $derived<TrendRow[]>([
@@ -30,4 +32,4 @@
 	]);
 </script>
 
-<TrendList {rows} />
+<TrendList {rows} {labels} />

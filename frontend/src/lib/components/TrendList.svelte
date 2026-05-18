@@ -1,8 +1,4 @@
-<script lang="ts">
-	import { buildLine } from '$lib/views/income/lib';
-	import { fmt } from '$lib/format';
-	import Num from './Num.svelte';
-
+<script lang="ts" module>
 	export type TrendAccent = 'positive' | 'negative' | 'investing' | 'financing';
 	export type TrendRow = {
 		name: string;
@@ -10,8 +6,12 @@
 		trail: number[];
 		accent: TrendAccent;
 	};
+</script>
 
-	let { rows }: { rows: TrendRow[] } = $props();
+<script lang="ts">
+	import TrendRowView from './TrendRow.svelte';
+
+	let { rows, labels }: { rows: TrendRow[]; labels: string[] } = $props();
 
 	const STROKE: Record<TrendAccent, string> = {
 		positive: 'stroke-positive-line',
@@ -36,31 +36,8 @@
 		</tr>
 	</thead>
 	<tbody>
-		{#each rows as row}
-			{@const sl = buildLine(row.trail, 200, 24)}
-			{@const first = row.trail[0] ?? 0}
-			{@const last = row.trail[row.trail.length - 1] ?? 0}
-			{@const dir = last >= first ? '▲' : '▼'}
-			{@const stroke = STROKE[row.accent]}
-			{@const txt = TXT[row.accent]}
-			<tr class="h-8 border-b border-border-faint">
-				<td class="text-ink-body">
-					<span class="mr-1 font-mono {txt}">{dir}</span>{row.name}
-				</td>
-				<td>
-					<svg viewBox="0 0 200 24" class="h-6 w-full max-w-[200px]">
-						<polyline
-							fill="none"
-							class={stroke}
-							stroke-width="1.25"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							points={sl.path}
-						/>
-					</svg>
-				</td>
-				<td class="text-right font-mono font-semibold tabular-nums text-ink"><Num text={fmt(row.amount)} /></td>
-			</tr>
+		{#each rows as row (row.name)}
+			<TrendRowView {row} {labels} stroke={STROKE[row.accent]} txt={TXT[row.accent]} />
 		{/each}
 	</tbody>
 </table>

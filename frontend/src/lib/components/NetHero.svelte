@@ -1,6 +1,16 @@
 <script lang="ts">
-	import { buildLine } from '$lib/views/income/lib';
+	import { untrack } from 'svelte';
+	import { Tween } from 'svelte/motion';
+	import { cubicOut } from 'svelte/easing';
 	import { fmt, pct, shortFmt } from '$lib/format';
+	import { prefersReducedMotion } from '$lib/utils/motion';
+	import {
+		computeAnim,
+		computePositions,
+		pointsToArea,
+		pointsToPath,
+		type Pt
+	} from '$lib/utils/sparkline';
 	import Num from './Num.svelte';
 
 	let {
@@ -19,9 +29,49 @@
 		gradientId: string;
 	} = $props();
 
-	const sparkline = $derived(buildLine(trail, 560, 80));
-	const min = $derived(Math.min(...trail));
-	const max = $derived(Math.max(...trail));
+	const WIDTH = 560;
+	const HEIGHT = 80;
+
+	let prevLabels: string[] = untrack(() => [...trailLabels]);
+	let prevPositions: Pt[] = untrack(() => computePositions(trail, WIDTH, HEIGHT));
+
+	const tween = new Tween<Pt[]>(untrack(() => [...prevPositions]), {
+		duration: 520,
+		easing: cubicOut
+	});
+
+	$effect(() => {
+		const nextValues = trail;
+		const nextLabels = trailLabels;
+		const nextPositions = computePositions(nextValues, WIDTH, HEIGHT);
+		const sameLabels =
+			nextLabels.length === prevLabels.length &&
+			nextLabels.every((l, i) => l === prevLabels[i]);
+		const sameValues =
+			sameLabels && nextPositions.every((p, i) => p.x === prevPositions[i].x && p.y === prevPositions[i].y);
+		if (sameValues) return;
+		if (prefersReducedMotion()) {
+			tween.set(nextPositions, { duration: 0 });
+		} else {
+			const { start, end } = computeAnim(
+				prevLabels,
+				prevPositions,
+				nextLabels,
+				nextPositions,
+				WIDTH
+			);
+			tween.set(start, { duration: 0 });
+			tween.target = end;
+		}
+		prevLabels = [...nextLabels];
+		prevPositions = nextPositions;
+	});
+
+	const path = $derived(pointsToPath(tween.current));
+	const area = $derived(pointsToArea(tween.current, WIDTH, HEIGHT));
+	const lastPoint = $derived(tween.current[tween.current.length - 1]);
+	const min = $derived(trail.length > 0 ? Math.min(...trail) : 0);
+	const max = $derived(trail.length > 0 ? Math.max(...trail) : 0);
 </script>
 
 <section class="relative shrink-0 overflow-hidden border border-border bg-surface-card">
@@ -34,30 +84,25 @@
 			<span class="text-[13px] font-semibold text-positive">{pct(value, prior)}</span>
 		</p>
 	</div>
-	<svg width="100%" viewBox="0 0 560 100" class="overflow-visible" preserveAspectRatio="none">
+	<svg width="100%" viewBox="0 0 {WIDTH} 100" class="overflow-visible" preserveAspectRatio="none">
 		<defs>
 			<linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
 				<stop offset="0%" style:stop-color="var(--color-positive-line)" stop-opacity="0.30" />
 				<stop offset="100%" style:stop-color="var(--color-positive-line)" stop-opacity="0" />
 			</linearGradient>
 		</defs>
-		<polygon fill="url(#{gradientId})" points={sparkline.area} transform="translate(0,20)" />
+		<polygon fill="url(#{gradientId})" points={area} transform="translate(0,20)" />
 		<polyline
 			fill="none"
 			class="stroke-positive-line"
 			stroke-width="1.25"
 			stroke-linecap="round"
 			stroke-linejoin="round"
-			points={sparkline.path}
+			points={path}
 			transform="translate(0,20)"
 		/>
-		{#if sparkline.points.length > 0}
-			<circle
-				cx={sparkline.points[sparkline.points.length - 1].x}
-				cy={sparkline.points[sparkline.points.length - 1].y + 20}
-				r="3"
-				class="fill-positive-line"
-			/>
+		{#if lastPoint}
+			<circle cx={lastPoint.x} cy={lastPoint.y + 20} r="3" class="fill-positive-line" />
 		{/if}
 	</svg>
 	<div
@@ -67,7 +112,7 @@
 		<span><Num text={shortFmt(min)} /></span>
 	</div>
 	<div
-		class="grid px-5 pb-2 font-mono text-[9px] tabular-nums text-ink-faint"
+		class="grid pb-2 font-mono text-[9px] tabular-nums text-ink-faint"
 		style:grid-template-columns="repeat({trailLabels.length}, 1fr)"
 	>
 		{#each trailLabels as label}<span class="text-center">{label}</span>{/each}

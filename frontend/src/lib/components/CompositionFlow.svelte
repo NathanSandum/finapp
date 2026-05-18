@@ -35,10 +35,10 @@
 
 <div class="space-y-3">
 	<div class="flex h-7 w-full overflow-hidden">
-		{#each positive.lines as line, i}
+		{#each positive.lines as line, i (line.name)}
 			{@const f = positive.total > 0 ? line.amount / positive.total : 0}
 			<div
-				class="{positivePalette[i % positivePalette.length]} flex items-center justify-center text-[9px] font-medium text-white"
+				class="bar {positivePalette[i % positivePalette.length]} flex items-center justify-center overflow-hidden text-[9px] font-medium text-white"
 				style:width="{f * 100}%"
 			>
 				{#if f > 0.1}{line.name}{/if}
@@ -52,11 +52,11 @@
 	</div>
 
 	<div class="relative h-7 w-full bg-surface-sunken">
-		<div class="absolute inset-y-0 left-0 flex" style:width="{negativeFrac * 100}%">
-			{#each negative.lines as line, i}
+		<div class="bar-pos absolute inset-y-0 left-0 flex overflow-hidden" style:width="{negativeFrac * 100}%">
+			{#each negative.lines as line, i (line.name)}
 				{@const f = negative.total > 0 ? line.amount / negative.total : 0}
 				<div
-					class="{negativePalette[i % negativePalette.length]} flex items-center justify-center text-[9px] font-medium text-white"
+					class="bar {negativePalette[i % negativePalette.length]} flex items-center justify-center overflow-hidden text-[9px] font-medium text-white"
 					style:width="{f * 100}%"
 				>
 					{#if f > 0.15}{line.name}{/if}
@@ -64,7 +64,7 @@
 			{/each}
 		</div>
 		<div
-			class="absolute inset-y-0 bg-positive-line/40"
+			class="bar-pos absolute inset-y-0 bg-positive-line/40"
 			style:left="{negativeFrac * 100}%"
 			style:width="{netFrac * 100}%"
 		></div>
@@ -84,3 +84,20 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	.bar {
+		transition: width 520ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	.bar-pos {
+		transition:
+			width 520ms cubic-bezier(0.22, 1, 0.36, 1),
+			left 520ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.bar,
+		.bar-pos {
+			transition: none;
+		}
+	}
+</style>

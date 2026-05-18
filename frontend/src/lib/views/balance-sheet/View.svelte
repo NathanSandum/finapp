@@ -119,6 +119,7 @@
 			liabilities={bs.liabilities}
 			assetTrails={assetTrails.trails}
 			liabilityTrails={liabilityTrails.trails}
+			labels={assetTrails.labels}
 		/>
 	{/snippet}
 </StatementView>

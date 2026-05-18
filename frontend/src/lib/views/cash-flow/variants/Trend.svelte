@@ -4,7 +4,8 @@
 	let {
 		operatingTrail,
 		investingTrail,
-		financingTrail
+		financingTrail,
+		labels
 	}: {
 		operatingTrail: number[];
 		investingTrail: number[];
@@ -34,4 +35,4 @@
 	]);
 </script>
 
-<TrendList {rows} />
+<TrendList {rows} {labels} />
