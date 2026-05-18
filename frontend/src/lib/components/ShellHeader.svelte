@@ -35,8 +35,8 @@
 <header class="flex shrink-0 items-baseline justify-between gap-3 p-6 pb-0">
 	<div class="flex items-baseline gap-3">
 		<h3
-			class="text-xl font-semibold text-ink"
-			style:min-width={titleMinWidth ? `${titleMinWidth}px` : undefined}
+			class="text-xl font-semibold text-ink overflow-hidden"
+			style:width={titleMinWidth ? `${titleMinWidth}px` : undefined}
 		>
 			<RollingTitle value={current.label} position={currentIndex} />
 		</h3>
