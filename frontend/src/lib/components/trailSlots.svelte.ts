@@ -95,12 +95,17 @@ export class TrailSlots {
 
 			if (isMerge) {
 				const newStartTime = timeOrder(keys[0]);
+				const newEndTime = timeOrder(keys[keys.length - 1]);
+				const combined: TrailSlot[] = [];
+				const parentSourceCount = new Map<string, number>();
+
 				for (const old of oldSlots) {
 					const parent = parentKeyInGran(old.key, newGran!);
 					const parentLayout = parent ? newLayoutByKey.get(parent) : undefined;
 					let target: { x: number; y: number };
-					if (parentLayout) {
+					if (parentLayout && parent) {
 						target = parentLayout;
+						parentSourceCount.set(parent, (parentSourceCount.get(parent) ?? 0) + 1);
 					} else {
 						const t = timeOrder(old.key);
 						target = t < newStartTime
@@ -109,7 +114,29 @@ export class TrailSlots {
 					}
 					if (reduce) old.pos.set(target, { duration: 0 });
 					else old.pos.target = target;
+					combined.push(old);
 				}
+
+				for (let i = 0; i < keys.length; i++) {
+					const newKey = keys[i];
+					if ((parentSourceCount.get(newKey) ?? 0) > 0) continue;
+					const target = layout[i];
+					const parentTime = timeOrder(newKey);
+					const startX =
+						parentTime < newStartTime + (newEndTime - newStartTime) / 2
+							? -stepX
+							: width + stepX;
+					const spawnKey = `__spawn:${newKey}`;
+					const slot: TrailSlot = {
+						key: spawnKey,
+						pos: new Tween({ x: startX, y: target.y }, { duration, easing: cubicOut })
+					};
+					if (reduce) slot.pos.set(target, { duration: 0 });
+					else slot.pos.target = target;
+					combined.push(slot);
+				}
+
+				this.slots = combined;
 
 				const finalize = () => {
 					if (token !== this.#pendingSwap) return;
