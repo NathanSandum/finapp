@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { prefersReducedMotion } from '$lib/utils/motion';
 	import type { Granularity } from '$lib/views/period';
 
 	let {
@@ -14,13 +13,12 @@
 		onNext: () => void;
 	} = $props();
 
-	type Axis = 'x' | 'y';
-	type Step = { key: number; before: string; after: string; axis: Axis; direction: 1 | -1 };
+	type Mode = 'x-back' | 'x-fwd' | 'y-up' | 'y-down' | 'none';
+	type Step = { key: number; before: string; after: string; mode: Mode };
 
 	const rankOf = (g: Granularity) => (g === 'month' ? 0 : g === 'quarter' ? 1 : 2);
 
-	let step = $state<Step>({ key: 0, before: '', after: label, axis: 'x', direction: 1 });
-	let settled = $state(true);
+	let step = $state<Step>({ key: 0, before: '', after: label, mode: 'none' });
 	let prevLabel = label;
 	let prevGranularity = granularity;
 	let pendingDir: 1 | -1 = 1;
@@ -31,26 +29,16 @@
 		const currGran = granularity;
 		if (curr === prevLabel) return;
 
-		let axis: Axis;
-		let direction: 1 | -1;
+		let mode: Mode;
 		if (currGran !== prevGranularity) {
-			axis = 'y';
-			direction = rankOf(currGran) > rankOf(prevGranularity) ? -1 : 1;
+			mode = rankOf(currGran) > rankOf(prevGranularity) ? 'y-up' : 'y-down';
 		} else {
-			axis = 'x';
-			direction = pendingDir;
+			mode = pendingDir === 1 ? 'x-back' : 'x-fwd';
 		}
 
-		const reduce = prefersReducedMotion();
-		step = { key: nextKey++, before: prevLabel, after: curr, axis, direction };
+		step = { key: nextKey++, before: prevLabel, after: curr, mode };
 		prevLabel = curr;
 		prevGranularity = currGran;
-		if (reduce) {
-			settled = true;
-		} else {
-			settled = false;
-			requestAnimationFrame(() => requestAnimationFrame(() => (settled = true)));
-		}
 	});
 
 	function handlePrev() {
@@ -69,21 +57,11 @@
 		class="rounded px-1.5 py-0.5 hover:bg-surface-hover"
 		aria-label="Previous period">‹</button
 	>
-	<span class="reel min-w-[110px]" class:vertical={step.axis === 'y'} aria-label={label}>
+	<span class="reel min-w-[110px]" aria-label={label}>
 		{#key step.key}
-			<span
-				class="track"
-				class:settled
-				class:back={step.direction === 1}
-				class:vertical={step.axis === 'y'}
-			>
-				{#if step.direction === 1}
-					<span class="cell">{step.after}</span>
-					<span class="cell">{step.before}</span>
-				{:else}
-					<span class="cell">{step.before}</span>
-					<span class="cell">{step.after}</span>
-				{/if}
+			<span class="stage mode-{step.mode}">
+				<span class="cell before">{step.before}</span>
+				<span class="cell after">{step.after}</span>
 			</span>
 		{/key}
 	</span>
@@ -101,50 +79,95 @@
 		vertical-align: middle;
 		position: relative;
 		height: 1.2em;
+		min-width: 110px;
 	}
-	.track {
-		display: flex;
-		flex-direction: row;
-		width: 200%;
-		transition: transform 320ms cubic-bezier(0.7, 0, 0.25, 1);
-	}
-	.track.vertical {
-		flex-direction: column;
-		width: 100%;
-		height: 200%;
-	}
-	.track.settled {
-		transform: translateX(-50%);
-	}
-	.track.back {
-		transform: translateX(-50%);
-	}
-	.track.back.settled {
-		transform: translateX(0);
-	}
-	.track.vertical.settled {
-		transform: translateY(-50%);
-	}
-	.track.vertical.back {
-		transform: translateY(-50%);
-	}
-	.track.vertical.back.settled {
-		transform: translateY(0);
+	.stage {
+		position: absolute;
+		inset: 0;
 	}
 	.cell {
-		display: block;
-		width: 50%;
-		text-align: center;
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		white-space: nowrap;
-	}
-	.track.vertical .cell {
-		width: 100%;
-		height: 50%;
 		line-height: 1.2em;
 	}
+
+	/* mode-none: only show after, no animation */
+	.stage.mode-none .before {
+		display: none;
+	}
+
+	/* x-fwd: next click. New label enters from right, old leaves to left. */
+	.stage.mode-x-fwd .before {
+		animation: x-out-left 320ms cubic-bezier(0.7, 0, 0.25, 1) both;
+	}
+	.stage.mode-x-fwd .after {
+		animation: x-in-right 320ms cubic-bezier(0.7, 0, 0.25, 1) both;
+	}
+
+	/* x-back: prev click. New label enters from left, old leaves to right. */
+	.stage.mode-x-back .before {
+		animation: x-out-right 320ms cubic-bezier(0.7, 0, 0.25, 1) both;
+	}
+	.stage.mode-x-back .after {
+		animation: x-in-left 320ms cubic-bezier(0.7, 0, 0.25, 1) both;
+	}
+
+	/* y-up: bigger granularity. New label enters from bottom, old leaves to top. */
+	.stage.mode-y-up .before {
+		animation: y-out-up 320ms cubic-bezier(0.7, 0, 0.25, 1) both;
+	}
+	.stage.mode-y-up .after {
+		animation: y-in-up 320ms cubic-bezier(0.7, 0, 0.25, 1) both;
+	}
+
+	/* y-down: smaller granularity. New label enters from top, old leaves to bottom. */
+	.stage.mode-y-down .before {
+		animation: y-out-down 320ms cubic-bezier(0.7, 0, 0.25, 1) both;
+	}
+	.stage.mode-y-down .after {
+		animation: y-in-down 320ms cubic-bezier(0.7, 0, 0.25, 1) both;
+	}
+
+	@keyframes x-in-right {
+		from { transform: translateX(100%); }
+		to { transform: translateX(0); }
+	}
+	@keyframes x-out-left {
+		from { transform: translateX(0); }
+		to { transform: translateX(-100%); }
+	}
+	@keyframes x-in-left {
+		from { transform: translateX(-100%); }
+		to { transform: translateX(0); }
+	}
+	@keyframes x-out-right {
+		from { transform: translateX(0); }
+		to { transform: translateX(100%); }
+	}
+	@keyframes y-in-up {
+		from { transform: translateY(100%); }
+		to { transform: translateY(0); }
+	}
+	@keyframes y-out-up {
+		from { transform: translateY(0); }
+		to { transform: translateY(-100%); }
+	}
+	@keyframes y-in-down {
+		from { transform: translateY(-100%); }
+		to { transform: translateY(0); }
+	}
+	@keyframes y-out-down {
+		from { transform: translateY(0); }
+		to { transform: translateY(100%); }
+	}
+
 	@media (prefers-reduced-motion: reduce) {
-		.track {
-			transition: transform 0ms;
+		.cell {
+			animation: none !important;
 		}
 	}
 </style>
