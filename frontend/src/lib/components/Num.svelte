@@ -65,7 +65,23 @@
 	const on = $derived(getDiscrete());
 </script>
 
-<span class="num">{parsed.head}{#each cells as cell, i (cells.length - 1 - i)}{@const survivor = i === 0 || Math.floor((i * 3) / cells.length) > Math.floor(((i - 1) * 3) / cells.length)}<span class="ch" class:collapsed={on && !survivor}><span class="reel" class:hidden={on}>{#key cell.key}<span class="track mode-{cell.mode}">{#if cell.mode === 'down'}<span class="cellch">{cell.after}</span><span class="cellch">{cell.before}</span>{:else}<span class="cellch">{cell.before}</span><span class="cellch">{cell.after}</span>{/if}</span>{/key}</span><span class="dot" class:shown={on} aria-hidden="true">•</span></span>{/each}</span>
+<span class="num"
+	>{parsed.head}{#each cells as cell, i (cells.length - 1 - i)}{@const survivor =
+			i === 0 ||
+			Math.floor((i * 3) / cells.length) > Math.floor(((i - 1) * 3) / cells.length)}<span
+			class="ch"
+			class:collapsed={on && !survivor}
+			><span class="reel" class:hidden={on}
+				>{#key cell.key}<span class="track mode-{cell.mode}"
+						>{#if cell.mode === 'down'}<span class="cellch">{cell.after}</span><span
+								class="cellch">{cell.before}</span
+							>{:else}<span class="cellch">{cell.before}</span><span class="cellch"
+								>{cell.after}</span
+							>{/if}</span
+					>{/key}</span
+			><span class="dot" class:shown={on} aria-hidden="true">•</span></span
+		>{/each}</span
+>
 
 <style>
 	.num {
