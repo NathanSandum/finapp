@@ -47,22 +47,25 @@ function layoutFor(values: number[], width: number, height: number): { x: number
 export class TrailSlots {
 	slots = $state<TrailSlot[]>([]);
 	#duration: number;
+	#pendingSwap = 0;
 
 	constructor(duration = 520) {
 		this.#duration = duration;
 	}
 
-	destroy() {}
+	destroy() {
+		this.#pendingSwap++;
+	}
 
 	sync(keys: string[], values: number[], width: number, height: number) {
 		untrack(() => this.#syncImpl(keys, values, width, height));
 	}
 
 	#syncImpl(keys: string[], values: number[], width: number, height: number) {
+		const token = ++this.#pendingSwap;
 		const duration = this.#duration;
 		const layout = layoutFor(values, width, height);
 		const newLayoutByKey = new Map(keys.map((k, i) => [k, layout[i]]));
-		const newKeySet = new Set(keys);
 		const reduce = prefersReducedMotion();
 		const stepX = keys.length > 0 ? width / keys.length : width;
 
@@ -89,6 +92,37 @@ export class TrailSlots {
 
 		if (granChange) {
 			const isMerge = granRank(newGran) < granRank(oldGran);
+
+			if (isMerge) {
+				const newStartTime = timeOrder(keys[0]);
+				for (const old of oldSlots) {
+					const parent = parentKeyInGran(old.key, newGran!);
+					const parentLayout = parent ? newLayoutByKey.get(parent) : undefined;
+					let target: { x: number; y: number };
+					if (parentLayout) {
+						target = parentLayout;
+					} else {
+						const t = timeOrder(old.key);
+						target = t < newStartTime
+							? { x: -stepX, y: old.pos.current.y }
+							: { x: width + stepX, y: old.pos.current.y };
+					}
+					if (reduce) old.pos.set(target, { duration: 0 });
+					else old.pos.target = target;
+				}
+
+				const finalize = () => {
+					if (token !== this.#pendingSwap) return;
+					this.slots = keys.map((k, i) => ({
+						key: k,
+						pos: new Tween(layout[i], { duration, easing: cubicOut })
+					}));
+				};
+				if (reduce) finalize();
+				else setTimeout(finalize, duration + 16);
+				return;
+			}
+
 			const oldStartTime = timeOrder(oldSlots[0].key);
 			const oldEndTime = timeOrder(oldSlots[oldSlots.length - 1].key);
 			const oldStartX = oldSlots[0].pos.current.x;
@@ -119,17 +153,11 @@ export class TrailSlots {
 			for (let i = 0; i < keys.length; i++) {
 				const k = keys[i];
 				const target = newLayoutByKey.get(k)!;
-				let startPos: { x: number; y: number };
-
-				if (isMerge) {
-					startPos = timeInterpStart(k, target.y);
-				} else {
-					const parent = parentKeyInGran(k, oldGran!);
-					const parentSlot = parent ? oldSlotByKey.get(parent) : undefined;
-					startPos = parentSlot
-						? { x: parentSlot.pos.current.x, y: parentSlot.pos.current.y }
-						: timeInterpStart(k, target.y);
-				}
+				const parent = parentKeyInGran(k, oldGran!);
+				const parentSlot = parent ? oldSlotByKey.get(parent) : undefined;
+				const startPos = parentSlot
+					? { x: parentSlot.pos.current.x, y: parentSlot.pos.current.y }
+					: timeInterpStart(k, target.y);
 
 				const slot: TrailSlot = {
 					key: k,
