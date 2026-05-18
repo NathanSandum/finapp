@@ -26,7 +26,7 @@
 	bind:value
 	bind:this={el}
 	placeholder="new account name"
-	onblur={commit}
+	onblur={onCancel}
 	onkeydown={(e) => {
 		if (e.key === 'Enter') commit();
 		if (e.key === 'Escape') onCancel();
