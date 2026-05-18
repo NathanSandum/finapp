@@ -9,6 +9,8 @@ export type TrailSlot = {
 	pos: Tween<{ x: number; y: number }>;
 };
 
+type Point = { x: number; y: number };
+
 function granRank(g: Granularity | undefined): number {
 	if (g === 'year') return 0;
 	if (g === 'quarter') return 1;
@@ -32,7 +34,7 @@ function timeOrder(key: string): number {
 	return 0;
 }
 
-function layoutFor(values: number[], width: number, height: number): { x: number; y: number }[] {
+function layoutFor(values: number[], width: number, height: number): Point[] {
 	if (values.length === 0) return [];
 	const min = Math.min(...values);
 	const max = Math.max(...values);
@@ -42,6 +44,10 @@ function layoutFor(values: number[], width: number, height: number): { x: number
 		x: (i + 0.5) * stepX,
 		y: height - ((v - min) / range) * height
 	}));
+}
+
+function offscreenSideX(slotTime: number, referenceStart: number, stepX: number, width: number) {
+	return slotTime < referenceStart ? -stepX : width + stepX;
 }
 
 export class TrailSlots {
@@ -61,151 +67,180 @@ export class TrailSlots {
 		untrack(() => this.#syncImpl(keys, values, width, height));
 	}
 
+	#fresh(keys: string[], layout: Point[]): TrailSlot[] {
+		return keys.map((k, i) => ({
+			key: k,
+			pos: new Tween(layout[i], { duration: this.#duration, easing: cubicOut })
+		}));
+	}
+
+	#applyTarget(slot: TrailSlot, target: Point, reduce: boolean) {
+		if (reduce) slot.pos.set(target, { duration: 0 });
+		else slot.pos.target = target;
+	}
+
 	#syncImpl(keys: string[], values: number[], width: number, height: number) {
 		const token = ++this.#pendingSwap;
-		const duration = this.#duration;
 		const layout = layoutFor(values, width, height);
-		const newLayoutByKey = new Map(keys.map((k, i) => [k, layout[i]]));
-		const reduce = prefersReducedMotion();
-		const stepX = keys.length > 0 ? width / keys.length : width;
 
 		if (keys.length === 0) {
 			this.slots = [];
 			return;
 		}
-
 		if (this.slots.length === 0) {
-			this.slots = keys.map((k, i) => ({
-				key: k,
-				pos: new Tween(layout[i], { duration, easing: cubicOut })
-			}));
+			this.slots = this.#fresh(keys, layout);
 			return;
 		}
 
 		const oldSlots = this.slots.filter((s) => !s.key.startsWith('__spawn:'));
 		if (oldSlots.length === 0) {
-			this.slots = keys.map((k, i) => ({
-				key: k,
-				pos: new Tween(layout[i], { duration, easing: cubicOut })
-			}));
+			this.slots = this.#fresh(keys, layout);
 			return;
 		}
-		const oldSlotByKey = new Map(oldSlots.map((s) => [s.key, s]));
+
 		const oldGran = inferKeyGranularity(oldSlots[0].key);
 		const newGran = inferKeyGranularity(keys[0]);
 		const granChange = !!(oldGran && newGran && oldGran !== newGran);
+		const reduce = prefersReducedMotion();
+		const stepX = width / keys.length;
 
-		const nextSlots: TrailSlot[] = [];
-
-		if (granChange) {
-			const isMerge = granRank(newGran) < granRank(oldGran);
-
-			if (isMerge) {
-				const newStartTime = timeOrder(keys[0]);
-				const oldStartTime = timeOrder(oldSlots[0].key);
-				const combined: TrailSlot[] = [];
-				const parentSourceCount = new Map<string, number>();
-
-				for (const old of oldSlots) {
-					const parent = parentKeyInGran(old.key, newGran!);
-					const parentLayout = parent ? newLayoutByKey.get(parent) : undefined;
-					let target: { x: number; y: number };
-					if (parentLayout && parent) {
-						target = parentLayout;
-						parentSourceCount.set(parent, (parentSourceCount.get(parent) ?? 0) + 1);
-					} else {
-						const t = timeOrder(old.key);
-						target = t < newStartTime
-							? { x: -stepX, y: old.pos.current.y }
-							: { x: width + stepX, y: old.pos.current.y };
-					}
-					if (reduce) old.pos.set(target, { duration: 0 });
-					else old.pos.target = target;
-					combined.push(old);
-				}
-
-				for (let i = 0; i < keys.length; i++) {
-					const newKey = keys[i];
-					if ((parentSourceCount.get(newKey) ?? 0) > 0) continue;
-					const target = layout[i];
-					const parentTime = timeOrder(newKey);
-					const startX = parentTime < oldStartTime ? -stepX : width + stepX;
-					const spawnKey = `__spawn:${newKey}`;
-					const slot: TrailSlot = {
-						key: spawnKey,
-						pos: new Tween({ x: startX, y: target.y }, { duration, easing: cubicOut })
-					};
-					if (reduce) slot.pos.set(target, { duration: 0 });
-					else slot.pos.target = target;
-					combined.push(slot);
-				}
-
-				this.slots = combined;
-
-				const finalize = () => {
-					if (token !== this.#pendingSwap) return;
-					this.slots = keys.map((k, i) => ({
-						key: k,
-						pos: new Tween(layout[i], { duration, easing: cubicOut })
-					}));
-				};
-				if (reduce) finalize();
-				else setTimeout(finalize, duration + 16);
-				return;
-			}
-
-			const oldStartTime = timeOrder(oldSlots[0].key);
-			const oldEndTime = timeOrder(oldSlots[oldSlots.length - 1].key);
-			const oldStartX = oldSlots[0].pos.current.x;
-			const oldEndX = oldSlots[oldSlots.length - 1].pos.current.x;
-			const oldRange = oldEndTime - oldStartTime || 1;
-
-			const timeInterpStart = (k: string, targetY: number) => {
-				const t = timeOrder(k);
-				if (t < oldStartTime) return { x: -stepX, y: targetY };
-				if (t > oldEndTime) return { x: width + stepX, y: targetY };
-				const f = (t - oldStartTime) / oldRange;
-				const x = oldStartX + (oldEndX - oldStartX) * f;
-				let y = targetY;
-				for (let j = 0; j < oldSlots.length - 1; j++) {
-					const a = oldSlots[j];
-					const b = oldSlots[j + 1];
-					if (x >= a.pos.current.x && x <= b.pos.current.x) {
-						const u = b.pos.current.x === a.pos.current.x
-							? 0
-							: (x - a.pos.current.x) / (b.pos.current.x - a.pos.current.x);
-						y = a.pos.current.y + (b.pos.current.y - a.pos.current.y) * u;
-						break;
-					}
-				}
-				return { x, y };
-			};
-
-			for (let i = 0; i < keys.length; i++) {
-				const k = keys[i];
-				const target = newLayoutByKey.get(k)!;
-				const parent = parentKeyInGran(k, oldGran!);
-				const parentSlot = parent ? oldSlotByKey.get(parent) : undefined;
-				const startPos = parentSlot
-					? { x: parentSlot.pos.current.x, y: parentSlot.pos.current.y }
-					: timeInterpStart(k, target.y);
-
-				const slot: TrailSlot = {
-					key: k,
-					pos: new Tween(startPos, { duration, easing: cubicOut })
-				};
-				if (reduce) slot.pos.set(target, { duration: 0 });
-				else slot.pos.target = target;
-				nextSlots.push(slot);
-			}
-
-			this.slots = nextSlots;
+		if (granChange && granRank(newGran) < granRank(oldGran)) {
+			this.#syncMerge(keys, layout, oldSlots, newGran!, stepX, width, reduce, token);
 			return;
 		}
+		if (granChange) {
+			this.#syncSplit(keys, layout, oldSlots, oldGran!, stepX, width, reduce);
+			return;
+		}
+		this.#syncSameGran(keys, layout, oldSlots, stepX, width, reduce);
+	}
 
+	#syncMerge(
+		keys: string[],
+		layout: Point[],
+		oldSlots: TrailSlot[],
+		newGran: Granularity,
+		stepX: number,
+		width: number,
+		reduce: boolean,
+		token: number
+	) {
+		const newLayoutByKey = new Map(keys.map((k, i) => [k, layout[i]]));
+		const newStartTime = timeOrder(keys[0]);
+		const oldStartTime = timeOrder(oldSlots[0].key);
+		const parentSourceCount = new Map<string, number>();
+		const combined: TrailSlot[] = [];
+
+		for (const old of oldSlots) {
+			const parent = parentKeyInGran(old.key, newGran);
+			const parentLayout = parent ? newLayoutByKey.get(parent) : undefined;
+			let target: Point;
+			if (parent && parentLayout) {
+				target = parentLayout;
+				parentSourceCount.set(parent, (parentSourceCount.get(parent) ?? 0) + 1);
+			} else {
+				const x = offscreenSideX(timeOrder(old.key), newStartTime, stepX, width);
+				target = { x, y: old.pos.current.y };
+			}
+			this.#applyTarget(old, target, reduce);
+			combined.push(old);
+		}
+
+		for (let i = 0; i < keys.length; i++) {
+			const newKey = keys[i];
+			if ((parentSourceCount.get(newKey) ?? 0) > 0) continue;
+			const target = layout[i];
+			const startX = offscreenSideX(timeOrder(newKey), oldStartTime, stepX, width);
+			const slot: TrailSlot = {
+				key: `__spawn:${newKey}`,
+				pos: new Tween(
+					{ x: startX, y: target.y },
+					{ duration: this.#duration, easing: cubicOut }
+				)
+			};
+			this.#applyTarget(slot, target, reduce);
+			combined.push(slot);
+		}
+
+		this.slots = combined;
+		this.#scheduleFinalize(keys, layout, token, reduce);
+	}
+
+	#scheduleFinalize(keys: string[], layout: Point[], token: number, reduce: boolean) {
+		const finalize = () => {
+			if (token !== this.#pendingSwap) return;
+			this.slots = this.#fresh(keys, layout);
+		};
+		if (reduce) finalize();
+		else setTimeout(finalize, this.#duration + 16);
+	}
+
+	#syncSplit(
+		keys: string[],
+		layout: Point[],
+		oldSlots: TrailSlot[],
+		oldGran: Granularity,
+		stepX: number,
+		width: number,
+		reduce: boolean
+	) {
+		const oldSlotByKey = new Map(oldSlots.map((s) => [s.key, s]));
+		const oldStartTime = timeOrder(oldSlots[0].key);
+		const oldEndTime = timeOrder(oldSlots[oldSlots.length - 1].key);
+		const oldStartX = oldSlots[0].pos.current.x;
+		const oldEndX = oldSlots[oldSlots.length - 1].pos.current.x;
+		const oldRange = oldEndTime - oldStartTime || 1;
+
+		const timeInterpStart = (k: string, targetY: number): Point => {
+			const t = timeOrder(k);
+			if (t < oldStartTime) return { x: -stepX, y: targetY };
+			if (t > oldEndTime) return { x: width + stepX, y: targetY };
+			const f = (t - oldStartTime) / oldRange;
+			const x = oldStartX + (oldEndX - oldStartX) * f;
+			let y = targetY;
+			for (let j = 0; j < oldSlots.length - 1; j++) {
+				const a = oldSlots[j];
+				const b = oldSlots[j + 1];
+				if (x < a.pos.current.x || x > b.pos.current.x) continue;
+				const u =
+					b.pos.current.x === a.pos.current.x
+						? 0
+						: (x - a.pos.current.x) / (b.pos.current.x - a.pos.current.x);
+				y = a.pos.current.y + (b.pos.current.y - a.pos.current.y) * u;
+				break;
+			}
+			return { x, y };
+		};
+
+		const nextSlots: TrailSlot[] = keys.map((k, i) => {
+			const target = layout[i];
+			const parent = parentKeyInGran(k, oldGran);
+			const parentSlot = parent ? oldSlotByKey.get(parent) : undefined;
+			const startPos = parentSlot
+				? { x: parentSlot.pos.current.x, y: parentSlot.pos.current.y }
+				: timeInterpStart(k, target.y);
+			const slot: TrailSlot = {
+				key: k,
+				pos: new Tween(startPos, { duration: this.#duration, easing: cubicOut })
+			};
+			this.#applyTarget(slot, target, reduce);
+			return slot;
+		});
+
+		this.slots = nextSlots;
+	}
+
+	#syncSameGran(
+		keys: string[],
+		layout: Point[],
+		oldSlots: TrailSlot[],
+		stepX: number,
+		width: number,
+		reduce: boolean
+	) {
+		const oldSlotByKey = new Map(oldSlots.map((s) => [s.key, s]));
 		const survivorKeys = keys.filter((k) => oldSlotByKey.has(k));
-		const sortedSurvivorKeys = [...survivorKeys].sort();
-		const minSurvivor = sortedSurvivorKeys[0];
+		const minSurvivor = [...survivorKeys].sort()[0];
 		const lastOldKey = oldSlots[oldSlots.length - 1].key;
 
 		const survivors = survivorKeys
@@ -215,31 +250,26 @@ export class TrailSlots {
 		const rightEdgeY =
 			survivors[survivors.length - 1]?.pos.current.y ?? layout[layout.length - 1]?.y;
 
-		for (let i = 0; i < keys.length; i++) {
-			const k = keys[i];
-			const target = newLayoutByKey.get(k)!;
+		const nextSlots: TrailSlot[] = keys.map((k, i) => {
+			const target = layout[i];
 			const existing = oldSlotByKey.get(k);
-
 			if (existing) {
-				if (reduce) existing.pos.set(target, { duration: 0 });
-				else existing.pos.target = target;
-				nextSlots.push(existing);
-				continue;
+				this.#applyTarget(existing, target, reduce);
+				return existing;
 			}
-
-			const enterRight =
-				minSurvivor === undefined ? k > lastOldKey : k >= minSurvivor;
+			const enterRight = minSurvivor === undefined ? k > lastOldKey : k >= minSurvivor;
 			const startX = enterRight ? width + stepX : -stepX;
 			const startY = (enterRight ? rightEdgeY : leftEdgeY) ?? target.y;
-
 			const slot: TrailSlot = {
 				key: k,
-				pos: new Tween({ x: startX, y: startY }, { duration, easing: cubicOut })
+				pos: new Tween(
+					{ x: startX, y: startY },
+					{ duration: this.#duration, easing: cubicOut }
+				)
 			};
-			if (reduce) slot.pos.set(target, { duration: 0 });
-			else slot.pos.target = target;
-			nextSlots.push(slot);
-		}
+			this.#applyTarget(slot, target, reduce);
+			return slot;
+		});
 
 		this.slots = nextSlots;
 	}
