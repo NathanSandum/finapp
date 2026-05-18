@@ -42,6 +42,7 @@
 		</h3>
 		<PeriodNav
 			label={label}
+			granularity={periodState.granularity}
 			onPrev={() => periodState.shift(-1)}
 			onNext={() => periodState.shift(1)}
 		/>
