@@ -16,6 +16,8 @@
 	import { createAccount, deleteAccount } from './api';
 	import { fmt } from '$lib/format';
 	import Num from '$lib/components/Num.svelte';
+	import { accountsSelection } from './selection.svelte';
+	import { onDestroy } from 'svelte';
 
 	let { data }: { data: AccountsData } = $props();
 
@@ -50,6 +52,13 @@
 
 	const selectedTrail = $derived(selectedId ? pathTo(selectedId) : null);
 	const selected = $derived(selectedTrail ? selectedTrail.nodes[selectedTrail.nodes.length - 1] : null);
+
+	$effect(() => {
+		accountsSelection.set(selected ? selected.account : null);
+	});
+
+	onDestroy(() => accountsSelection.set(null));
+
 	const selectedRoot = $derived(selectedTrail?.key);
 	const badge = $derived(selected?.account.role ? ROLE_BADGE[selected.account.role] : undefined);
 	const selectedCanDelete = $derived(

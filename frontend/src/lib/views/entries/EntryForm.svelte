@@ -9,12 +9,14 @@
 		accounts,
 		anchors,
 		initialVerb = 'spent',
+		initialCounterpartyId = '',
 		onClose,
 		onCreated
 	}: {
 		accounts: Account[];
 		anchors: Anchors;
 		initialVerb?: VerbId;
+		initialCounterpartyId?: string;
 		onClose: () => void;
 		onCreated?: () => void;
 	} = $props();
@@ -22,7 +24,7 @@
 	const chequing = $derived(anchors.cash);
 
 	let verb = $state<VerbId>(initialVerb);
-	let counterpartyId = $state('');
+	let counterpartyId = $state(initialCounterpartyId);
 	let amountText = $state('');
 	let date = $state(today());
 	let description = $state('');

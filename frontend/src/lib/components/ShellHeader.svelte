@@ -8,6 +8,27 @@
 	import { periodState } from '$lib/views/period-state.svelte';
 	import { periodLabel } from '$lib/views/period';
 	import { entryIntent } from '$lib/views/entries/intent.svelte';
+	import { accountsSelection } from '$lib/views/accounts/selection.svelte';
+	import type { VerbId } from '$lib/views/entries/verbs';
+	import type { Account } from '$lib/views/entries/loader';
+
+	function intentForSelection(
+		account: Account
+	): { verb: VerbId; counterpartyId: string } | null {
+		if (account.parent_id === null || account.role === 'cash') return null;
+		switch (account.account_type) {
+			case 'expense':
+				return { verb: 'spent', counterpartyId: account.id };
+			case 'revenue':
+				return { verb: 'earned', counterpartyId: account.id };
+			case 'asset':
+				return { verb: 'contributed', counterpartyId: account.id };
+			case 'liability':
+				return { verb: 'borrowed', counterpartyId: account.id };
+			default:
+				return null;
+		}
+	}
 
 	const currentIndex = $derived(Math.max(0, tabs.findIndex((t) => t.id === tabState.get())));
 	const current = $derived(tabs[currentIndex] ?? tabs[0]);
@@ -25,9 +46,15 @@
 	});
 
 	function newEntry() {
-		const verb = current.newEntryVerb;
-		if (!verb) return;
-		entryIntent.set({ verb, sourceTab: current.id });
+		const defaultVerb = current.newEntryVerb;
+		if (!defaultVerb) return;
+		const selection = current.id === 'accounts' ? accountsSelection.get() : null;
+		const override = selection ? intentForSelection(selection) : null;
+		entryIntent.set({
+			verb: override?.verb ?? defaultVerb,
+			counterpartyId: override?.counterpartyId,
+			sourceTab: current.id
+		});
 		tabState.set('entries');
 	}
 </script>
