@@ -1,16 +1,35 @@
 <script lang="ts">
+	import { cubicOut } from 'svelte/easing';
 	import type { Granularity } from '$lib/views/period';
+
+	function reveal(node: HTMLElement, { duration = 220 } = {}) {
+		const width = node.getBoundingClientRect().width;
+		return {
+			duration,
+			easing: cubicOut,
+			css: (t: number) =>
+				`width: ${t * width}px; opacity: ${t}; transform: translateX(${(1 - t) * -8}px); overflow: hidden; white-space: nowrap;`
+		};
+	}
 
 	let {
 		label,
 		granularity,
+		year,
+		month,
+		isAtCurrent,
 		onPrev,
-		onNext
+		onNext,
+		onGoToCurrent
 	}: {
 		label: string;
 		granularity: Granularity;
+		year: number;
+		month: number;
+		isAtCurrent: boolean;
 		onPrev: () => void;
 		onNext: () => void;
+		onGoToCurrent: () => void;
 	} = $props();
 
 	type Mode = 'x-back' | 'x-fwd' | 'y-up' | 'y-down' | 'none';
@@ -49,6 +68,14 @@
 		pendingDir = -1;
 		onNext();
 	}
+	function handleGoToCurrent() {
+		const now = new Date();
+		const ty = now.getFullYear();
+		const tm = now.getMonth() + 1;
+		const targetIsPast = ty < year || (ty === year && tm < month);
+		pendingDir = targetIsPast ? 1 : -1;
+		onGoToCurrent();
+	}
 </script>
 
 <div class="flex items-center gap-1 text-xs text-ink-muted">
@@ -70,6 +97,30 @@
 		class="rounded px-2 py-1 text-base leading-none hover:bg-surface-hover"
 		aria-label="Next period">›</button
 	>
+	{#if !isAtCurrent}
+		<span transition:reveal class="inline-flex items-center">
+			<button
+				onclick={handleGoToCurrent}
+				aria-label="Go to current"
+				title="Go to current"
+				class="ml-1 rounded p-1 text-ink-muted hover:bg-surface-hover hover:text-ink"
+			>
+				<svg
+					width="14"
+					height="14"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<path d="M3 12a9 9 0 1 0 3-6.7" />
+					<path d="M3 4v5h5" />
+				</svg>
+			</button>
+		</span>
+	{/if}
 </div>
 
 <style>
