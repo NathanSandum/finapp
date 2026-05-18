@@ -18,6 +18,13 @@
 	import Num from '$lib/components/Num.svelte';
 	import { accountsSelection } from './selection.svelte';
 	import { onDestroy } from 'svelte';
+	import { periodState } from '$lib/views/period-state.svelte';
+	import { periodBounds, trailLabel } from '$lib/views/period';
+
+	function periodPrefix(year: number, month: number, granularity: 'month' | 'quarter' | 'year'): string {
+		if (granularity === 'year') return `${year}`;
+		return trailLabel(year, month, granularity);
+	}
 
 	let { data }: { data: AccountsData } = $props();
 
@@ -79,6 +86,31 @@
 	const displaySign = $derived(
 		selected && ['expense', 'revenue', 'equity'].includes(selected.account.account_type) ? -1 : 1
 	);
+
+	const bounds = $derived(
+		periodBounds(periodState.year, periodState.month, periodState.granularity)
+	);
+	const periodValueLabel = $derived(
+		periodPrefix(periodState.year, periodState.month, periodState.granularity)
+	);
+	const periodValue = $derived.by(() => {
+		if (!selected) return 0;
+		const ids = new Set<string>();
+		collectIds(selected, ids);
+		const isCumulative = ['asset', 'liability', 'equity'].includes(selected.account.account_type);
+		let amount = 0;
+		for (const entry of data.entries) {
+			if (isCumulative) {
+				if (entry.date > bounds.end) continue;
+			} else {
+				if (entry.date < bounds.start || entry.date > bounds.end) continue;
+			}
+			for (const posting of entry.postings) {
+				if (ids.has(posting.account_id)) amount += posting.amount;
+			}
+		}
+		return amount * displaySign;
+	});
 	const recentEntries = $derived.by(() => {
 		if (!selected) return [] as { id: string; date: string; description: string; amount: number }[];
 		const ids = new Set<string>();
@@ -221,6 +253,12 @@
 				</div>
 				<span class="font-mono text-[11px] text-ink-muted">{selected.children.length} children</span>
 			</header>
+			<p class="mb-6 flex items-baseline gap-2 text-sm text-ink-muted">
+				<span class="font-mono text-[11px] uppercase tracking-[0.06em]">{periodValueLabel} Value:</span>
+				<span class="font-mono tabular-nums text-ink {periodValue < 0 ? 'text-negative' : ''}">
+					<Num text={fmt(periodValue)} />
+				</span>
+			</p>
 			{#if deleteError}
 				<p class="mb-3 text-[11px] text-negative">{deleteError}</p>
 			{/if}
