@@ -34,11 +34,18 @@ function timeOrder(key: string): number {
 	return 0;
 }
 
+export function valueDomain(values: number[]): { min: number; max: number } {
+	if (values.length === 0) return { min: 0, max: 1 };
+	const lo = Math.min(...values, 0);
+	const hi = Math.max(...values, 0);
+	if (lo === hi) return { min: lo - 1, max: hi + 1 };
+	return { min: lo, max: hi };
+}
+
 function layoutFor(values: number[], width: number, height: number): Point[] {
 	if (values.length === 0) return [];
-	const min = Math.min(...values);
-	const max = Math.max(...values);
-	const range = max - min || 1;
+	const { min, max } = valueDomain(values);
+	const range = max - min;
 	const stepX = width / values.length;
 	return values.map((v, i) => ({
 		x: (i + 0.5) * stepX,

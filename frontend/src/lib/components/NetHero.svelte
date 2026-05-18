@@ -4,7 +4,7 @@
 	import AnimatedLabels from './AnimatedLabels.svelte';
 	import Num from './Num.svelte';
 	import Sparkline from './Sparkline.svelte';
-	import { TrailSlots } from './trailSlots.svelte';
+	import { TrailSlots, valueDomain } from './trailSlots.svelte';
 
 	let {
 		label,
@@ -26,9 +26,24 @@
 
 	const WIDTH = 560;
 	const HEIGHT = 80;
+	const Y_OFFSET = 20;
 
-	const min = $derived(trail.length > 0 ? Math.min(...trail) : 0);
-	const max = $derived(trail.length > 0 ? Math.max(...trail) : 0);
+	const domain = $derived(valueDomain(trail));
+	const yOf = (v: number): number => {
+		const range = domain.max - domain.min || 1;
+		return HEIGHT - ((v - domain.min) / range) * HEIGHT;
+	};
+	const axisTicks = $derived.by(() => {
+		const out: { value: number; y: number }[] = [];
+		out.push({ value: domain.max, y: yOf(domain.max) + Y_OFFSET });
+		if (domain.min < 0 && domain.max > 0) {
+			out.push({ value: 0, y: yOf(0) + Y_OFFSET });
+		}
+		if (domain.min !== domain.max) {
+			out.push({ value: domain.min, y: yOf(domain.min) + Y_OFFSET });
+		}
+		return out;
+	});
 
 	const trailSlots = new TrailSlots();
 	$effect(() => {
@@ -60,15 +75,20 @@
 			markerClass="fill-positive-line"
 			showCurrentLine
 			currentLineClass="stroke-ink-faint"
-			yOffset={20}
+			yOffset={Y_OFFSET}
 		/>
+		{#each axisTicks as tick (tick.value)}
+			<text
+				x={WIDTH - 4}
+				y={tick.y}
+				text-anchor="end"
+				dominant-baseline="middle"
+				class="fill-ink-faint"
+				font-family="var(--font-mono)"
+				font-size="9">{shortFmt(tick.value)}</text
+			>
+		{/each}
 	</svg>
-	<div
-		class="pointer-events-none absolute right-2 top-4 flex h-[80px] flex-col justify-between font-mono text-[9px] tabular-nums text-ink-faint"
-	>
-		<span><Num text={shortFmt(max)} /></span>
-		<span><Num text={shortFmt(min)} /></span>
-	</div>
 	<div class="pb-2 font-mono text-[9px] tabular-nums text-ink-faint">
 		<AnimatedLabels
 			{trailSlots}
