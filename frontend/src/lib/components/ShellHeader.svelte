@@ -15,16 +15,18 @@
 	function intentForSelection(
 		account: Account
 	): { verb: VerbId; counterpartyId: string } | null {
-		if (account.parent_id === null || account.role === 'cash') return null;
+		if (account.role === 'cash') return null;
+		const isRoot = account.parent_id === null;
+		const counterpartyId = isRoot ? '' : account.id;
 		switch (account.account_type) {
 			case 'expense':
-				return { verb: 'spent', counterpartyId: account.id };
+				return { verb: 'spent', counterpartyId };
 			case 'revenue':
-				return { verb: 'earned', counterpartyId: account.id };
+				return { verb: 'earned', counterpartyId };
 			case 'asset':
-				return { verb: 'contributed', counterpartyId: account.id };
+				return { verb: 'contributed', counterpartyId };
 			case 'liability':
-				return { verb: 'borrowed', counterpartyId: account.id };
+				return { verb: 'borrowed', counterpartyId };
 			default:
 				return null;
 		}
