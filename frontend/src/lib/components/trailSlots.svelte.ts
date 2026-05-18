@@ -18,16 +18,16 @@ function granRank(g: Granularity | undefined): number {
 
 function timeOrder(key: string): number {
 	const g = inferKeyGranularity(key);
-	if (g === 'year') return parseInt(key) * 12;
+	if (g === 'year') return parseInt(key) * 12 + 5.5;
 	if (g === 'quarter') {
 		const y = parseInt(key.slice(0, 4));
 		const q = parseInt(key.slice(6));
-		return y * 12 + (q - 1) * 3;
+		return y * 12 + (q - 1) * 3 + 1;
 	}
 	if (g === 'month') {
 		const y = parseInt(key.slice(0, 4));
 		const m = parseInt(key.slice(5, 7));
-		return y * 12 + (m - 1);
+		return y * 12 + (m - 1) + 0.5;
 	}
 	return 0;
 }
