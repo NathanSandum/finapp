@@ -94,11 +94,8 @@ export class TrailSlots {
 			const isMerge = granRank(newGran) < granRank(oldGran);
 
 			if (isMerge) {
-				const mergeDuration =
-					oldGran === 'month' && newGran === 'year' ? duration * 8 : duration;
 				const newStartTime = timeOrder(keys[0]);
 				const oldStartTime = timeOrder(oldSlots[0].key);
-				const oldEndTime = timeOrder(oldSlots[oldSlots.length - 1].key);
 				const combined: TrailSlot[] = [];
 				const parentSourceCount = new Map<string, number>();
 
@@ -116,7 +113,7 @@ export class TrailSlots {
 							: { x: width + stepX, y: old.pos.current.y };
 					}
 					if (reduce) old.pos.set(target, { duration: 0 });
-					else old.pos.set(target, { duration: mergeDuration, easing: cubicOut });
+					else old.pos.target = target;
 					combined.push(old);
 				}
 
@@ -129,10 +126,7 @@ export class TrailSlots {
 					const spawnKey = `__spawn:${newKey}`;
 					const slot: TrailSlot = {
 						key: spawnKey,
-						pos: new Tween(
-							{ x: startX, y: target.y },
-							{ duration: mergeDuration, easing: cubicOut }
-						)
+						pos: new Tween({ x: startX, y: target.y }, { duration, easing: cubicOut })
 					};
 					if (reduce) slot.pos.set(target, { duration: 0 });
 					else slot.pos.target = target;
@@ -149,7 +143,7 @@ export class TrailSlots {
 					}));
 				};
 				if (reduce) finalize();
-				else setTimeout(finalize, mergeDuration + 16);
+				else setTimeout(finalize, duration + 16);
 				return;
 			}
 
