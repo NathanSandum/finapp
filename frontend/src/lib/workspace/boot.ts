@@ -6,6 +6,17 @@ import { latestActivityPeriod } from '$lib/views/period';
 import { periodState } from '$lib/views/period-state.svelte';
 import type { JSend } from '$lib/tabs/types';
 
+const state = $state({ ready: false });
+
+export const bootState = {
+	get ready() {
+		return state.ready;
+	},
+	reset() {
+		state.ready = false;
+	}
+};
+
 export async function bootWorkspace(): Promise<JSend<{ workspace: Workspace }>> {
 	const workspacesResult = await listWorkspaces();
 	if (workspacesResult.status !== 'success') return workspacesResult;
@@ -22,6 +33,7 @@ export async function bootWorkspace(): Promise<JSend<{ workspace: Workspace }>> 
 
 	const period = latestActivityPeriod(overviewResult.data.entries);
 	periodState.init(period.year, period.month);
+	state.ready = true;
 
 	return { status: 'success', data: { workspace: initial } };
 }

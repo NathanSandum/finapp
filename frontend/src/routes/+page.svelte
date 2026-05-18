@@ -4,18 +4,18 @@
 	import { tabs } from '$lib/tabs/registry';
 	import { tabState } from '$lib/tabs/state.svelte';
 	import { workspaceState } from '$lib/workspace/state.svelte';
-	import { bootWorkspace } from '$lib/workspace/boot';
+	import { bootWorkspace, bootState } from '$lib/workspace/boot';
 	import { fetchMe } from '$lib/api/auth';
 	import { authState } from '$lib/api/state.svelte';
 	import { goto } from '$app/navigation';
 
 	const current = $derived(tabs.find((t) => t.id === tabState.get()) ?? tabs[0]);
-	const booted = $derived(workspaceState.active !== null);
+	const booted = $derived(bootState.ready);
 
 	let bootError = $state<string | null>(null);
 
 	$effect(() => {
-		if (workspaceState.active) return;
+		if (bootState.ready) return;
 		(async () => {
 			const me = await fetchMe();
 			if (me.status !== 'success') {
