@@ -10,7 +10,6 @@ export type JSend<T> = JSendSuccess<T> | JSendFail | JSendError;
 export type Tab = {
 	id: string;
 	label: string;
-	title: string;
 	newEntryVerb?: VerbId;
 	view: Component<any>;
 	loader: () => Promise<JSend<any>>;

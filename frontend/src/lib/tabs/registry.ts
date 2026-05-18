@@ -3,7 +3,7 @@ import IncomeView from '$lib/views/income/View.svelte';
 import CashFlowView from '$lib/views/cash-flow/View.svelte';
 import BalanceSheetView from '$lib/views/balance-sheet/View.svelte';
 import EntriesView from '$lib/views/entries/View.svelte';
-import AccountsView from '$lib/views/accounts/ViewA.svelte';
+import AccountsView from '$lib/views/accounts/View.svelte';
 import { load as loadEntries } from '$lib/views/entries/loader';
 import { load as loadOverview } from '$lib/views/overview/loader';
 import { load as loadIncome } from '$lib/views/income/loader';
@@ -13,52 +13,10 @@ import { load as loadAccounts } from '$lib/views/accounts/loader';
 import type { Tab } from './types';
 
 export const tabs: Tab[] = [
-	{
-		id: 'overview',
-		label: 'Overview',
-		title: 'Overview',
-		newEntryVerb: 'spent',
-		view: OverviewView,
-		loader: loadOverview
-	},
-	{
-		id: 'income',
-		label: 'Income',
-		title: 'Income',
-		newEntryVerb: 'spent',
-		view: IncomeView,
-		loader: loadIncome
-	},
-	{
-		id: 'cash-flow',
-		label: 'Cash Flow',
-		title: 'Cash Flow',
-		newEntryVerb: 'contributed',
-		view: CashFlowView,
-		loader: loadCashFlow
-	},
-	{
-		id: 'balance-sheet',
-		label: 'Balance Sheet',
-		title: 'Balance Sheet',
-		newEntryVerb: 'contributed',
-		view: BalanceSheetView,
-		loader: loadBalanceSheet
-	},
-	{
-		id: 'accounts',
-		label: 'Accounts',
-		title: 'Accounts',
-		newEntryVerb: 'spent',
-		view: AccountsView,
-		loader: loadAccounts
-	},
-	{
-		id: 'entries',
-		label: 'Entries',
-		title: 'Entries',
-		newEntryVerb: 'spent',
-		view: EntriesView,
-		loader: loadEntries
-	}
+	{ id: 'overview', label: 'Overview', newEntryVerb: 'spent', view: OverviewView, loader: loadOverview },
+	{ id: 'income', label: 'Income', newEntryVerb: 'spent', view: IncomeView, loader: loadIncome },
+	{ id: 'cash-flow', label: 'Cash Flow', newEntryVerb: 'contributed', view: CashFlowView, loader: loadCashFlow },
+	{ id: 'balance-sheet', label: 'Balance Sheet', newEntryVerb: 'contributed', view: BalanceSheetView, loader: loadBalanceSheet },
+	{ id: 'accounts', label: 'Accounts', newEntryVerb: 'spent', view: AccountsView, loader: loadAccounts },
+	{ id: 'entries', label: 'Entries', newEntryVerb: 'spent', view: EntriesView, loader: loadEntries }
 ];

@@ -43,7 +43,7 @@
 			class="text-xl font-semibold text-ink"
 			style:min-width={titleMinWidth ? `${titleMinWidth}px` : undefined}
 		>
-			<RollingTitle value={current.title} position={currentIndex} />
+			<RollingTitle value={current.label} position={currentIndex} />
 		</h3>
 		{#if showPeriod}
 			<PeriodNav
@@ -55,7 +55,7 @@
 	</div>
 	<div class="title-measure-rack" aria-hidden="true">
 		{#each tabs as t, i (t.id)}
-			<h3 bind:this={measureEls[i]} class="text-xl font-semibold">{t.title}</h3>
+			<h3 bind:this={measureEls[i]} class="text-xl font-semibold">{t.label}</h3>
 		{/each}
 	</div>
 	<div class="flex items-baseline gap-3">
