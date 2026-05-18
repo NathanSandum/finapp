@@ -73,8 +73,12 @@
 		<PeriodNav
 			label={label}
 			granularity={periodState.granularity}
+			year={periodState.year}
+			month={periodState.month}
+			isAtCurrent={periodState.isAtCurrent}
 			onPrev={() => periodState.shift(-1)}
 			onNext={() => periodState.shift(1)}
+			onGoToCurrent={() => periodState.goToCurrent()}
 		/>
 	</div>
 	<div class="title-measure-rack" aria-hidden="true">
