@@ -1,9 +1,26 @@
 <script lang="ts">
-	import AccountRow from './AccountRow.svelte';
-	import { buildSubtree, countDescendants, ROOT_ACCENT, ROOT_LABEL, ROOT_ORDER } from './tree';
-	import type { AccountsData } from './loader';
+	import {
+		buildSubtree,
+		ROLE_BADGE,
+		ROOT_ACCENT,
+		ROOT_LABEL,
+		ROOT_ORDER,
+		type AccountNode,
+		type RootKey
+	} from './tree';
+	import { load as loadAccounts, type AccountsData } from './loader';
+	import TreeNode from './TreeNode.svelte';
+	import ChildRow from './ChildRow.svelte';
+	import AddChildInput from './AddChildInput.svelte';
+	import { cache } from '$lib/api/cache.svelte';
+	import { createAccount } from './api';
 
 	let { data }: { data: AccountsData } = $props();
+
+	let selectedId = $state<string | null>(null);
+	let adding = $state(false);
+	let addError = $state<string | null>(null);
+	let addBusy = $state(false);
 
 	const subtrees = $derived(
 		ROOT_ORDER.map((key) => ({
@@ -11,25 +28,179 @@
 			tree: buildSubtree(data.anchors[key].id, data.accounts)
 		}))
 	);
+
+	function pathTo(id: string): { key: RootKey; nodes: AccountNode[] } | null {
+		for (const { key, tree } of subtrees) {
+			const trail: AccountNode[] = [];
+			function walk(n: AccountNode): boolean {
+				trail.push(n);
+				if (n.account.id === id) return true;
+				for (const c of n.children) if (walk(c)) return true;
+				trail.pop();
+				return false;
+			}
+			if (walk(tree)) return { key, nodes: trail };
+		}
+		return null;
+	}
+
+	const selectedTrail = $derived(selectedId ? pathTo(selectedId) : null);
+	const selected = $derived(selectedTrail ? selectedTrail.nodes[selectedTrail.nodes.length - 1] : null);
+	const selectedRoot = $derived(selectedTrail?.key);
+	const badge = $derived(selected?.account.role ? ROLE_BADGE[selected.account.role] : undefined);
+
+	function select(id: string) {
+		selectedId = id;
+		adding = false;
+		addError = null;
+	}
+
+	async function commitAdd(name: string) {
+		if (!selected) return;
+		const trimmed = name.trim();
+		if (!trimmed) {
+			adding = false;
+			return;
+		}
+		addBusy = true;
+		addError = null;
+		const result = await createAccount({
+			name: trimmed,
+			parent_id: selected.account.id,
+			currency: selected.account.currency
+		});
+		addBusy = false;
+		if (result.status === 'success') {
+			cache.invalidateAllExcept('accounts');
+			await cache.refresh('accounts', loadAccounts);
+			adding = false;
+		} else {
+			addError =
+				result.status === 'fail'
+					? String(Object.values(result.data)[0] ?? 'create failed')
+					: result.message;
+		}
+	}
 </script>
 
-<div class="flex h-full flex-col gap-4">
-	<p class="text-xs uppercase tracking-[0.08em] text-ink-muted">Click name to rename</p>
-	<div class="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto md:grid-cols-2 xl:grid-cols-3">
+<div class="grid h-full grid-cols-[320px_1fr] border border-border bg-surface-card">
+	<aside class="h-full overflow-y-auto border-r border-border-faint">
 		{#each subtrees as { key, tree } (key)}
-			<section class="flex flex-col border border-border bg-surface-card">
-				<header class="flex items-baseline justify-between border-b border-border-faint px-4 py-2">
-					<h3 class="font-display text-sm font-semibold uppercase tracking-[0.08em] {ROOT_ACCENT[key]}">
+			{@const rootSel = selectedId === tree.account.id}
+			<div class="border-b border-border-faint last:border-b-0">
+				<button
+					type="button"
+					onclick={() => select(tree.account.id)}
+					class="flex w-full items-center justify-between px-3 py-2 text-left transition-colors {rootSel
+						? 'bg-surface-inverse'
+						: 'hover:bg-surface-hover-faint'}"
+				>
+					<h4
+						class="font-display text-[11px] font-semibold uppercase tracking-[0.08em] {rootSel
+							? 'text-ink-inverse'
+							: ROOT_ACCENT[key]}"
+					>
 						{ROOT_LABEL[key]}
-					</h3>
-					<span class="font-mono text-[11px] text-ink-muted">
-						{countDescendants(tree)} accounts
+					</h4>
+					<span class="font-mono text-[10px] {rootSel ? 'text-ink-inverse-muted' : 'text-ink-muted'}">
+						{tree.children.length}
 					</span>
-				</header>
-				<div class="flex-1 px-3 py-2">
-					<AccountRow node={tree} />
-				</div>
-			</section>
+				</button>
+				{#if tree.children.length > 0}
+					<div class="px-1 pb-2">
+						{#each tree.children as child (child.account.id)}
+							<TreeNode node={child} depth={0} {selectedId} onSelect={select} />
+						{/each}
+					</div>
+				{/if}
+			</div>
 		{/each}
-	</div>
+	</aside>
+
+	<section class="h-full overflow-y-auto p-6">
+		{#if selected && selectedTrail && selectedRoot}
+			<nav class="mb-2 flex flex-wrap items-center gap-1 font-mono text-[11px] text-ink-muted">
+				<span class={ROOT_ACCENT[selectedRoot]}>{ROOT_LABEL[selectedRoot]}</span>
+				{#each selectedTrail.nodes.slice(1) as n (n.account.id)}
+					<span>/</span>
+					<span>{n.account.name}</span>
+				{/each}
+			</nav>
+			<header class="mb-6 flex items-baseline justify-between">
+				<div class="flex items-baseline gap-2">
+					<h3 class="text-lg font-semibold text-ink">{selected.account.name}</h3>
+					{#if badge}
+						<span class="bg-surface-sunken px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em] text-ink-muted">
+							{badge}
+						</span>
+					{/if}
+				</div>
+				<span class="font-mono text-[11px] text-ink-muted">{selected.children.length} children</span>
+			</header>
+
+			<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+				<div>
+					<header class="mb-2 flex items-center justify-between">
+						<h4 class="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Sub-accounts</h4>
+						{#if !adding}
+							<button
+								type="button"
+								onclick={() => {
+									adding = true;
+									addError = null;
+								}}
+								class="inline-flex items-center gap-1 border border-border bg-surface-card px-2 py-1 text-[11px] font-medium uppercase tracking-[0.06em] text-ink-body transition-colors hover:border-indigo-500 hover:text-indigo-500"
+							>
+								<span class="text-sm leading-none">+</span>
+								<span>new</span>
+							</button>
+						{/if}
+					</header>
+					{#if selected.children.length > 0}
+						<ul class="divide-y divide-border-faint border border-border-faint">
+							{#each selected.children as c (c.account.id)}
+								<li>
+									<ChildRow node={c} onSelect={select} />
+								</li>
+							{/each}
+						</ul>
+					{:else if !adding}
+						<p class="text-[12px] text-ink-muted">No sub-accounts.</p>
+					{/if}
+					{#if adding}
+						<div class="mt-2 border border-border-faint px-3 py-2">
+							<AddChildInput
+								busy={addBusy}
+								onCommit={commitAdd}
+								onCancel={() => {
+									adding = false;
+									addError = null;
+								}}
+							/>
+						</div>
+					{/if}
+					{#if addError}
+						<p class="mt-1 text-[11px] text-negative">{addError}</p>
+					{/if}
+				</div>
+
+				<div class="flex flex-col gap-4">
+					<div>
+						<h4 class="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Recurring</h4>
+						<p class="border border-dashed border-border-faint px-3 py-4 text-[12px] text-ink-muted">
+							No recurring rules yet.
+						</p>
+					</div>
+					<div>
+						<h4 class="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Recent entries</h4>
+						<p class="border border-dashed border-border-faint px-3 py-4 text-[12px] text-ink-muted">
+							Placeholder.
+						</p>
+					</div>
+				</div>
+			</div>
+		{:else}
+			<p class="text-sm text-ink-muted">Select an account on the left.</p>
+		{/if}
+	</section>
 </div>
