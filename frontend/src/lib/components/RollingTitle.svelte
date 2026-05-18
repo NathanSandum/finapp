@@ -9,10 +9,10 @@
 		position?: number;
 	} = $props();
 
-	type Step = { key: number; before: string; after: string; direction: 1 | -1 };
+	type Mode = 'up' | 'down' | 'none';
+	type Step = { key: number; before: string; after: string; mode: Mode };
 
-	let step = $state<Step>({ key: 0, before: '', after: value, direction: 1 });
-	let rolled = $state(true);
+	let step = $state<Step>({ key: 0, before: '', after: value, mode: 'none' });
 	let prevValue = value;
 	let prevPosition = position;
 	let nextKey = 1;
@@ -25,24 +25,18 @@
 			return;
 		}
 		const reduce = prefersReducedMotion();
-		const dir: 1 | -1 = pos >= prevPosition ? -1 : 1;
-		step = { key: nextKey++, before: prevValue, after: curr, direction: dir };
+		const mode: Mode = reduce ? 'none' : pos >= prevPosition ? 'up' : 'down';
+		step = { key: nextKey++, before: prevValue, after: curr, mode };
 		prevValue = curr;
 		prevPosition = pos;
-		if (reduce) {
-			rolled = true;
-		} else {
-			rolled = false;
-			requestAnimationFrame(() => requestAnimationFrame(() => (rolled = true)));
-		}
 	});
 </script>
 
 <span class="rolling-title" aria-label={value}>
-	{#key step.key}
-		<span class="reel" class:rolled class:down={step.direction === -1}>
-			<span class="track">
-				{#if step.direction === -1}
+	<span class="reel">
+		{#key step.key}
+			<span class="track mode-{step.mode}">
+				{#if step.mode === 'down'}
 					<span class="cell">{step.after || '\u00A0'}</span>
 					<span class="cell">{step.before || '\u00A0'}</span>
 				{:else}
@@ -50,8 +44,8 @@
 					<span class="cell">{step.after || '\u00A0'}</span>
 				{/if}
 			</span>
-		</span>
-	{/key}
+		{/key}
+	</span>
 </span>
 
 <style>
@@ -69,16 +63,7 @@
 	.track {
 		display: flex;
 		flex-direction: column;
-		transition: transform 420ms cubic-bezier(0.7, 0, 0.25, 1);
-	}
-	.reel.rolled .track {
-		transform: translateY(-50%);
-	}
-	.reel.down .track {
-		transform: translateY(-50%);
-	}
-	.reel.down.rolled .track {
-		transform: translateY(0);
+		will-change: transform;
 	}
 	.cell {
 		display: block;
@@ -86,9 +71,41 @@
 		height: 1.1em;
 		white-space: nowrap;
 	}
+
+	.track.mode-none .cell:first-child {
+		display: none;
+	}
+	.track.mode-up {
+		animation: roll-up 520ms cubic-bezier(0.32, 0.72, 0, 1) both;
+	}
+	.track.mode-down {
+		animation: roll-down 520ms cubic-bezier(0.32, 0.72, 0, 1) both;
+	}
+
+	@keyframes roll-up {
+		from {
+			transform: translate3d(0, 0, 0);
+		}
+		to {
+			transform: translate3d(0, -1.1em, 0);
+		}
+	}
+	@keyframes roll-down {
+		from {
+			transform: translate3d(0, -1.1em, 0);
+		}
+		to {
+			transform: translate3d(0, 0, 0);
+		}
+	}
+
 	@media (prefers-reduced-motion: reduce) {
-		.track {
-			transition: transform 0ms;
+		.track.mode-up,
+		.track.mode-down {
+			animation: none;
+		}
+		.track .cell:first-child {
+			display: none;
 		}
 	}
 </style>
