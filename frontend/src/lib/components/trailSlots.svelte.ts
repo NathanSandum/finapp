@@ -82,7 +82,14 @@ export class TrailSlots {
 			return;
 		}
 
-		const oldSlots = this.slots;
+		const oldSlots = this.slots.filter((s) => !s.key.startsWith('__spawn:'));
+		if (oldSlots.length === 0) {
+			this.slots = keys.map((k, i) => ({
+				key: k,
+				pos: new Tween(layout[i], { duration, easing: cubicOut })
+			}));
+			return;
+		}
 		const oldSlotByKey = new Map(oldSlots.map((s) => [s.key, s]));
 		const oldGran = inferKeyGranularity(oldSlots[0].key);
 		const newGran = inferKeyGranularity(keys[0]);
