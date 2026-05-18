@@ -16,6 +16,22 @@ function granRank(g: Granularity | undefined): number {
 	return -1;
 }
 
+function timeOrder(key: string): number {
+	const g = inferKeyGranularity(key);
+	if (g === 'year') return parseInt(key) * 12;
+	if (g === 'quarter') {
+		const y = parseInt(key.slice(0, 4));
+		const q = parseInt(key.slice(6));
+		return y * 12 + (q - 1) * 3;
+	}
+	if (g === 'month') {
+		const y = parseInt(key.slice(0, 4));
+		const m = parseInt(key.slice(5, 7));
+		return y * 12 + (m - 1);
+	}
+	return 0;
+}
+
 function layoutFor(values: number[], width: number, height: number): { x: number; y: number }[] {
 	if (values.length === 0) return [];
 	const min = Math.min(...values);
@@ -73,6 +89,19 @@ export class TrailSlots {
 
 		if (granChange) {
 			const isMerge = granRank(newGran) < granRank(oldGran);
+			const oldStartTime = timeOrder(oldSlots[0].key);
+			const oldEndTime = timeOrder(oldSlots[oldSlots.length - 1].key);
+			const oldStartX = oldSlots[0].pos.current.x;
+			const oldEndX = oldSlots[oldSlots.length - 1].pos.current.x;
+			const oldRange = oldEndTime - oldStartTime || 1;
+
+			const orphanStart = (k: string, targetY: number) => {
+				const t = timeOrder(k);
+				if (t < oldStartTime) return { x: -stepX, y: targetY };
+				if (t > oldEndTime) return { x: width + stepX, y: targetY };
+				const f = (t - oldStartTime) / oldRange;
+				return { x: oldStartX + (oldEndX - oldStartX) * f, y: targetY };
+			};
 
 			for (let i = 0; i < keys.length; i++) {
 				const k = keys[i];
@@ -86,14 +115,14 @@ export class TrailSlots {
 						const cy = children.reduce((s, c) => s + c.pos.current.y, 0) / children.length;
 						startPos = { x: cx, y: cy };
 					} else {
-						startPos = { x: width + stepX, y: target.y };
+						startPos = orphanStart(k, target.y);
 					}
 				} else {
 					const parent = parentKeyInGran(k, oldGran!);
 					const parentSlot = parent ? oldSlotByKey.get(parent) : undefined;
 					startPos = parentSlot
 						? { x: parentSlot.pos.current.x, y: parentSlot.pos.current.y }
-						: { x: width + stepX, y: target.y };
+						: orphanStart(k, target.y);
 				}
 
 				const slot: TrailSlot = {

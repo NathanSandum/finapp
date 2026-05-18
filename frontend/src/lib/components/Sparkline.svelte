@@ -31,21 +31,6 @@
 		yOffset?: number;
 	} = $props();
 
-	function yAtX(targetX: number, pts: { x: number; y: number }[]): number {
-		if (pts.length === 0) return 0;
-		if (targetX <= pts[0].x) return pts[0].y;
-		if (targetX >= pts[pts.length - 1].x) return pts[pts.length - 1].y;
-		for (let i = 0; i < pts.length - 1; i++) {
-			const a = pts[i];
-			const b = pts[i + 1];
-			if (targetX >= a.x && targetX <= b.x) {
-				const t = b.x === a.x ? 0 : (targetX - a.x) / (b.x - a.x);
-				return a.y + (b.y - a.y) * t;
-			}
-		}
-		return pts[pts.length - 1].y;
-	}
-
 	const stepXCurrent = $derived(keys.length > 0 ? width / keys.length : width);
 	const sortedSlots = $derived(
 		[...trailSlots.slots].sort((a, b) => a.pos.current.x - b.pos.current.x)
@@ -63,10 +48,7 @@
 		return `${first.x.toFixed(1)},${height} ${path} ${last.x.toFixed(1)},${height}`;
 	});
 	const markers = $derived(
-		keys.map((k, i) => {
-			const x = (i + 0.5) * stepXCurrent;
-			return { key: k, x, y: yAtX(x, linePoints) };
-		})
+		trailSlots.slots.map((s) => ({ key: s.key, x: s.pos.current.x, y: s.pos.current.y }))
 	);
 	const currentX = $derived(keys.length > 0 ? width - stepXCurrent / 2 : 0);
 </script>
