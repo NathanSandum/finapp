@@ -14,6 +14,8 @@
 	import AddChildInput from './AddChildInput.svelte';
 	import { cache } from '$lib/api/cache.svelte';
 	import { createAccount, deleteAccount } from './api';
+	import { fmt } from '$lib/format';
+	import Num from '$lib/components/Num.svelte';
 
 	let { data }: { data: AccountsData } = $props();
 
@@ -58,6 +60,35 @@
 			? selectedTrail.nodes[selectedTrail.nodes.length - 2]
 			: null
 	);
+
+	function collectIds(node: AccountNode, out: Set<string>) {
+		out.add(node.account.id);
+		for (const child of node.children) collectIds(child, out);
+	}
+
+	const RECENT_LIMIT = 10;
+	const recentEntries = $derived.by(() => {
+		if (!selected) return [] as { id: string; date: string; description: string; amount: number }[];
+		const ids = new Set<string>();
+		collectIds(selected, ids);
+		return data.entries
+			.map((entry) => {
+				let amount = 0;
+				let touched = false;
+				for (const posting of entry.postings) {
+					if (ids.has(posting.account_id)) {
+						amount += posting.amount;
+						touched = true;
+					}
+				}
+				return touched
+					? { id: entry.id, date: entry.date, description: entry.description, amount }
+					: null;
+			})
+			.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+			.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+			.slice(0, RECENT_LIMIT);
+	});
 
 	function select(id: string) {
 		selectedId = id;
@@ -237,9 +268,23 @@
 					</div>
 					<div>
 						<h4 class="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Recent entries</h4>
-						<p class="border border-dashed border-border-faint px-3 py-4 text-[12px] text-ink-muted">
-							Placeholder.
-						</p>
+						{#if recentEntries.length > 0}
+							<ul class="divide-y divide-border-faint border border-border-faint">
+								{#each recentEntries as entry (entry.id)}
+									<li class="flex items-baseline gap-3 px-3 py-2 text-sm">
+										<span class="font-mono text-[11px] text-ink-muted">{entry.date}</span>
+										<span class="flex-1 truncate text-ink">{entry.description}</span>
+										<span class="font-mono tabular-nums {entry.amount < 0 ? 'text-negative' : 'text-ink-body'}">
+											<Num text={fmt(entry.amount)} />
+										</span>
+									</li>
+								{/each}
+							</ul>
+						{:else}
+							<p class="border border-dashed border-border-faint px-3 py-4 text-[12px] text-ink-muted">
+								No entries on this account.
+							</p>
+						{/if}
 					</div>
 				</div>
 			</div>
