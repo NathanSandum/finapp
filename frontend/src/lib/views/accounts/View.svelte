@@ -23,7 +23,7 @@
 
 	function periodPrefix(year: number, month: number, granularity: 'month' | 'quarter' | 'year'): string {
 		if (granularity === 'year') return `${year}`;
-		return trailLabel(year, month, granularity);
+		return `${trailLabel(year, month, granularity)} ${year}`;
 	}
 
 	let { data }: { data: AccountsData } = $props();
