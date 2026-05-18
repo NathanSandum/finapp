@@ -54,7 +54,7 @@
 <div class="flex items-center gap-1 text-xs text-ink-muted">
 	<button
 		onclick={handlePrev}
-		class="rounded px-1.5 py-0.5 hover:bg-surface-hover"
+		class="rounded px-2 py-1 text-base leading-none hover:bg-surface-hover"
 		aria-label="Previous period">‹</button
 	>
 	<span class="reel min-w-[110px]" aria-label={label}>
@@ -67,7 +67,7 @@
 	</span>
 	<button
 		onclick={handleNext}
-		class="rounded px-1.5 py-0.5 hover:bg-surface-hover"
+		class="rounded px-2 py-1 text-base leading-none hover:bg-surface-hover"
 		aria-label="Next period">›</button
 	>
 </div>
