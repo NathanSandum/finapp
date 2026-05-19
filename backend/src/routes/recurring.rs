@@ -1,0 +1,154 @@
+use axum::{extract::Extension, extract::Path, http::StatusCode, Json};
+use chrono::NaiveDate;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+use crate::auth::WorkspaceMember;
+use crate::domain::account::AccountRef;
+use crate::domain::recurring::{
+    NewRecurringRule, PostingTemplateInput, PostingTemplates, RecurringPostingTemplate,
+    RecurringRule, RecurringRuleRef, Schedule,
+};
+use crate::domain::workspace::{Role, WorkspaceRef};
+use crate::error::AppError;
+use crate::jsend::{JSend, JSendResponse};
+use crate::DbPool;
+
+#[derive(Deserialize)]
+pub struct TemplateBody {
+    account_id: AccountRef,
+    amount: i32,
+    #[serde(default)]
+    note: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct CreateRecurringRequest {
+    description: String,
+    rrule: String,
+    dtstart: NaiveDate,
+    templates: Vec<TemplateBody>,
+}
+
+#[derive(Serialize)]
+pub struct RecurringRuleResponse {
+    #[serde(flatten)]
+    rule: RecurringRule,
+    templates: Vec<RecurringPostingTemplate>,
+    next_pending: Option<NaiveDate>,
+}
+
+impl RecurringRuleResponse {
+    fn build(
+        rule: RecurringRule,
+        conn: &mut diesel::SqliteConnection,
+    ) -> Result<Self, AppError> {
+        let templates = rule.templates(conn)?;
+        let next_pending = rule.next_pending()?;
+        Ok(RecurringRuleResponse {
+            rule,
+            templates,
+            next_pending,
+        })
+    }
+}
+
+pub async fn create(
+    Extension(db): Extension<DbPool>,
+    member: WorkspaceMember,
+    Json(body): Json<CreateRecurringRequest>,
+) -> Result<JSendResponse<RecurringRuleResponse>, AppError> {
+    member.require_role(&Role::Editor)?;
+    let mut conn = db
+        .get()
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
+
+    let schedule = Schedule::parse(&body.rrule, body.dtstart)?;
+    let template_inputs: Vec<PostingTemplateInput> = body
+        .templates
+        .into_iter()
+        .map(|t| {
+            let input = PostingTemplateInput::new(t.account_id, t.amount);
+            match t.note {
+                Some(note) => input.note(&note),
+                None => input,
+            }
+        })
+        .collect();
+    let templates = PostingTemplates::new(template_inputs)?;
+
+    let rule = NewRecurringRule::new(
+        member.workspace.clone(),
+        &body.description,
+        schedule,
+        templates,
+    )
+    .insert(&mut conn)?;
+
+    let response = RecurringRuleResponse::build(rule, &mut conn)?;
+    Ok(JSendResponse::new(StatusCode::CREATED, JSend::success(response)))
+}
+
+pub async fn list(
+    Extension(db): Extension<DbPool>,
+    member: WorkspaceMember,
+) -> Result<JSend<Value>, AppError> {
+    let mut conn = db
+        .get()
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
+
+    let rules = member.workspace.recurring_rules(&mut conn)?;
+    let mut payload = Vec::with_capacity(rules.len());
+    for rule in rules {
+        payload.push(RecurringRuleResponse::build(rule, &mut conn)?);
+    }
+
+    Ok(JSend::success(json!({ "recurring_rules": payload })))
+}
+
+#[derive(Deserialize)]
+pub struct RecurringPath {
+    #[allow(dead_code)]
+    workspace: WorkspaceRef,
+    rule: RecurringRuleRef,
+}
+
+pub async fn get(
+    Extension(db): Extension<DbPool>,
+    member: WorkspaceMember,
+    Path(path): Path<RecurringPath>,
+) -> Result<JSend<RecurringRuleResponse>, AppError> {
+    let mut conn = db
+        .get()
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
+
+    let rule = RecurringRule::from_ref(&path.rule, &mut conn)?
+        .ok_or(AppError::NotFound("recurring rule".into()))?;
+
+    if rule.workspace != member.workspace {
+        return Err(AppError::NotFound("recurring rule".into()));
+    }
+
+    Ok(JSend::success(RecurringRuleResponse::build(rule, &mut conn)?))
+}
+
+pub async fn delete(
+    Extension(db): Extension<DbPool>,
+    member: WorkspaceMember,
+    Path(path): Path<RecurringPath>,
+) -> Result<JSend<Value>, AppError> {
+    member.require_role(&Role::Editor)?;
+    let mut conn = db
+        .get()
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
+
+    let rule = RecurringRule::from_ref(&path.rule, &mut conn)?
+        .ok_or(AppError::NotFound("recurring rule".into()))?;
+
+    if rule.workspace != member.workspace {
+        return Err(AppError::NotFound("recurring rule".into()));
+    }
+
+    rule.soft_delete(&mut conn)?;
+    Ok(JSend::success(Value::Null))
+}

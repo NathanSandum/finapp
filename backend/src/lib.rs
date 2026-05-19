@@ -126,6 +126,15 @@ pub fn build_router(db: DbPool, mode: Mode) -> Router {
         .route(
             "/workspaces/{workspace}/baselines/{baseline}/variance",
             get(routes::baselines::variance),
+        )
+        // Recurring rules
+        .route(
+            "/workspaces/{workspace}/recurring",
+            get(routes::recurring::list).post(routes::recurring::create),
+        )
+        .route(
+            "/workspaces/{workspace}/recurring/{rule}",
+            get(routes::recurring::get).delete(routes::recurring::delete),
         );
 
     router.layer(auth_layer).layer(Extension(db))
