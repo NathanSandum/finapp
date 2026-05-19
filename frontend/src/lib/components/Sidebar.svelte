@@ -71,7 +71,7 @@
 		{@const groupChanged = i > 0 && tab.group !== tabs[i - 1].group}
 		{#if groupChanged}
 			<div
-				class="mx-3 my-1 h-px bg-gradient-to-r from-transparent via-border-faint/50 to-transparent"
+				class="mx-3 my-1 h-px bg-gradient-to-r from-transparent via-border-faint/20 to-transparent"
 				aria-hidden="true"
 			></div>
 		{/if}
