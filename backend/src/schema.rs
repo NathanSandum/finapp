@@ -99,6 +99,32 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    recurring_rules (id) {
+        id -> Text,
+        workspace_id -> Text,
+        description -> Text,
+        rrule -> Text,
+        dtstart -> Date,
+        last_fired_on -> Nullable<Date>,
+        deleted_at -> Nullable<Timestamp>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    recurring_posting_templates (id) {
+        id -> Text,
+        rule_id -> Text,
+        account_id -> Text,
+        amount -> Integer,
+        note -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
 diesel::joinable!(workspace_members -> workspaces (workspace_id));
 diesel::joinable!(accounts -> workspaces (workspace_id));
 diesel::joinable!(entries -> workspaces (workspace_id));
@@ -106,6 +132,9 @@ diesel::joinable!(postings -> entries (entry_id));
 diesel::joinable!(postings -> accounts (account_id));
 diesel::joinable!(baselines -> workspaces (workspace_id));
 diesel::joinable!(baselines -> accounts (account_id));
+diesel::joinable!(recurring_rules -> workspaces (workspace_id));
+diesel::joinable!(recurring_posting_templates -> recurring_rules (rule_id));
+diesel::joinable!(recurring_posting_templates -> accounts (account_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     baselines,
@@ -116,4 +145,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     postings,
     auth_sessions,
     users,
+    recurring_rules,
+    recurring_posting_templates,
 );
