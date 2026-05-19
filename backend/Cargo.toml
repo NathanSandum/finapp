@@ -24,6 +24,7 @@ figment = { version = "0.10", features = ["yaml", "env"] }
 axum-login = "0.18"
 async-trait = "0.1"
 time = "0.3"
+rrule = "0.14"
 
 [dev-dependencies]
 http-body-util = "0.1"
