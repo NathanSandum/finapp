@@ -2,6 +2,7 @@
 	import { cache } from '$lib/api/cache.svelte';
 	import { fmt } from '$lib/format';
 	import Num from '$lib/components/Num.svelte';
+	import BorderButton from '$lib/components/BorderButton.svelte';
 	import { deleteRecurring } from './api';
 	import { scheduleLabel } from './schedules';
 	import type { RecurringRule } from './loader';
@@ -74,14 +75,13 @@
 				<span class="font-mono text-sm tabular-nums text-ink">
 					<Num text={fmt(templateAmount(rule))} />
 				</span>
-				<button
-					type="button"
+				<BorderButton
+					tone="negative"
 					onclick={() => commitDelete(rule)}
 					disabled={busyId === rule.id}
-					class="border border-border bg-surface-card px-2 py-1 text-[11px] text-ink-muted hover:bg-surface-hover-faint disabled:opacity-50"
 				>
 					{busyId === rule.id ? '…' : 'delete'}
-				</button>
+				</BorderButton>
 			</li>
 		{/each}
 	</ul>
