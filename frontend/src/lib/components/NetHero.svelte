@@ -55,7 +55,7 @@
 </script>
 
 <section class="relative shrink-0 overflow-hidden border border-border bg-surface-card">
-	<div class="absolute left-5 top-4 z-10">
+	<div class="halo absolute left-5 top-4 z-10">
 		<p class="text-[10px] font-medium uppercase tracking-wide text-ink-muted">{label}</p>
 		<p
 			class="mt-0.5 flex items-baseline gap-2 font-mono text-3xl font-semibold tabular-nums text-ink"
@@ -100,3 +100,12 @@
 		/>
 	</div>
 </section>
+
+<style>
+	.halo {
+		filter:
+			drop-shadow(0 0 6px var(--color-surface-card))
+			drop-shadow(0 0 12px var(--color-surface-card))
+			drop-shadow(0 0 18px var(--color-surface-card));
+	}
+</style>

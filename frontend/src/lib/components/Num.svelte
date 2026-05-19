@@ -64,16 +64,32 @@
 </script>
 
 <span class="num"
-	>{parsed.head}{#each cells as cell, i (cells.length - 1 - i)}{@const survivor =
-			i === 0 ||
-			Math.floor((i * 3) / cells.length) > Math.floor(((i - 1) * 3) / cells.length)}<NumCell
-			{cell}
-			{survivor}
-		/>{/each}</span
+	><span class="copy-text">{text}</span><span class="visual" aria-hidden="true"
+		>{parsed.head}{#each cells as cell, i (cells.length - 1 - i)}{@const survivor =
+				i === 0 ||
+				Math.floor((i * 3) / cells.length) > Math.floor(((i - 1) * 3) / cells.length)}<NumCell
+				{cell}
+				{survivor}
+			/>{/each}</span
+	></span
 >
 
 <style>
 	.num {
+		position: relative;
+		display: inline-block;
+		white-space: nowrap;
+	}
+	.copy-text {
+		color: transparent;
+		user-select: text;
+		white-space: nowrap;
+	}
+	.visual {
+		position: absolute;
+		inset: 0;
+		user-select: none;
+		pointer-events: none;
 		white-space: nowrap;
 	}
 </style>
