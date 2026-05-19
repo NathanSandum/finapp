@@ -70,7 +70,10 @@
 	{#each tabs as tab, i (tab.id)}
 		{@const groupChanged = i > 0 && tab.group !== tabs[i - 1].group}
 		{#if groupChanged}
-			<hr class="my-1 border-t border-border-faint" aria-hidden="true" />
+			<div
+				class="mx-3 my-1 h-px bg-gradient-to-r from-transparent via-border-faint/50 to-transparent"
+				aria-hidden="true"
+			></div>
 		{/if}
 		<SidebarTabRow
 			{tab}
