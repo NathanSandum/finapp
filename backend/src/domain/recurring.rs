@@ -345,19 +345,24 @@ impl NewRecurringRule {
                 .returning(RecurringRule::as_returning())
                 .get_result(conn)?;
 
-            for template in self.templates.into_inner() {
-                diesel::insert_into(recurring_posting_templates::table)
-                    .values(NewTemplateRow {
-                        id: Uuid::new_v4().to_string(),
-                        rule: rule.id.clone(),
-                        account: template.account,
-                        amount: template.amount,
-                        note: template.note.unwrap_or_default(),
-                        created_at: now,
-                        updated_at: now,
-                    })
-                    .execute(conn)?;
-            }
+            let template_rows: Vec<NewTemplateRow> = self
+                .templates
+                .into_inner()
+                .into_iter()
+                .map(|template| NewTemplateRow {
+                    id: Uuid::new_v4().to_string(),
+                    rule: rule.id.clone(),
+                    account: template.account,
+                    amount: template.amount,
+                    note: template.note.unwrap_or_default(),
+                    created_at: now,
+                    updated_at: now,
+                })
+                .collect();
+
+            diesel::insert_into(recurring_posting_templates::table)
+                .values(&template_rows)
+                .execute(conn)?;
 
             Ok(rule)
         })
