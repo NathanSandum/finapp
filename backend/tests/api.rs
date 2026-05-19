@@ -1943,6 +1943,55 @@ async fn delete_recurring_rule_excludes_from_list() {
 }
 
 #[tokio::test]
+async fn materialize_endpoint_idempotent() {
+    let app = app();
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let rent = find_account_id(&app, &workspace_id, &mut session, "Rent").await;
+
+    // Past dtstart → insert backfills, so the materialize endpoint should post 0 more.
+    post(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring"),
+        &mut session,
+        json!({
+            "description": "Old rent",
+            "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
+            "dtstart": "2020-01-01",
+            "templates": [
+                { "account_id": chequing, "amount": -150000 },
+                { "account_id": rent, "amount": 150000 },
+            ]
+        }),
+    )
+    .await;
+
+    let (status, body) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring/materialize"),
+        &mut session,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "materialize failed: {body}");
+    assert_eq!(body["posted"], 0, "create-time backfill should leave nothing due");
+
+    // Entries from backfill should be present on the workspace.
+    let (_, entries_body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries"),
+        &mut session,
+    )
+    .await;
+    let entries = entries_body["entries"].as_array().unwrap();
+    let materialized: Vec<_> = entries
+        .iter()
+        .filter(|e| e["source_rule"].as_str().is_some() && e["description"] == "Old rent")
+        .collect();
+    assert!(materialized.len() >= 12, "expected backfilled monthly entries");
+}
+
+#[tokio::test]
 async fn non_member_cannot_create_recurring_rule() {
     let app = app();
     let (_, _, workspace_id) = setup_workspace(&app).await;

@@ -152,3 +152,26 @@ pub async fn delete(
     rule.soft_delete(&mut conn)?;
     Ok(JSend::success(Value::Null))
 }
+
+/// Materializes every due occurrence across all active rules in the workspace.
+/// Idempotent — calling repeatedly with no time passage posts zero new entries.
+/// Returns the count of entries posted.
+pub async fn materialize(
+    Extension(db): Extension<DbPool>,
+    member: WorkspaceMember,
+) -> Result<JSend<Value>, AppError> {
+    member.require_role(&Role::Editor)?;
+    let mut conn = db
+        .get()
+        .map_err(|err| AppError::Internal(format!("db: {err}")))?;
+
+    let today = chrono::Utc::now().naive_utc().date();
+    let rules = member.workspace.recurring_rules(&mut conn)?;
+
+    let mut posted_count: usize = 0;
+    for rule in rules {
+        posted_count += rule.materialize_due(today, &mut conn)?.len();
+    }
+
+    Ok(JSend::success(json!({ "posted": posted_count })))
+}

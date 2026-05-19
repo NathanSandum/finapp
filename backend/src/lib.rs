@@ -135,6 +135,10 @@ pub fn build_router(db: DbPool, mode: Mode) -> Router {
         .route(
             "/workspaces/{workspace}/recurring/{rule}",
             get(routes::recurring::get).delete(routes::recurring::delete),
+        )
+        .route(
+            "/workspaces/{workspace}/recurring/materialize",
+            post(routes::recurring::materialize),
         );
 
     router.layer(auth_layer).layer(Extension(db))
