@@ -68,6 +68,10 @@
 		aria-hidden="true"
 	></span>
 	{#each tabs as tab, i (tab.id)}
+		{@const groupChanged = i > 0 && tab.group !== tabs[i - 1].group}
+		{#if groupChanged}
+			<hr class="my-1 border-t border-border-faint" aria-hidden="true" />
+		{/if}
 		<SidebarTabRow
 			{tab}
 			bind:el={rowEls[i]}
