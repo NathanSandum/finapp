@@ -101,19 +101,21 @@ impl Entry {
                 diesel::delete(postings::table.filter(postings::entry_id.eq(&self.id)))
                     .execute(conn)?;
 
-                for input in posting_inputs {
-                    diesel::insert_into(postings::table)
-                        .values(NewPostingRow {
-                            id: Uuid::new_v4().to_string(),
-                            entry: self.id.clone(),
-                            account: input.account,
-                            amount: input.amount,
-                            note: input.note.unwrap_or_default(),
-                            created_at: now,
-                            updated_at: now,
-                        })
-                        .execute(conn)?;
-                }
+                let rows: Vec<NewPostingRow> = posting_inputs
+                    .into_iter()
+                    .map(|input| NewPostingRow {
+                        id: Uuid::new_v4().to_string(),
+                        entry: self.id.clone(),
+                        account: input.account,
+                        amount: input.amount,
+                        note: input.note.unwrap_or_default(),
+                        created_at: now,
+                        updated_at: now,
+                    })
+                    .collect();
+                diesel::insert_into(postings::table)
+                    .values(&rows)
+                    .execute(conn)?;
             }
 
             diesel::update(entries::table.find(&self.id))
@@ -411,19 +413,22 @@ impl NewEntry {
                 .returning(Entry::as_returning())
                 .get_result(conn)?;
 
-            for input in self.posting_inputs {
-                diesel::insert_into(postings::table)
-                    .values(NewPostingRow {
-                        id: Uuid::new_v4().to_string(),
-                        entry: entry.id.clone(),
-                        account: input.account,
-                        amount: input.amount,
-                        note: input.note.unwrap_or_default(),
-                        created_at: now,
-                        updated_at: now,
-                    })
-                    .execute(conn)?;
-            }
+            let rows: Vec<NewPostingRow> = self
+                .posting_inputs
+                .into_iter()
+                .map(|input| NewPostingRow {
+                    id: Uuid::new_v4().to_string(),
+                    entry: entry.id.clone(),
+                    account: input.account,
+                    amount: input.amount,
+                    note: input.note.unwrap_or_default(),
+                    created_at: now,
+                    updated_at: now,
+                })
+                .collect();
+            diesel::insert_into(postings::table)
+                .values(&rows)
+                .execute(conn)?;
 
             Ok(entry)
         })
