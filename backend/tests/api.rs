@@ -1724,6 +1724,7 @@ async fn create_recurring_rule_succeeds() {
     let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
     let rent = find_account_id(&app, &workspace_id, &mut session, "Rent").await;
 
+    // Future dtstart so insert-time backfill is a no-op and assertions stay stable.
     let (status, body) = post(
         &app,
         &format!("/workspaces/{workspace_id}/recurring"),
@@ -1731,7 +1732,7 @@ async fn create_recurring_rule_succeeds() {
         json!({
             "description": "Monthly rent",
             "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
-            "dtstart": "2026-01-01",
+            "dtstart": "2099-01-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
                 { "account_id": rent, "amount": 150000 },
@@ -1742,9 +1743,9 @@ async fn create_recurring_rule_succeeds() {
 
     assert_eq!(status, StatusCode::CREATED, "create recurring failed: {body}");
     assert_eq!(body["description"], "Monthly rent");
-    assert_eq!(body["dtstart"], "2026-01-01");
+    assert_eq!(body["dtstart"], "2099-01-01");
     assert_eq!(body["rrule"], "FREQ=MONTHLY;BYMONTHDAY=1");
-    assert_eq!(body["next_pending"], "2026-01-01");
+    assert_eq!(body["next_pending"], "2099-01-01");
     assert_eq!(body["templates"].as_array().unwrap().len(), 2);
 }
 
@@ -1815,7 +1816,7 @@ async fn list_recurring_rules() {
         json!({
             "description": "Rent",
             "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
-            "dtstart": "2026-03-01",
+            "dtstart": "2099-03-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
                 { "account_id": rent, "amount": 150000 },
@@ -1831,7 +1832,7 @@ async fn list_recurring_rules() {
         json!({
             "description": "Groceries",
             "rrule": "FREQ=WEEKLY",
-            "dtstart": "2026-01-05",
+            "dtstart": "2099-01-05",
             "templates": [
                 { "account_id": chequing, "amount": -5000 },
                 { "account_id": food, "amount": 5000 },
@@ -1869,7 +1870,7 @@ async fn get_recurring_rule_returns_templates_and_next_pending() {
         json!({
             "description": "Rent",
             "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
-            "dtstart": "2026-01-01",
+            "dtstart": "2099-01-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
                 { "account_id": rent, "amount": 150000 },
@@ -1887,7 +1888,7 @@ async fn get_recurring_rule_returns_templates_and_next_pending() {
     .await;
 
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["next_pending"], "2026-01-01");
+    assert_eq!(body["next_pending"], "2099-01-01");
     assert_eq!(body["templates"].as_array().unwrap().len(), 2);
 }
 
