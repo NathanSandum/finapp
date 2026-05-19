@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { cache } from '$lib/api/cache.svelte';
 	import { workspaceState } from './state.svelte';
 	import { createWorkspace, listWorkspaces, renameWorkspace, type Workspace } from './api';
+	import { materializeRecurring } from '$lib/views/recurring/api';
 	import WorkspaceRow from './WorkspaceRow.svelte';
 	import WorkspaceCreate from './WorkspaceCreate.svelte';
 	import Popover from '$lib/components/Popover.svelte';
@@ -22,13 +24,23 @@
 		}
 	}
 
-	function switchTo(workspace: Workspace) {
+	async function syncRecurringAfterSwitch() {
+		const result = await materializeRecurring();
+		if (result.status === 'success' && result.data.posted > 0) {
+			cache.invalidateAll();
+		} else if (result.status !== 'success') {
+			console.warn('recurring materialize failed', result);
+		}
+	}
+
+	async function switchTo(workspace: Workspace) {
 		if (workspace.workspace === workspaceState.id()) {
 			onClose();
 			return;
 		}
 		workspaceState.setActive(workspace);
 		onClose();
+		await syncRecurringAfterSwitch();
 	}
 
 	async function commitRename(id: string, name: string) {
@@ -62,6 +74,7 @@
 			await refresh();
 			workspaceState.setActive(result.data);
 			onClose();
+			await syncRecurringAfterSwitch();
 		} else {
 			error = result.status === 'error' ? result.message : 'Create failed';
 		}
