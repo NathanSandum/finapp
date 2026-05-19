@@ -175,6 +175,31 @@ Monthly budget targets per account.
 - `AccountRef::baselines(conn)` — baselines for this account
 - `WorkspaceRef::baselines(conn)` — all baselines in workspace
 
+## Recurring Rules
+
+Workspace-scoped templates that describe a repeating entry. CRUD only — materialization (auto-posting on schedule) is deferred. See `context/kits/cavekit-recurring.md`.
+
+### Strong types
+
+- `Schedule` — newtype around `(rrule: String, dtstart: NaiveDate)`. The only constructor `Schedule::parse(rrule, dtstart)` parses and validates the RRULE against `dtstart` (via the `rrule` crate). Existence of a `Schedule` value is proof of well-formedness. Method `next_after(date_exclusive) -> Option<NaiveDate>` is strictly-after — internally bumps the inclusive `RRuleSet::after` by one day.
+- `PostingTemplates` — newtype around `Vec<PostingTemplateInput>`. Constructor enforces ≥2 entries, non-zero amounts, and zero-sum. `into_inner()` drops the wrapper to consume the inner vec.
+
+### RecurringRule
+- Fields: id, workspace, description, rrule, dtstart, last_fired_on (Option<NaiveDate>), deleted_at, timestamps
+- `from_ref(ref, conn)` — only returns active (non-deleted) rules
+- `templates(conn)` — owning posting templates
+- `soft_delete(conn)` — sets deleted_at; excluded from default queries
+- `schedule()` — reconstructs `Schedule` from stored cols (Internal error if storage corrupt)
+- `next_occurrence_after(date, conn)` — delegates to `schedule().next_after(date)`
+- `next_pending()` — uses `last_fired_on` as cursor, falls back to `dtstart - 1 day` so the first call returns `dtstart`
+
+### NewRecurringRule
+- `NewRecurringRule::new(workspace, description, schedule: Schedule, templates: PostingTemplates)` — accepts only validated newtypes, so the constructor itself cannot produce an invalid rule
+- `insert(conn)` — atomic insert of rule row + template rows in a single transaction
+
+### Query methods
+- `WorkspaceRef::recurring_rules(conn)` — active rules, ordered by `dtstart` ascending
+
 ## Soft Deletes
 
 Entities with `deleted_at: Option<NaiveDateTime>`. All queries filter `deleted_at.is_null()`. Account soft-delete rejects if active children exist OR if account has postings on non-deleted entries. Baselines use hard delete (no deleted_at).

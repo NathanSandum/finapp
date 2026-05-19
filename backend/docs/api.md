@@ -199,3 +199,45 @@ Requires Editor role. Hard-deletes baseline. `data` is `null`.
 { "baseline": "uuid", "amount": 50000, "actual": 7500, "variance": -42500 }
 ```
 Positive variance = over budget. Actual includes descendant account postings within period.
+
+## Recurring Rule Routes (token + workspace membership required)
+
+### POST /workspaces/{workspace}/recurring
+Requires Editor role.
+```json
+// Request
+{
+  "description": "Monthly rent",
+  "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
+  "dtstart": "2026-01-01",
+  "templates": [
+    { "account_id": "uuid", "amount": -150000, "note": "optional" },
+    { "account_id": "uuid", "amount": 150000 }
+  ]
+}
+// data on 201
+{
+  "id": "uuid", "workspace": "uuid", "description": "str",
+  "rrule": "str", "dtstart": "YYYY-MM-DD", "last_fired_on": null,
+  "deleted_at": null, "created_at": "...", "updated_at": "...",
+  "templates": [{ "id": "uuid", "rule": "uuid", "account": "uuid", "amount": int, "note": "str", ... }],
+  "next_pending": "YYYY-MM-DD" | null
+}
+// 422: invalid RRULE, fewer than 2 templates, non-zero sum, zero amount
+```
+
+### GET /workspaces/{workspace}/recurring
+```json
+// data on 200
+{ "recurring_rules": [ { ...rule, "templates": [...], "next_pending": "..." }, ... ] }
+```
+Active (non-deleted) rules, ordered by `dtstart` ascending.
+
+### GET /workspaces/{workspace}/recurring/{rule}
+```json
+// data on 200: same shape as a single entry from list
+// 404: rule not found, soft-deleted, or wrong workspace
+```
+
+### DELETE /workspaces/{workspace}/recurring/{rule}
+Requires Editor role. Soft-deletes the rule. `data` is `null`.

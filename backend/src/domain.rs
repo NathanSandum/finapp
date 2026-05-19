@@ -2,6 +2,7 @@ pub mod account;
 pub mod baseline;
 pub mod entry;
 pub mod period;
+pub mod recurring;
 pub mod report;
 pub mod user;
 pub mod workspace;

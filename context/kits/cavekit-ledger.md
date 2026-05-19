@@ -117,7 +117,7 @@ This design follows hledger conventions: expenses, income, assets, liabilities, 
 
 ## Out of Scope
 - Investment holdings, tickers, or brokerage-specific transaction fields
-- Recurring transaction automation (future)
+- Recurring rule materialization / auto-posting daemon (future) — see cavekit-recurring.md for rule storage and CRUD
 - Bank/brokerage import (future)
 - Multi-currency conversion (future — currency is stored, conversion is not)
 - Receipt or attachment storage

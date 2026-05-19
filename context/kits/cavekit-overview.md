@@ -11,6 +11,7 @@ This app informs rather than restricts. Users gain maximum visibility into their
 | Workspace | cavekit-workspace.md | Users, workspaces, membership, sharing |
 | Ledger | cavekit-ledger.md | Hierarchical accounts (double-entry), transactions, postings, balance sheet, income statement |
 | Baselines | cavekit-baselines.md | Reference amounts per category per period for variance/trend |
+| Recurring | cavekit-recurring.md | Recurring entry rules (RRULE-scheduled templates, CRUD only — no auto-post) |
 | API | cavekit-api.md | REST endpoints, request/response contracts, error handling |
 
 ## Cross-Cutting Concerns

@@ -1715,6 +1715,254 @@ async fn merge_entries_non_zero_sum_rejected() {
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+// ── Recurring rule tests ────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn create_recurring_rule_succeeds() {
+    let app = app();
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let rent = find_account_id(&app, &workspace_id, &mut session, "Rent").await;
+
+    let (status, body) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring"),
+        &mut session,
+        json!({
+            "description": "Monthly rent",
+            "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
+            "dtstart": "2026-01-01",
+            "templates": [
+                { "account_id": chequing, "amount": -150000 },
+                { "account_id": rent, "amount": 150000 },
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CREATED, "create recurring failed: {body}");
+    assert_eq!(body["description"], "Monthly rent");
+    assert_eq!(body["dtstart"], "2026-01-01");
+    assert_eq!(body["rrule"], "FREQ=MONTHLY;BYMONTHDAY=1");
+    assert_eq!(body["next_pending"], "2026-01-01");
+    assert_eq!(body["templates"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn create_recurring_rejects_invalid_rrule() {
+    let app = app();
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let rent = find_account_id(&app, &workspace_id, &mut session, "Rent").await;
+
+    let (status, _) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring"),
+        &mut session,
+        json!({
+            "description": "Bad",
+            "rrule": "this is not an rrule",
+            "dtstart": "2026-01-01",
+            "templates": [
+                { "account_id": chequing, "amount": -150000 },
+                { "account_id": rent, "amount": 150000 },
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn create_recurring_rejects_non_zero_sum_templates() {
+    let app = app();
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let rent = find_account_id(&app, &workspace_id, &mut session, "Rent").await;
+
+    let (status, _) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring"),
+        &mut session,
+        json!({
+            "description": "Bad",
+            "rrule": "FREQ=MONTHLY",
+            "dtstart": "2026-01-01",
+            "templates": [
+                { "account_id": chequing, "amount": -150000 },
+                { "account_id": rent, "amount": 100000 },
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn list_recurring_rules() {
+    let app = app();
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let rent = find_account_id(&app, &workspace_id, &mut session, "Rent").await;
+    let food = find_account_id(&app, &workspace_id, &mut session, "Food").await;
+
+    post(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring"),
+        &mut session,
+        json!({
+            "description": "Rent",
+            "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
+            "dtstart": "2026-03-01",
+            "templates": [
+                { "account_id": chequing, "amount": -150000 },
+                { "account_id": rent, "amount": 150000 },
+            ]
+        }),
+    )
+    .await;
+
+    post(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring"),
+        &mut session,
+        json!({
+            "description": "Groceries",
+            "rrule": "FREQ=WEEKLY",
+            "dtstart": "2026-01-05",
+            "templates": [
+                { "account_id": chequing, "amount": -5000 },
+                { "account_id": food, "amount": 5000 },
+            ]
+        }),
+    )
+    .await;
+
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring"),
+        &mut session,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    let rules = body["recurring_rules"].as_array().unwrap();
+    assert_eq!(rules.len(), 2);
+    // Ordered by dtstart ascending
+    assert_eq!(rules[0]["description"], "Groceries");
+    assert_eq!(rules[1]["description"], "Rent");
+}
+
+#[tokio::test]
+async fn get_recurring_rule_returns_templates_and_next_pending() {
+    let app = app();
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let rent = find_account_id(&app, &workspace_id, &mut session, "Rent").await;
+
+    let (_, created) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring"),
+        &mut session,
+        json!({
+            "description": "Rent",
+            "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
+            "dtstart": "2026-01-01",
+            "templates": [
+                { "account_id": chequing, "amount": -150000 },
+                { "account_id": rent, "amount": 150000 },
+            ]
+        }),
+    )
+    .await;
+    let rule_id = created["id"].as_str().unwrap().to_string();
+
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring/{rule_id}"),
+        &mut session,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["next_pending"], "2026-01-01");
+    assert_eq!(body["templates"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn delete_recurring_rule_excludes_from_list() {
+    let app = app();
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let rent = find_account_id(&app, &workspace_id, &mut session, "Rent").await;
+
+    let (_, created) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring"),
+        &mut session,
+        json!({
+            "description": "Rent",
+            "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
+            "dtstart": "2026-01-01",
+            "templates": [
+                { "account_id": chequing, "amount": -150000 },
+                { "account_id": rent, "amount": 150000 },
+            ]
+        }),
+    )
+    .await;
+    let rule_id = created["id"].as_str().unwrap().to_string();
+
+    let (status, _) = delete(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring/{rule_id}"),
+        &mut session,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (_, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring"),
+        &mut session,
+    )
+    .await;
+    assert!(body["recurring_rules"].as_array().unwrap().is_empty());
+
+    // GET after delete returns 404
+    let (status, _) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring/{rule_id}"),
+        &mut session,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn non_member_cannot_create_recurring_rule() {
+    let app = app();
+    let (_, _, workspace_id) = setup_workspace(&app).await;
+    let (mut outsider, _) = register(&app, "outsider@example.com").await;
+
+    let (status, _) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring"),
+        &mut outsider,
+        json!({
+            "description": "Sneaky",
+            "rrule": "FREQ=MONTHLY",
+            "dtstart": "2026-01-01",
+            "templates": []
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
 // ── Workspace update tests ──────────────────────────────────────────────────
 
 #[tokio::test]

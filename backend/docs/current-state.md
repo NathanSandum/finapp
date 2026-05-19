@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-04-21
+Last updated: 2026-05-18
 
 ## Double-Entry Rewrite Progress
 
@@ -11,6 +11,15 @@ Last updated: 2026-04-21
 | 3 — Reports & Baselines | Merged to main | wave-3-reports |
 | 4 — API Routes | Merged to main | wave-4-routes |
 | 6 — Opening Balances + CSV Import | Complete | wave-6-import |
+| 7 — Recurring Rules MVP | In progress | recurring-mvp |
+
+## What Wave 7 Did
+
+- Added `rrule` 0.14 crate dependency for RFC 5545 schedule parsing
+- Migration `00000000000018_recurring`: `recurring_rules` + `recurring_posting_templates` tables (soft-delete via `deleted_at`, `last_fired_on` cursor for future materialization)
+- `domain/recurring.rs`: strong-typed wrappers — `Schedule` (validated RRULE + dtstart, exclusive `next_after`), `PostingTemplates` (≥2 / non-zero / zero-sum invariant), `RecurringRule` + `NewRecurringRule` builder, `WorkspaceRef::recurring_rules()`
+- `routes/recurring.rs`: POST/GET list/GET one/DELETE under `/workspaces/{ws}/recurring`. Response embeds templates and computed `next_pending`
+- Auto-materialization (background job that posts due rules) deliberately out of scope
 
 ## What Wave 6 Did
 
@@ -53,6 +62,6 @@ Last updated: 2026-04-21
 
 ## What's Compiling and Tested
 
-- `cargo test` — 35 integration tests + 113 unit tests pass (148 total)
+- `cargo test` — 60 integration tests + 198 unit tests pass (recurring MVP adds 16 unit + 7 integration)
 - `cargo build` — clean (1 dead_code warning: `WorkspaceMember.user`)
 - Schema, domain models, auth, permissions, routes all consistent

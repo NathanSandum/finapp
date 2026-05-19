@@ -11,8 +11,8 @@ backend/
     auth.rs                         # Axum extractors: AuthUser (token→user), WorkspaceMember (token→user+workspace+role)
     permissions.rs                  # Role-based permission checks (Action × Resource matrix)
     test_helpers.rs                 # setup_test_db() — in-memory SQLite + migrations, MIGRATIONS constant
-    domain.rs                       # Module declarations: account, baseline, entry, report, session, user, workspace
-    routes.rs                       # Module declarations: accounts, auth, baselines, entries, reports, workspaces
+    domain.rs                       # Module declarations: account, baseline, entry, recurring, report, session, user, workspace
+    routes.rs                       # Module declarations: accounts, auth, baselines, entries, recurring, reports, workspaces
     domain/
       user.rs                       # User, UserRef, NewUser (argon2 hashing), email lookup, password verify
       session.rs                    # Session (SHA-256 token hash), NewSession, validate/invalidate, 1-week expiry
@@ -32,6 +32,11 @@ backend/
       baseline.rs                   # BaselineRef, PeriodType (Monthly), Baseline, NewBaseline builder
                                     # Baseline::variance() computes actual - budget for period
                                     # AccountRef::baselines(), WorkspaceRef::baselines()
+      recurring.rs                  # RecurringRuleRef, RecurringRule, RecurringPostingTemplate
+                                    # Schedule newtype (parsed+validated RRULE + dtstart), next_after()
+                                    # PostingTemplates newtype (≥2, non-zero, zero-sum invariant)
+                                    # NewRecurringRule builder, RecurringRule::next_pending()
+                                    # WorkspaceRef::recurring_rules()
     routes/
       auth.rs                       # POST /auth/register, /auth/login, /auth/logout
       workspaces.rs                 # POST/GET /workspaces, GET /workspaces/:id, DELETE .../members/:user
@@ -39,6 +44,8 @@ backend/
       entries.rs                    # POST/GET /workspaces/:id/entries, GET/DELETE .../entries/:id
       reports.rs                    # GET .../reports/balance-sheet, GET .../reports/income-statement
       baselines.rs                  # POST/GET /workspaces/:id/baselines, DELETE .../baselines/:id, GET .../variance
+      recurring.rs                  # POST/GET /workspaces/:id/recurring, GET/DELETE .../recurring/:id
+                                    # Response embeds templates and computed next_pending
   migrations/
     00000000000001_initial/         # Empty placeholder
     00000000000002_users/           # users table
@@ -54,7 +61,8 @@ backend/
     00000000000011_postings/        # Postings table (entry_id, account_id, amount, note) + indexes
     00000000000012_rename_.../      # Rename transactions→entries, transaction_id→entry_id
     00000000000013_baselines/       # Baselines table (account_id, period_type, period_start, amount)
+    00000000000018_recurring/       # recurring_rules + recurring_posting_templates tables
   tests/
     api.rs                          # Integration tests — in-memory DB, axum oneshot requests
-                                    # Covers: auth, workspaces, accounts, entries, reports, baselines
+                                    # Covers: auth, workspaces, accounts, entries, reports, baselines, recurring
 ```
