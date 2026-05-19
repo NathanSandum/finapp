@@ -5,6 +5,7 @@ use diesel_derive_newtype::DieselNewType;
 use uuid::Uuid;
 
 use crate::domain::account::AccountRef;
+use crate::domain::recurring::RecurringRuleRef;
 use crate::domain::workspace::WorkspaceRef;
 use crate::error::AppError;
 use crate::schema::{entries, postings};
@@ -47,6 +48,8 @@ pub struct Entry {
     pub deleted_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    #[diesel(column_name = source_rule_id)]
+    pub source_rule: Option<RecurringRuleRef>,
 }
 
 impl Entry {
@@ -357,6 +360,8 @@ struct NewEntryRow {
     description: String,
     created_at: NaiveDateTime,
     updated_at: NaiveDateTime,
+    #[diesel(column_name = source_rule_id)]
+    source_rule: Option<RecurringRuleRef>,
 }
 
 #[derive(Insertable)]
@@ -378,6 +383,7 @@ pub struct NewEntry {
     date: NaiveDate,
     description: String,
     posting_inputs: Vec<PostingInput>,
+    source_rule: Option<RecurringRuleRef>,
 }
 
 impl NewEntry {
@@ -392,7 +398,13 @@ impl NewEntry {
             date,
             description: description.to_string(),
             posting_inputs,
+            source_rule: None,
         }
+    }
+
+    pub fn source_rule(mut self, rule: RecurringRuleRef) -> Self {
+        self.source_rule = Some(rule);
+        self
     }
 
     pub fn insert(self, conn: &mut SqliteConnection) -> Result<Entry, AppError> {
@@ -409,6 +421,7 @@ impl NewEntry {
                     description: self.description,
                     created_at: now,
                     updated_at: now,
+                    source_rule: self.source_rule,
                 })
                 .returning(Entry::as_returning())
                 .get_result(conn)?;
