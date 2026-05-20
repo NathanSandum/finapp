@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { cache } from '$lib/api/cache.svelte';
 	import type { Account, Anchors } from '$lib/views/entries/loader';
-	import { verbConfig, buildVerbPostings, type VerbId } from '$lib/views/entries/verbs';
+	import { VERBS, verbConfig, buildVerbPostings, type VerbId } from '$lib/views/entries/verbs';
 	import { today } from '$lib/views/today';
 	import SolidButton from '$lib/components/SolidButton.svelte';
 	import { type SchedulePresetId } from './schedules';
 	import { createRecurring } from './api';
 	import { BANNER } from './field-classes';
-	import VerbStrip from './VerbStrip.svelte';
+	import VerbButton from './VerbButton.svelte';
 	import ScheduleFields from './ScheduleFields.svelte';
 	import AmountCounterpartyFields from './AmountCounterpartyFields.svelte';
 	import TextFieldRow from './TextFieldRow.svelte';
@@ -110,7 +110,11 @@
 </script>
 
 <form onsubmit={submit} class="flex flex-col gap-4 text-sm">
-	<VerbStrip bind:verb />
+	<div class="flex flex-wrap gap-1 border border-border bg-surface-sunken p-1">
+		{#each VERBS as v (v.id)}
+			<VerbButton {v} active={v.id === verb} onclick={() => (verb = v.id)} />
+		{/each}
+	</div>
 	<ScheduleFields bind:presetId bind:dtstart />
 	<AmountCounterpartyFields
 		bind:amountText
