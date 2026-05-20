@@ -41,6 +41,9 @@
 			{selected}
 			trail={selectedTrail}
 			entries={data.entries}
+			accounts={data.accounts}
+			anchors={data.anchors}
+			recurringRules={data.recurringRules}
 			onSelect={select}
 			onAfterDelete={(nextId) => (selectedId = nextId)}
 		/>

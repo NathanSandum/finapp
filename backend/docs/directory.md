@@ -35,7 +35,8 @@ backend/
       recurring.rs                  # RecurringRuleRef, RecurringRule, RecurringPostingTemplate
                                     # Schedule newtype (parsed+validated RRULE + dtstart), next_after()
                                     # PostingTemplates newtype (≥2, non-zero, zero-sum invariant)
-                                    # NewRecurringRule builder, RecurringRule::next_pending()
+                                    # NewRecurringRule builder (atomic insert + create-time backfill)
+                                    # RecurringRule::next_pending(), run_due()
                                     # WorkspaceRef::recurring_rules()
     routes/
       auth.rs                       # POST /auth/register, /auth/login, /auth/logout
@@ -45,6 +46,7 @@ backend/
       reports.rs                    # GET .../reports/balance-sheet, GET .../reports/income-statement
       baselines.rs                  # POST/GET /workspaces/:id/baselines, DELETE .../baselines/:id, GET .../variance
       recurring.rs                  # POST/GET /workspaces/:id/recurring, GET/DELETE .../recurring/:id
+                                    # POST .../recurring/runs — create a run, fires all due rules (idempotent)
                                     # Response embeds templates and computed next_pending
   migrations/
     00000000000001_initial/         # Empty placeholder
@@ -62,6 +64,7 @@ backend/
     00000000000012_rename_.../      # Rename transactions→entries, transaction_id→entry_id
     00000000000013_baselines/       # Baselines table (account_id, period_type, period_start, amount)
     00000000000018_recurring/       # recurring_rules + recurring_posting_templates tables
+    00000000000019_entry_source_rule/ # entries.source_rule_id nullable FK + partial index
   tests/
     api.rs                          # Integration tests — in-memory DB, axum oneshot requests
                                     # Covers: auth, workspaces, accounts, entries, reports, baselines, recurring

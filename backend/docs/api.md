@@ -203,12 +203,12 @@ Positive variance = over budget. Actual includes descendant account postings wit
 ## Recurring Rule Routes (token + workspace membership required)
 
 ### POST /workspaces/{workspace}/recurring
-Requires Editor role.
+Requires Editor role. The request specifies the schedule by tag — the backend owns the tag → RRULE mapping. Allowed tags: `weekly`, `biweekly`, `monthly-first`, `monthly-last`, `yearly`. Unknown tags are rejected (400/422).
 ```json
 // Request
 {
   "description": "Monthly rent",
-  "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
+  "schedule": "monthly-first",
   "dtstart": "2026-01-01",
   "templates": [
     { "account_id": "uuid", "amount": -150000, "note": "optional" },
@@ -218,13 +218,15 @@ Requires Editor role.
 // data on 201
 {
   "id": "uuid", "workspace": "uuid", "description": "str",
+  "schedule": "monthly-first" | null,
   "rrule": "str", "dtstart": "YYYY-MM-DD", "last_fired_on": null,
   "deleted_at": null, "created_at": "...", "updated_at": "...",
   "templates": [{ "id": "uuid", "rule": "uuid", "account": "uuid", "amount": int, "note": "str", ... }],
   "next_pending": "YYYY-MM-DD" | null
 }
-// 422: invalid RRULE, fewer than 2 templates, non-zero sum, zero amount
+// 400/422: unknown schedule tag, fewer than 2 templates, non-zero sum, zero amount
 ```
+The `rrule` field is still echoed in the response (RRULE remains the source of truth in storage), but clients should display the `schedule` tag — `rrule` may be `null` in the response when a rule was stored with an RRULE that doesn't map to any known tag.
 
 ### GET /workspaces/{workspace}/recurring
 ```json
@@ -241,3 +243,14 @@ Active (non-deleted) rules, ordered by `dtstart` ascending.
 
 ### DELETE /workspaces/{workspace}/recurring/{rule}
 Requires Editor role. Soft-deletes the rule. `data` is `null`.
+
+### POST /workspaces/{workspace}/recurring/runs
+Requires Editor role. Creates a "run": iterates every active rule and posts any due occurrences as real entries (one entry per occurrence, with `source_rule_id` set to the rule). Idempotent — calling it twice in a row posts zero the second time. Intended to be called by the frontend on workspace load.
+```json
+// data on 201
+{ "posted": int, "at": "timestamp" }
+```
+
+## Entry source_rule
+
+Entries now carry a `source_rule` field (UUID of the recurring rule that generated them, or null for manually-created entries). Both `GET /entries` and `GET /entries/{id}` include it in their response payloads.

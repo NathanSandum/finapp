@@ -111,7 +111,7 @@ Permission checks read from projection. At-least-one-owner invariant enforced by
 Every entry has 2+ postings that sum to zero. Amounts in integer cents (i32).
 
 ### Entry
-- Fields: id, workspace, date (TEXT "YYYY-MM-DD"), description, deleted_at, timestamps
+- Fields: id, workspace, date (TEXT "YYYY-MM-DD"), description, deleted_at, timestamps, source_rule (Option<RecurringRuleRef> — set when generated from a recurring rule, null for manual entries)
 - `postings(conn)` — all postings for this entry
 - Query methods live on owning types:
   - `AccountRef::entries(conn)` — entries with posting to this account, excluding soft-deleted
@@ -195,7 +195,13 @@ Workspace-scoped templates that describe a repeating entry. CRUD only — materi
 
 ### NewRecurringRule
 - `NewRecurringRule::new(workspace, description, schedule: Schedule, templates: PostingTemplates)` — accepts only validated newtypes, so the constructor itself cannot produce an invalid rule
-- `insert(conn)` — atomic insert of rule row + template rows in a single transaction
+- `insert(conn)` — atomic insert of rule row + template rows + **backfill** in a single transaction. After writing the rule and its templates, calls `run_due(today, conn)` so any past occurrences are posted as real entries immediately. Future-dated rules stay dormant until a run is created via the runs endpoint.
+
+### Runs (Hybrid Pattern)
+Past occurrences become real `entries` rows (with `source_rule_id = rule.id`). Future occurrences remain virtual — they're computed from the rule on demand via `Schedule::next_after`.
+
+- `RecurringRule::run_due(up_to, conn) -> Vec<Entry>` — walks the schedule from `next_pending` cursor through `up_to`, posts each occurrence via `NewEntry::insert(...).source_rule(rule.id)`, and advances `last_fired_on` to the last fired date. Idempotent.
+- Triggers: (a) inside `NewRecurringRule::insert` for create-time backfill, (b) the `POST /workspaces/{ws}/recurring/runs` endpoint which iterates every active rule with `up_to = today`. No background daemon.
 
 ### Query methods
 - `WorkspaceRef::recurring_rules(conn)` — active rules, ordered by `dtstart` ascending

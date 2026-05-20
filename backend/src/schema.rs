@@ -63,6 +63,7 @@ diesel::table! {
         deleted_at -> Nullable<Timestamp>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        source_rule_id -> Nullable<Text>,
     }
 }
 
@@ -135,6 +136,7 @@ diesel::joinable!(baselines -> accounts (account_id));
 diesel::joinable!(recurring_rules -> workspaces (workspace_id));
 diesel::joinable!(recurring_posting_templates -> recurring_rules (rule_id));
 diesel::joinable!(recurring_posting_templates -> accounts (account_id));
+diesel::joinable!(entries -> recurring_rules (source_rule_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     baselines,

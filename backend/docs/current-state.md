@@ -11,15 +11,25 @@ Last updated: 2026-05-18
 | 3 — Reports & Baselines | Merged to main | wave-3-reports |
 | 4 — API Routes | Merged to main | wave-4-routes |
 | 6 — Opening Balances + CSV Import | Complete | wave-6-import |
-| 7 — Recurring Rules MVP | In progress | recurring-mvp |
+| 7 — Recurring Rules MVP | Merged to main | recurring-mvp |
+| 7.5 — Recurring Hybrid Runs | In progress | recurring-frontend |
+
+## What Wave 7.5 Did
+
+- Migration `00000000000019_entry_source_rule`: nullable `source_rule_id` FK on `entries` + partial index.
+- `Entry` + `NewEntry` gained `source_rule` (Option<RecurringRuleRef>). `NewEntry::source_rule(rule)` is a chainable opt-in.
+- `RecurringRule::run_due(up_to, conn)` walks the schedule, posts each occurrence via `NewEntry`, advances `last_fired_on`. Idempotent.
+- `NewRecurringRule::insert` now calls `run_due(today)` inside the same transaction — past dtstart dumps backfill immediately, future dtstart stays dormant.
+- `POST /workspaces/{ws}/recurring/runs` endpoint creates a run that iterates all active rules with `up_to = today`. Returns `{ posted: count, at: timestamp }`. Intended trigger: frontend calls on workspace load.
+- `entry_to_json` now exposes `source_rule` in API responses.
 
 ## What Wave 7 Did
 
 - Added `rrule` 0.14 crate dependency for RFC 5545 schedule parsing
-- Migration `00000000000018_recurring`: `recurring_rules` + `recurring_posting_templates` tables (soft-delete via `deleted_at`, `last_fired_on` cursor for future materialization)
+- Migration `00000000000018_recurring`: `recurring_rules` + `recurring_posting_templates` tables (soft-delete via `deleted_at`, `last_fired_on` cursor for materialization)
 - `domain/recurring.rs`: strong-typed wrappers — `Schedule` (validated RRULE + dtstart, exclusive `next_after`), `PostingTemplates` (≥2 / non-zero / zero-sum invariant), `RecurringRule` + `NewRecurringRule` builder, `WorkspaceRef::recurring_rules()`
 - `routes/recurring.rs`: POST/GET list/GET one/DELETE under `/workspaces/{ws}/recurring`. Response embeds templates and computed `next_pending`
-- Auto-materialization (background job that posts due rules) deliberately out of scope
+- Background daemon (cron) for materialization deliberately deferred — Wave 7.5 ships on-demand sync via endpoint instead
 
 ## What Wave 6 Did
 

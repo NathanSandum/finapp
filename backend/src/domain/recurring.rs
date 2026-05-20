@@ -226,7 +226,7 @@ impl RecurringRule {
         Ok(self.schedule()?.next_after(after_exclusive))
     }
 
-    /// Next occurrence that has not yet been materialized.
+    /// Next occurrence that has not yet fired.
     /// Uses `last_fired_on` as exclusive lower bound; if never fired, uses the day before
     /// `dtstart` so the first call returns the `dtstart` occurrence itself
     /// (assuming the RRULE permits a hit on that day).
@@ -239,6 +239,79 @@ impl RecurringRule {
                 .ok_or_else(|| AppError::Internal("dtstart underflow".into()))?,
         };
         self.next_occurrence_after(cursor)
+    }
+
+    /// Post a real `Entry` for every occurrence from `next_pending` through `up_to` (inclusive).
+    /// Each generated entry carries `source_rule_id = self.id`. Advances `last_fired_on` to the
+    /// last fired date. The whole walk runs inside the caller's transaction (or the caller can
+    /// wrap it). Returns the new entries in occurrence order.
+    pub fn run_due(
+        &self,
+        up_to: NaiveDate,
+        conn: &mut SqliteConnection,
+    ) -> Result<Vec<crate::domain::entry::Entry>, AppError> {
+        use crate::domain::entry::{NewEntry, PostingInput};
+
+        let schedule = self.schedule()?;
+        let templates = self.templates(conn)?;
+        if templates.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let mut cursor = match self.last_fired_on {
+            Some(date) => date,
+            None => self
+                .dtstart
+                .pred_opt()
+                .ok_or_else(|| AppError::Internal("dtstart underflow".into()))?,
+        };
+
+        let mut posted: Vec<crate::domain::entry::Entry> = Vec::new();
+        loop {
+            let Some(occurrence) = schedule.next_after(cursor) else {
+                break;
+            };
+            if occurrence > up_to {
+                break;
+            }
+
+            let posting_inputs: Vec<PostingInput> = templates
+                .iter()
+                .map(|template| {
+                    let mut input = PostingInput::new(template.account.clone(), template.amount);
+                    if !template.note.is_empty() {
+                        input = input.note(&template.note);
+                    }
+                    input
+                })
+                .collect();
+
+            let entry = NewEntry::new(
+                self.workspace.clone(),
+                occurrence,
+                &self.description,
+                posting_inputs,
+            )
+            .source_rule(self.id.clone())
+            .insert(conn)?;
+
+            posted.push(entry);
+            cursor = occurrence;
+        }
+
+        if let Some(last) = posted.last() {
+            diesel::update(recurring_rules::table.find(&self.id))
+                .set((
+                    recurring_rules::last_fired_on.eq(Some(last.date)),
+                    recurring_rules::updated_at.eq(chrono::Utc::now().naive_utc()),
+                ))
+                .execute(conn)
+                .map_err(|err| {
+                    AppError::Internal(format!("recurring last_fired_on update failed: {err}"))
+                })?;
+        }
+
+        Ok(posted)
     }
 }
 
@@ -364,7 +437,17 @@ impl NewRecurringRule {
                 .values(&template_rows)
                 .execute(conn)?;
 
-            Ok(rule)
+            // Backfill: post any occurrences from dtstart through today as real entries.
+            // No-op when dtstart is in the future. Refresh the rule afterwards so the
+            // caller sees the updated last_fired_on.
+            let today = chrono::Utc::now().naive_utc().date();
+            rule.run_due(today, conn)?;
+
+            recurring_rules::table
+                .find(&rule.id)
+                .select(RecurringRule::as_select())
+                .first(conn)
+                .map_err(|err| AppError::Internal(format!("recurring rule refresh failed: {err}")))
         })
     }
 }
@@ -410,6 +493,13 @@ mod tests {
 
     fn monthly_first(date: NaiveDate) -> Schedule {
         Schedule::parse("FREQ=MONTHLY;BYMONTHDAY=1", date).unwrap()
+    }
+
+    /// dtstart well past any plausible test-run "today" so insert-time backfill is a no-op.
+    fn future_dt(s: &str) -> NaiveDate {
+        let date = nd(s);
+        assert!(date >= nd("2099-01-01"), "future_dt helper requires ≥ 2099 date");
+        date
     }
 
     // ── Schedule construction ─────────────────────────────────────────────
@@ -484,17 +574,18 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let rent = find_account("Rent", &workspace, &mut conn);
 
+        let dtstart = future_dt("2099-01-01");
         let rule = NewRecurringRule::new(
             workspace.as_ref().clone(),
             "Monthly rent",
-            monthly_first(nd("2026-01-01")),
+            monthly_first(dtstart),
             rent_templates(&chequing, &rent),
         )
         .insert(&mut conn)
         .unwrap();
 
         assert_eq!(rule.description, "Monthly rent");
-        assert_eq!(rule.dtstart, nd("2026-01-01"));
+        assert_eq!(rule.dtstart, dtstart);
         assert!(rule.last_fired_on.is_none());
         assert!(rule.deleted_at.is_none());
 
@@ -519,7 +610,7 @@ mod tests {
         let rule = NewRecurringRule::new(
             workspace.as_ref().clone(),
             "Rent",
-            monthly_first(nd("2026-01-01")),
+            monthly_first(future_dt("2099-01-01")),
             templates,
         )
         .insert(&mut conn)
@@ -541,7 +632,7 @@ mod tests {
         let rule = NewRecurringRule::new(
             workspace.as_ref().clone(),
             "Rent",
-            monthly_first(nd("2026-01-01")),
+            monthly_first(future_dt("2099-01-01")),
             rent_templates(&chequing, &rent),
         )
         .insert(&mut conn)
@@ -565,7 +656,7 @@ mod tests {
         NewRecurringRule::new(
             workspace.as_ref().clone(),
             "Rent",
-            monthly_first(nd("2026-03-01")),
+            monthly_first(future_dt("2099-03-01")),
             rent_templates(&chequing, &rent),
         )
         .insert(&mut conn)
@@ -580,7 +671,7 @@ mod tests {
         NewRecurringRule::new(
             workspace.as_ref().clone(),
             "Groceries",
-            Schedule::parse("FREQ=WEEKLY", nd("2026-01-05")).unwrap(),
+            Schedule::parse("FREQ=WEEKLY", future_dt("2099-01-05")).unwrap(),
             groceries_templates,
         )
         .insert(&mut conn)
@@ -640,15 +731,104 @@ mod tests {
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let rent = find_account("Rent", &workspace, &mut conn);
 
+        let dtstart = future_dt("2099-01-01");
         let rule = NewRecurringRule::new(
             workspace.as_ref().clone(),
             "Rent",
-            monthly_first(nd("2026-01-01")),
+            monthly_first(dtstart),
             rent_templates(&chequing, &rent),
         )
         .insert(&mut conn)
         .unwrap();
 
-        assert_eq!(rule.next_pending().unwrap(), Some(nd("2026-01-01")));
+        assert_eq!(rule.next_pending().unwrap(), Some(dtstart));
+    }
+
+    // ── Backfill / run_due ────────────────────────────────────────
+
+    #[test]
+    fn run_due_posts_entries_with_source_rule_id() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let rent = find_account("Rent", &workspace, &mut conn);
+
+        // Future dtstart so insert-time backfill is a no-op.
+        let rule = NewRecurringRule::new(
+            workspace.as_ref().clone(),
+            "Rent",
+            monthly_first(future_dt("2099-01-01")),
+            rent_templates(&chequing, &rent),
+        )
+        .insert(&mut conn)
+        .unwrap();
+
+        // Now run through 2099-03-15 → fires Jan 1, Feb 1, Mar 1.
+        let posted = rule.run_due(nd("2099-03-15"), &mut conn).unwrap();
+        assert_eq!(posted.len(), 3);
+        for entry in &posted {
+            assert_eq!(entry.source_rule.as_ref(), Some(&rule.id));
+            assert_eq!(entry.description, "Rent");
+        }
+        assert_eq!(posted[0].date, nd("2099-01-01"));
+        assert_eq!(posted[2].date, nd("2099-03-01"));
+
+        let refreshed = RecurringRule::from_ref(&rule.id, &mut conn).unwrap().unwrap();
+        assert_eq!(refreshed.last_fired_on, Some(nd("2099-03-01")));
+    }
+
+    #[test]
+    fn run_due_idempotent_no_double_fire() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let rent = find_account("Rent", &workspace, &mut conn);
+
+        let rule = NewRecurringRule::new(
+            workspace.as_ref().clone(),
+            "Rent",
+            monthly_first(future_dt("2099-01-01")),
+            rent_templates(&chequing, &rent),
+        )
+        .insert(&mut conn)
+        .unwrap();
+
+        let first = rule.run_due(nd("2099-02-15"), &mut conn).unwrap();
+        assert_eq!(first.len(), 2);
+
+        let refreshed = RecurringRule::from_ref(&rule.id, &mut conn).unwrap().unwrap();
+        let second = refreshed.run_due(nd("2099-02-15"), &mut conn).unwrap();
+        assert_eq!(second.len(), 0);
+    }
+
+    #[test]
+    fn backfill_on_create_for_past_dtstart() {
+        let (mut conn, workspace) = setup();
+        let chequing = find_account("Chequing", &workspace, &mut conn);
+        let rent = find_account("Rent", &workspace, &mut conn);
+
+        // Long-past dtstart so backfill fires several occurrences.
+        let dtstart = nd("2020-01-01");
+        let rule = NewRecurringRule::new(
+            workspace.as_ref().clone(),
+            "Old rent",
+            monthly_first(dtstart),
+            rent_templates(&chequing, &rent),
+        )
+        .insert(&mut conn)
+        .unwrap();
+
+        assert!(rule.last_fired_on.is_some(), "backfill must advance last_fired_on");
+        let fired = rule.last_fired_on.unwrap();
+        let today = chrono::Utc::now().naive_utc().date();
+        assert!(fired <= today, "last_fired_on must be ≤ today");
+        assert!(fired >= dtstart, "last_fired_on must be ≥ dtstart");
+
+        // Workspace entries should include the fired ones.
+        let entries = workspace.as_ref().entries(&mut conn).unwrap();
+        assert!(!entries.is_empty());
+        let from_rule: Vec<_> = entries
+            .iter()
+            .filter(|e| e.source_rule.as_ref() == Some(&rule.id))
+            .collect();
+        assert!(from_rule.len() >= 12, "expected ≥ 12 monthly fires since 2020-01-01");
     }
 }

@@ -246,6 +246,7 @@ pub fn entry_to_json(
         "id": entry.id,
         "date": entry.date,
         "description": entry.description,
+        "source_rule": entry.source_rule,
         "postings": posting_items,
     })
 }

@@ -1724,14 +1724,15 @@ async fn create_recurring_rule_succeeds() {
     let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
     let rent = find_account_id(&app, &workspace_id, &mut session, "Rent").await;
 
+    // Future dtstart so insert-time backfill is a no-op and assertions stay stable.
     let (status, body) = post(
         &app,
         &format!("/workspaces/{workspace_id}/recurring"),
         &mut session,
         json!({
             "description": "Monthly rent",
-            "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
-            "dtstart": "2026-01-01",
+            "schedule": "monthly-first",
+            "dtstart": "2099-01-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
                 { "account_id": rent, "amount": 150000 },
@@ -1742,14 +1743,15 @@ async fn create_recurring_rule_succeeds() {
 
     assert_eq!(status, StatusCode::CREATED, "create recurring failed: {body}");
     assert_eq!(body["description"], "Monthly rent");
-    assert_eq!(body["dtstart"], "2026-01-01");
+    assert_eq!(body["dtstart"], "2099-01-01");
+    assert_eq!(body["schedule"], "monthly-first");
     assert_eq!(body["rrule"], "FREQ=MONTHLY;BYMONTHDAY=1");
-    assert_eq!(body["next_pending"], "2026-01-01");
+    assert_eq!(body["next_pending"], "2099-01-01");
     assert_eq!(body["templates"].as_array().unwrap().len(), 2);
 }
 
 #[tokio::test]
-async fn create_recurring_rejects_invalid_rrule() {
+async fn create_recurring_rejects_unknown_schedule() {
     let app = app();
     let (mut session, _, workspace_id) = setup_workspace(&app).await;
     let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
@@ -1761,8 +1763,8 @@ async fn create_recurring_rejects_invalid_rrule() {
         &mut session,
         json!({
             "description": "Bad",
-            "rrule": "this is not an rrule",
-            "dtstart": "2026-01-01",
+            "schedule": "every-blue-moon",
+            "dtstart": "2099-01-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
                 { "account_id": rent, "amount": 150000 },
@@ -1771,7 +1773,11 @@ async fn create_recurring_rejects_invalid_rrule() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    // axum returns 400 when serde rejects the body before the handler runs.
+    assert!(
+        status == StatusCode::BAD_REQUEST || status == StatusCode::UNPROCESSABLE_ENTITY,
+        "expected 400 or 422 for unknown schedule, got {status}"
+    );
 }
 
 #[tokio::test]
@@ -1787,8 +1793,8 @@ async fn create_recurring_rejects_non_zero_sum_templates() {
         &mut session,
         json!({
             "description": "Bad",
-            "rrule": "FREQ=MONTHLY",
-            "dtstart": "2026-01-01",
+            "schedule": "monthly-first",
+            "dtstart": "2099-01-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
                 { "account_id": rent, "amount": 100000 },
@@ -1814,8 +1820,8 @@ async fn list_recurring_rules() {
         &mut session,
         json!({
             "description": "Rent",
-            "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
-            "dtstart": "2026-03-01",
+            "schedule": "monthly-first",
+            "dtstart": "2099-03-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
                 { "account_id": rent, "amount": 150000 },
@@ -1830,8 +1836,8 @@ async fn list_recurring_rules() {
         &mut session,
         json!({
             "description": "Groceries",
-            "rrule": "FREQ=WEEKLY",
-            "dtstart": "2026-01-05",
+            "schedule": "weekly",
+            "dtstart": "2099-01-05",
             "templates": [
                 { "account_id": chequing, "amount": -5000 },
                 { "account_id": food, "amount": 5000 },
@@ -1868,8 +1874,8 @@ async fn get_recurring_rule_returns_templates_and_next_pending() {
         &mut session,
         json!({
             "description": "Rent",
-            "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
-            "dtstart": "2026-01-01",
+            "schedule": "monthly-first",
+            "dtstart": "2099-01-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
                 { "account_id": rent, "amount": 150000 },
@@ -1887,7 +1893,8 @@ async fn get_recurring_rule_returns_templates_and_next_pending() {
     .await;
 
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["next_pending"], "2026-01-01");
+    assert_eq!(body["schedule"], "monthly-first");
+    assert_eq!(body["next_pending"], "2099-01-01");
     assert_eq!(body["templates"].as_array().unwrap().len(), 2);
 }
 
@@ -1904,8 +1911,8 @@ async fn delete_recurring_rule_excludes_from_list() {
         &mut session,
         json!({
             "description": "Rent",
-            "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
-            "dtstart": "2026-01-01",
+            "schedule": "monthly-first",
+            "dtstart": "2099-01-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
                 { "account_id": rent, "amount": 150000 },
@@ -1942,6 +1949,56 @@ async fn delete_recurring_rule_excludes_from_list() {
 }
 
 #[tokio::test]
+async fn create_run_is_idempotent() {
+    let app = app();
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+    let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
+    let rent = find_account_id(&app, &workspace_id, &mut session, "Rent").await;
+
+    // Past dtstart → insert backfills, so the runs endpoint should post 0 more.
+    post(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring"),
+        &mut session,
+        json!({
+            "description": "Old rent",
+            "schedule": "monthly-first",
+            "dtstart": "2020-01-01",
+            "templates": [
+                { "account_id": chequing, "amount": -150000 },
+                { "account_id": rent, "amount": 150000 },
+            ]
+        }),
+    )
+    .await;
+
+    let (status, body) = post(
+        &app,
+        &format!("/workspaces/{workspace_id}/recurring/runs"),
+        &mut session,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "create run failed: {body}");
+    assert_eq!(body["posted"], 0, "create-time backfill should leave nothing due");
+    assert!(body["at"].is_string(), "response should carry timestamp");
+
+    // Entries from backfill should be present on the workspace.
+    let (_, entries_body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/entries"),
+        &mut session,
+    )
+    .await;
+    let entries = entries_body["entries"].as_array().unwrap();
+    let from_rule: Vec<_> = entries
+        .iter()
+        .filter(|e| e["source_rule"].as_str().is_some() && e["description"] == "Old rent")
+        .collect();
+    assert!(from_rule.len() >= 12, "expected backfilled monthly entries");
+}
+
+#[tokio::test]
 async fn non_member_cannot_create_recurring_rule() {
     let app = app();
     let (_, _, workspace_id) = setup_workspace(&app).await;
@@ -1953,8 +2010,8 @@ async fn non_member_cannot_create_recurring_rule() {
         &mut outsider,
         json!({
             "description": "Sneaky",
-            "rrule": "FREQ=MONTHLY",
-            "dtstart": "2026-01-01",
+            "schedule": "monthly-first",
+            "dtstart": "2099-01-01",
             "templates": []
         }),
     )
