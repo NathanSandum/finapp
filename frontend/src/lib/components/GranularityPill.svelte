@@ -10,66 +10,20 @@
 	} = $props();
 
 	const items: { id: Granularity; label: string }[] = [
-		{ id: 'month', label: 'Month' },
-		{ id: 'quarter', label: 'Quarter' },
-		{ id: 'year', label: 'Year' }
+		{ id: 'month', label: 'M' },
+		{ id: 'quarter', label: 'Q' },
+		{ id: 'year', label: 'Y' }
 	];
-
-	let containerEl = $state<HTMLDivElement | undefined>(undefined);
-	const itemEls: (HTMLButtonElement | undefined)[] = $state(Array(items.length).fill(undefined));
-	let indicator = $state({ left: 0, width: 0 });
-	let indicatorReady = $state(false);
-
-	$effect(() => {
-		const id = granularity;
-		if (!containerEl) return;
-		const idx = items.findIndex((it) => it.id === id);
-		const el = itemEls[idx];
-		if (!el) return;
-		const containerRect = containerEl.getBoundingClientRect();
-		const r = el.getBoundingClientRect();
-		indicator = { left: r.left - containerRect.left, width: r.width };
-		if (!indicatorReady) {
-			requestAnimationFrame(() => requestAnimationFrame(() => (indicatorReady = true)));
-		}
-	});
 </script>
 
-<div
-	bind:this={containerEl}
-	class="relative flex gap-1 rounded-full bg-surface-sunken p-1 text-xs"
->
-	{#if indicator.width > 0}
-		<span
-			class="indicator absolute top-1 bottom-1 rounded-full bg-surface-card shadow-sm"
-			class:ready={indicatorReady}
-			style:left="{indicator.left}px"
-			style:width="{indicator.width}px"
-		></span>
-	{/if}
-	{#each items as item, i (item.id)}
+<div class="inline-flex divide-x divide-border border border-border bg-surface-card text-[11px]">
+	{#each items as item (item.id)}
 		<button
-			bind:this={itemEls[i]}
 			onclick={() => onSelect(item.id)}
-			class="relative z-10 rounded-full px-3 py-1 transition-colors {granularity === item.id
-				? 'font-medium text-ink'
-				: 'text-ink-muted'}">{item.label}</button
+			class="px-2.5 py-1 font-medium uppercase tracking-[0.15em] transition-colors {granularity === item.id
+				? 'bg-ink text-ink-inverse'
+				: 'text-ink-muted hover:text-ink'}"
+			aria-pressed={granularity === item.id}>{item.label}</button
 		>
 	{/each}
 </div>
-
-<style>
-	.indicator {
-		transition: none;
-	}
-	.indicator.ready {
-		transition:
-			left 320ms cubic-bezier(0.7, 0, 0.25, 1),
-			width 320ms cubic-bezier(0.7, 0, 0.25, 1);
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.indicator.ready {
-			transition: left 0ms, width 0ms;
-		}
-	}
-</style>

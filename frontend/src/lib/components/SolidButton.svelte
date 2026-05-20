@@ -19,8 +19,8 @@
 
 	const sizeClass = $derived(
 		size === 'sm'
-			? 'px-3 py-1.5 text-xs uppercase tracking-[0.08em]'
-			: 'px-4 py-2 text-sm'
+			? 'px-3 py-1 text-[11px] uppercase tracking-[0.14em]'
+			: 'px-4 py-2 text-xs uppercase tracking-[0.14em]'
 	);
 </script>
 
@@ -28,7 +28,7 @@
 	{type}
 	{onclick}
 	{disabled}
-	class="bg-surface-inverse font-medium text-ink-inverse transition-colors hover:bg-surface-inverse-hover disabled:opacity-50 {sizeClass} {extra}"
+	class="rounded-none border border-ink bg-ink font-medium text-ink-inverse transition hover:bg-ink/85 disabled:opacity-40 {sizeClass} {extra}"
 >
 	{@render children()}
 </button>

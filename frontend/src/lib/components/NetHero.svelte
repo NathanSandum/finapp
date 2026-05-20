@@ -24,9 +24,9 @@
 		gradientId: string;
 	} = $props();
 
-	const WIDTH = 560;
-	const HEIGHT = 80;
-	const Y_OFFSET = 20;
+	const WIDTH = 720;
+	const HEIGHT = 100;
+	const Y_OFFSET = 16;
 
 	const domain = $derived(valueDomain(trail));
 	const yOf = (v: number): number => {
@@ -52,29 +52,38 @@
 		trailSlots.sync(trailKeys, trail, WIDTH, HEIGHT);
 	});
 	onDestroy(() => trailSlots.destroy());
+
+	const deltaClass = $derived(value >= prior ? 'text-positive' : 'text-negative');
 </script>
 
-<section class="relative shrink-0 overflow-hidden border border-border bg-surface-card">
-	<div class="halo absolute left-5 top-4 z-10">
-		<p class="text-[10px] font-medium uppercase tracking-wide text-ink-muted">{label}</p>
-		<p
-			class="mt-0.5 flex items-baseline gap-2 font-mono text-3xl font-semibold tabular-nums text-ink"
-		>
-			<Num text={fmt(value)} />
-			<span class="text-[13px] font-semibold text-positive">{pct(value, prior)}</span>
-		</p>
+<section class="relative shrink-0 border-t-2 border-ink pt-4">
+	<div class="flex items-start justify-between gap-8">
+		<div>
+			<p class="text-[10px] font-medium uppercase tracking-[0.22em] text-ink-faint">{label}</p>
+			<p class="mt-2 flex items-baseline gap-3">
+				<span class="font-display text-5xl font-medium tabular-nums leading-none text-ink">
+					<Num text={fmt(value)} />
+				</span>
+				<span class="font-mono text-sm tabular-nums {deltaClass}">{pct(value, prior)}</span>
+			</p>
+		</div>
+		<div class="self-end pb-1 text-right text-[10px] uppercase tracking-[0.18em] text-ink-faint">
+			Trend · 12 mo
+		</div>
 	</div>
-	<svg width="100%" viewBox="0 0 {WIDTH} 100" class="overflow-visible" preserveAspectRatio="none">
+
+	<svg width="100%" viewBox="0 0 {WIDTH} {HEIGHT + Y_OFFSET + 12}" class="mt-3 overflow-visible" preserveAspectRatio="none">
 		<Sparkline
 			{trailSlots}
 			keys={trailKeys}
 			width={WIDTH}
 			height={HEIGHT}
-			lineClass="stroke-positive-line"
+			lineClass="stroke-ink"
+			strokeWidth={1}
 			showArea
 			{gradientId}
 			showMarker
-			markerClass="fill-positive-line"
+			markerClass="fill-ink"
 			showCurrentLine
 			currentLineClass="stroke-ink-faint"
 			yOffset={Y_OFFSET}
@@ -91,21 +100,7 @@
 			>
 		{/each}
 	</svg>
-	<div class="pb-2 font-mono text-[9px] tabular-nums text-ink-faint">
-		<AnimatedLabels
-			{trailSlots}
-			keys={trailKeys}
-			labels={trailLabels}
-			viewBoxWidth={WIDTH}
-		/>
+	<div class="pt-1 font-mono text-[9px] tabular-nums text-ink-faint">
+		<AnimatedLabels {trailSlots} keys={trailKeys} labels={trailLabels} viewBoxWidth={WIDTH} />
 	</div>
 </section>
-
-<style>
-	.halo {
-		filter:
-			drop-shadow(0 0 6px var(--color-surface-card))
-			drop-shadow(0 0 12px var(--color-surface-card))
-			drop-shadow(0 0 18px var(--color-surface-card));
-	}
-</style>

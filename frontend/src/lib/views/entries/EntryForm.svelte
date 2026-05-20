@@ -109,15 +109,15 @@
 </script>
 
 <form onsubmit={submit} class="flex flex-col gap-4 text-sm">
-	<div class="flex flex-wrap gap-1 border border-border bg-surface-sunken p-1">
+	<div class="flex flex-wrap divide-x divide-border border-y border-ink">
 		{#each VERBS as v (v.id)}
 			{@const active = v.id === verb}
 			<button
 				type="button"
 				onclick={() => (verb = v.id)}
-				class="flex-1 px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] transition-colors {active
-					? 'bg-surface-card text-ink shadow-sm'
-					: 'text-ink-muted hover:text-ink-body'}"
+				class="flex-1 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.16em] transition-colors {active
+					? 'bg-ink text-ink-inverse'
+					: 'bg-surface-card text-ink-muted hover:text-ink'}"
 			>
 				{v.label}
 			</button>
@@ -205,7 +205,7 @@
 			type="button"
 			onclick={onClose}
 			disabled={submitting}
-			class="border border-border bg-surface-card px-4 py-2 text-sm text-ink-body hover:bg-surface-hover-faint disabled:opacity-50"
+			class="border border-border px-4 py-2 text-xs uppercase tracking-[0.14em] text-ink-body hover:border-ink hover:text-ink disabled:opacity-50"
 		>
 			Cancel
 		</button>

@@ -15,16 +15,19 @@
 	});
 </script>
 
-<section class="h-full overflow-y-auto p-6">
-	<header class="mb-6 flex items-baseline justify-between">
-		<h3 class="text-lg font-semibold text-ink">Recurring rules</h3>
+<section class="flex h-full flex-col gap-6 overflow-y-auto">
+	<header class="flex items-end justify-between border-t-2 border-ink pt-4">
+		<div>
+			<p class="text-[10px] uppercase tracking-[0.22em] text-ink-faint">Schedule</p>
+			<h1 class="font-display text-2xl font-medium tracking-tight text-ink">Recurring rules</h1>
+		</div>
 		{#if !creating}
 			<BorderButton onclick={() => (creating = true)}>New rule</BorderButton>
 		{/if}
 	</header>
 
 	{#if creating}
-		<div class="mb-6 border border-border bg-surface-card p-4">
+		<div class="border border-border bg-surface-card p-6">
 			<RuleForm
 				accounts={data.accounts}
 				anchors={data.anchors}

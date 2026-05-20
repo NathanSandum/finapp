@@ -1,9 +1,8 @@
 <script lang="ts">
 	import TabPanel from '$lib/components/TabPanel.svelte';
-	import ShellHeader from '$lib/components/ShellHeader.svelte';
+	import Topbar from '$lib/components/Topbar.svelte';
 	import { tabs } from '$lib/tabs/registry';
 	import { tabState } from '$lib/tabs/state.svelte';
-	import { workspaceState } from '$lib/workspace/state.svelte';
 	import { bootWorkspace, bootState } from '$lib/workspace/boot.svelte';
 	import { fetchMe } from '$lib/api/auth';
 	import { authState } from '$lib/api/state.svelte';
@@ -34,17 +33,17 @@
 	});
 </script>
 
-<main class="flex flex-col overflow-hidden">
+<main class="flex h-full flex-col overflow-hidden">
 	{#if booted}
-		<ShellHeader />
+		<Topbar />
 		<div class="relative flex-1 overflow-hidden">
 			{#each tabs as tab (tab.id)}
 				<TabPanel {tab} active={current.id === tab.id} />
 			{/each}
 		</div>
 	{:else if bootError}
-		<p class="p-6 text-sm text-negative">{bootError}</p>
+		<p class="p-8 font-display text-sm text-negative">{bootError}</p>
 	{:else}
-		<p class="p-6 text-sm text-ink-muted">Loading…</p>
+		<p class="p-8 font-display text-sm text-ink-muted">Loading…</p>
 	{/if}
 </main>

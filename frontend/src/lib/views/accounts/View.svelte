@@ -33,23 +33,30 @@
 	}
 </script>
 
-<div class="grid h-full grid-cols-[320px_1fr] border border-border bg-surface-card">
-	<AccountsSidebar {subtrees} {selectedId} onSelect={select} />
+<div class="flex h-full flex-col gap-6">
+	<header class="border-t-2 border-ink pt-4">
+		<p class="text-[10px] uppercase tracking-[0.22em] text-ink-faint">Chart</p>
+		<h1 class="font-display text-2xl font-medium tracking-tight text-ink">Accounts</h1>
+	</header>
 
-	{#if selected && selectedTrail}
-		<AccountDetail
-			{selected}
-			trail={selectedTrail}
-			entries={data.entries}
-			accounts={data.accounts}
-			anchors={data.anchors}
-			recurringRules={data.recurringRules}
-			onSelect={select}
-			onAfterDelete={(nextId) => (selectedId = nextId)}
-		/>
-	{:else}
-		<section class="h-full overflow-y-auto p-6">
-			<p class="text-sm text-ink-muted">Select an account on the left.</p>
-		</section>
-	{/if}
+	<div class="grid min-h-0 flex-1 grid-cols-[320px_1fr] overflow-hidden border border-border bg-surface-card">
+		<AccountsSidebar {subtrees} {selectedId} onSelect={select} />
+
+		{#if selected && selectedTrail}
+			<AccountDetail
+				{selected}
+				trail={selectedTrail}
+				entries={data.entries}
+				accounts={data.accounts}
+				anchors={data.anchors}
+				recurringRules={data.recurringRules}
+				onSelect={select}
+				onAfterDelete={(nextId) => (selectedId = nextId)}
+			/>
+		{:else}
+			<section class="h-full overflow-y-auto p-8">
+				<p class="text-sm text-ink-muted">Select an account on the left.</p>
+			</section>
+		{/if}
+	</div>
 </div>

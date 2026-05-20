@@ -48,18 +48,15 @@
 	const displayPrior = $derived(verbs ? Math.abs(prior) : prior);
 </script>
 
-<div class="mx-auto max-w-xs px-2 py-3">
-	<div class="flex items-baseline justify-between">
-		<p class="text-[10px] font-medium uppercase tracking-[0.1em] {accentText}">{displayLabel}</p>
-		<p class="font-mono text-[10px] tabular-nums {arrowClass}">
-			<span aria-hidden="true">{arrow}</span> {pct(total, prior)}
-		</p>
-	</div>
-	<p class="mt-1 font-mono text-xl font-semibold tabular-nums leading-tight text-ink">
+<div class="border-t border-ink px-1 pt-3">
+	<p class="text-[10px] font-medium uppercase tracking-[0.18em] {accentText}">{displayLabel}</p>
+	<p class="mt-2 font-display text-3xl font-medium tabular-nums leading-none text-ink">
 		<Num text={fmt(displayTotal)} />
 	</p>
-	<div class="mt-1 flex justify-between gap-2 font-mono text-[9px] tabular-nums text-ink-faint">
-		<span>{priorShortLabel}</span>
-		<span>{#if priorVerb}{priorVerb}{' '}{/if}<Num text={fmt(displayPrior)} /></span>
+	<div class="mt-3 flex items-baseline justify-between text-[10px] uppercase tracking-[0.12em] text-ink-faint">
+		<span>{priorShortLabel}{#if priorVerb}, {priorVerb}{/if} <Num text={fmt(displayPrior)} /></span>
+		<span class="font-mono normal-case tracking-normal {arrowClass}">
+			<span aria-hidden="true">{arrow}</span> {pct(total, prior)}
+		</span>
 	</div>
 </div>

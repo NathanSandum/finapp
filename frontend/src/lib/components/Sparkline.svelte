@@ -56,8 +56,8 @@
 {#if showArea && gradientId}
 	<defs>
 		<linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-			<stop offset="0%" style:stop-color="var(--color-positive-line)" stop-opacity="0.30" />
-			<stop offset="100%" style:stop-color="var(--color-positive-line)" stop-opacity="0" />
+			<stop offset="0%" style:stop-color="var(--color-ink)" stop-opacity="0.14" />
+			<stop offset="100%" style:stop-color="var(--color-ink)" stop-opacity="0" />
 		</linearGradient>
 	</defs>
 	<polygon fill="url(#{gradientId})" points={area} transform="translate(0,{yOffset})" />

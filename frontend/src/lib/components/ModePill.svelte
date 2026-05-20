@@ -11,24 +11,25 @@
 		onSelect: (next: Mode) => void;
 	} = $props();
 
-	const items: { id: Mode; label: string; glyph: string }[] = [
-		{ id: 'summary', label: 'Summary', glyph: '▤' },
-		{ id: 'detail', label: 'Detail', glyph: '≡' },
-		{ id: 'trend', label: 'Trend', glyph: '∿' }
+	const items: { id: Mode; label: string }[] = [
+		{ id: 'summary', label: 'Summary' },
+		{ id: 'detail', label: 'Detail' },
+		{ id: 'trend', label: 'Trend' }
 	];
 </script>
 
-<div class="flex justify-center">
-	<div class="flex gap-1 rounded-full bg-surface-sunken p-1 text-xs">
-		{#each items as item}
-			<button
-				onclick={() => onSelect(item.id)}
-				class="flex items-center gap-1.5 rounded-full px-4 py-1.5 {mode === item.id
-					? 'bg-surface-card font-semibold shadow-sm'
-					: 'text-ink-muted'}"
-			>
-				<span aria-hidden="true" class="font-mono text-[10px]">{item.glyph}</span>{item.label}
-			</button>
-		{/each}
-	</div>
+<div class="flex justify-end gap-5 border-b border-border pb-1 text-[11px] uppercase tracking-[0.16em]">
+	{#each items as item (item.id)}
+		<button
+			onclick={() => onSelect(item.id)}
+			class="relative pb-1 transition-colors {mode === item.id
+				? 'text-ink'
+				: 'text-ink-muted hover:text-ink-body'}"
+		>
+			{item.label}
+			{#if mode === item.id}
+				<span class="absolute -bottom-[5px] left-0 right-0 h-px bg-ink"></span>
+			{/if}
+		</button>
+	{/each}
 </div>
