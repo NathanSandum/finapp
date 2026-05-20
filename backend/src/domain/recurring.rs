@@ -226,7 +226,7 @@ impl RecurringRule {
         Ok(self.schedule()?.next_after(after_exclusive))
     }
 
-    /// Next occurrence that has not yet been materialized.
+    /// Next occurrence that has not yet fired.
     /// Uses `last_fired_on` as exclusive lower bound; if never fired, uses the day before
     /// `dtstart` so the first call returns the `dtstart` occurrence itself
     /// (assuming the RRULE permits a hit on that day).
@@ -243,9 +243,9 @@ impl RecurringRule {
 
     /// Post a real `Entry` for every occurrence from `next_pending` through `up_to` (inclusive).
     /// Each generated entry carries `source_rule_id = self.id`. Advances `last_fired_on` to the
-    /// last materialized date. The whole walk runs inside the caller's transaction (or the
-    /// caller can wrap it). Returns the new entries in occurrence order.
-    pub fn materialize_due(
+    /// last fired date. The whole walk runs inside the caller's transaction (or the caller can
+    /// wrap it). Returns the new entries in occurrence order.
+    pub fn run_due(
         &self,
         up_to: NaiveDate,
         conn: &mut SqliteConnection,
@@ -441,7 +441,7 @@ impl NewRecurringRule {
             // No-op when dtstart is in the future. Refresh the rule afterwards so the
             // caller sees the updated last_fired_on.
             let today = chrono::Utc::now().naive_utc().date();
-            rule.materialize_due(today, conn)?;
+            rule.run_due(today, conn)?;
 
             recurring_rules::table
                 .find(&rule.id)
@@ -744,10 +744,10 @@ mod tests {
         assert_eq!(rule.next_pending().unwrap(), Some(dtstart));
     }
 
-    // ── Backfill / materialize_due ────────────────────────────────────────
+    // ── Backfill / run_due ────────────────────────────────────────
 
     #[test]
-    fn materialize_due_posts_entries_with_source_rule_id() {
+    fn run_due_posts_entries_with_source_rule_id() {
         let (mut conn, workspace) = setup();
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let rent = find_account("Rent", &workspace, &mut conn);
@@ -762,8 +762,8 @@ mod tests {
         .insert(&mut conn)
         .unwrap();
 
-        // Now materialize through 2099-03-15 → fires Jan 1, Feb 1, Mar 1.
-        let posted = rule.materialize_due(nd("2099-03-15"), &mut conn).unwrap();
+        // Now run through 2099-03-15 → fires Jan 1, Feb 1, Mar 1.
+        let posted = rule.run_due(nd("2099-03-15"), &mut conn).unwrap();
         assert_eq!(posted.len(), 3);
         for entry in &posted {
             assert_eq!(entry.source_rule.as_ref(), Some(&rule.id));
@@ -777,7 +777,7 @@ mod tests {
     }
 
     #[test]
-    fn materialize_due_idempotent_no_double_fire() {
+    fn run_due_idempotent_no_double_fire() {
         let (mut conn, workspace) = setup();
         let chequing = find_account("Chequing", &workspace, &mut conn);
         let rent = find_account("Rent", &workspace, &mut conn);
@@ -791,11 +791,11 @@ mod tests {
         .insert(&mut conn)
         .unwrap();
 
-        let first = rule.materialize_due(nd("2099-02-15"), &mut conn).unwrap();
+        let first = rule.run_due(nd("2099-02-15"), &mut conn).unwrap();
         assert_eq!(first.len(), 2);
 
         let refreshed = RecurringRule::from_ref(&rule.id, &mut conn).unwrap().unwrap();
-        let second = refreshed.materialize_due(nd("2099-02-15"), &mut conn).unwrap();
+        let second = refreshed.run_due(nd("2099-02-15"), &mut conn).unwrap();
         assert_eq!(second.len(), 0);
     }
 
@@ -822,13 +822,13 @@ mod tests {
         assert!(fired <= today, "last_fired_on must be ≤ today");
         assert!(fired >= dtstart, "last_fired_on must be ≥ dtstart");
 
-        // Workspace entries should include the materialized ones.
+        // Workspace entries should include the fired ones.
         let entries = workspace.as_ref().entries(&mut conn).unwrap();
         assert!(!entries.is_empty());
-        let materialized: Vec<_> = entries
+        let from_rule: Vec<_> = entries
             .iter()
             .filter(|e| e.source_rule.as_ref() == Some(&rule.id))
             .collect();
-        assert!(materialized.len() >= 12, "expected ≥ 12 monthly fires since 2020-01-01");
+        assert!(from_rule.len() >= 12, "expected ≥ 12 monthly fires since 2020-01-01");
     }
 }

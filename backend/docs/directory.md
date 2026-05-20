@@ -36,7 +36,7 @@ backend/
                                     # Schedule newtype (parsed+validated RRULE + dtstart), next_after()
                                     # PostingTemplates newtype (≥2, non-zero, zero-sum invariant)
                                     # NewRecurringRule builder (atomic insert + create-time backfill)
-                                    # RecurringRule::next_pending(), materialize_due()
+                                    # RecurringRule::next_pending(), run_due()
                                     # WorkspaceRef::recurring_rules()
     routes/
       auth.rs                       # POST /auth/register, /auth/login, /auth/logout

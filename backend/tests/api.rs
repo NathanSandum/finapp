@@ -1955,7 +1955,7 @@ async fn create_run_is_idempotent() {
     let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
     let rent = find_account_id(&app, &workspace_id, &mut session, "Rent").await;
 
-    // Past dtstart → insert backfills, so the materialize endpoint should post 0 more.
+    // Past dtstart → insert backfills, so the runs endpoint should post 0 more.
     post(
         &app,
         &format!("/workspaces/{workspace_id}/recurring"),
@@ -1991,11 +1991,11 @@ async fn create_run_is_idempotent() {
     )
     .await;
     let entries = entries_body["entries"].as_array().unwrap();
-    let materialized: Vec<_> = entries
+    let from_rule: Vec<_> = entries
         .iter()
         .filter(|e| e["source_rule"].as_str().is_some() && e["description"] == "Old rent")
         .collect();
-    assert!(materialized.len() >= 12, "expected backfilled monthly entries");
+    assert!(from_rule.len() >= 12, "expected backfilled monthly entries");
 }
 
 #[tokio::test]

@@ -201,9 +201,9 @@ pub async fn delete(
     Ok(JSend::success(Value::Null))
 }
 
-/// Creates a "run": materializes every due occurrence across all active rules
-/// in the workspace. Idempotent — calling repeatedly with no time passage posts
-/// zero new entries. Returns the run summary.
+/// Creates a "run": fires every due occurrence across all active rules in the
+/// workspace as real entries. Idempotent — calling repeatedly with no time
+/// passage posts zero new entries. Returns the run summary.
 pub async fn create_run(
     Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
@@ -219,7 +219,7 @@ pub async fn create_run(
 
     let mut posted_count: usize = 0;
     for rule in rules {
-        posted_count += rule.materialize_due(today, &mut conn)?.len();
+        posted_count += rule.run_due(today, &mut conn)?.len();
     }
 
     Ok(JSendResponse::new(
