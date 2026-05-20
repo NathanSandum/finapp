@@ -62,7 +62,7 @@
 					<div class="flex items-baseline gap-2">
 						<span class="font-medium text-ink truncate">{rule.description}</span>
 						<span class="font-mono text-[10px] uppercase tracking-[0.06em] text-ink-muted">
-							{scheduleLabel(rule.rrule)}
+							{scheduleLabel(rule.schedule)}
 						</span>
 					</div>
 					<div class="text-[11px] text-ink-muted truncate">

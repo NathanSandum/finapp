@@ -1731,7 +1731,7 @@ async fn create_recurring_rule_succeeds() {
         &mut session,
         json!({
             "description": "Monthly rent",
-            "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
+            "schedule": "monthly-first",
             "dtstart": "2099-01-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
@@ -1744,13 +1744,14 @@ async fn create_recurring_rule_succeeds() {
     assert_eq!(status, StatusCode::CREATED, "create recurring failed: {body}");
     assert_eq!(body["description"], "Monthly rent");
     assert_eq!(body["dtstart"], "2099-01-01");
+    assert_eq!(body["schedule"], "monthly-first");
     assert_eq!(body["rrule"], "FREQ=MONTHLY;BYMONTHDAY=1");
     assert_eq!(body["next_pending"], "2099-01-01");
     assert_eq!(body["templates"].as_array().unwrap().len(), 2);
 }
 
 #[tokio::test]
-async fn create_recurring_rejects_invalid_rrule() {
+async fn create_recurring_rejects_unknown_schedule() {
     let app = app();
     let (mut session, _, workspace_id) = setup_workspace(&app).await;
     let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
@@ -1762,8 +1763,8 @@ async fn create_recurring_rejects_invalid_rrule() {
         &mut session,
         json!({
             "description": "Bad",
-            "rrule": "this is not an rrule",
-            "dtstart": "2026-01-01",
+            "schedule": "every-blue-moon",
+            "dtstart": "2099-01-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
                 { "account_id": rent, "amount": 150000 },
@@ -1772,7 +1773,11 @@ async fn create_recurring_rejects_invalid_rrule() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    // axum returns 400 when serde rejects the body before the handler runs.
+    assert!(
+        status == StatusCode::BAD_REQUEST || status == StatusCode::UNPROCESSABLE_ENTITY,
+        "expected 400 or 422 for unknown schedule, got {status}"
+    );
 }
 
 #[tokio::test]
@@ -1788,8 +1793,8 @@ async fn create_recurring_rejects_non_zero_sum_templates() {
         &mut session,
         json!({
             "description": "Bad",
-            "rrule": "FREQ=MONTHLY",
-            "dtstart": "2026-01-01",
+            "schedule": "monthly-first",
+            "dtstart": "2099-01-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
                 { "account_id": rent, "amount": 100000 },
@@ -1815,7 +1820,7 @@ async fn list_recurring_rules() {
         &mut session,
         json!({
             "description": "Rent",
-            "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
+            "schedule": "monthly-first",
             "dtstart": "2099-03-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
@@ -1831,7 +1836,7 @@ async fn list_recurring_rules() {
         &mut session,
         json!({
             "description": "Groceries",
-            "rrule": "FREQ=WEEKLY",
+            "schedule": "weekly",
             "dtstart": "2099-01-05",
             "templates": [
                 { "account_id": chequing, "amount": -5000 },
@@ -1869,7 +1874,7 @@ async fn get_recurring_rule_returns_templates_and_next_pending() {
         &mut session,
         json!({
             "description": "Rent",
-            "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
+            "schedule": "monthly-first",
             "dtstart": "2099-01-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
@@ -1888,6 +1893,7 @@ async fn get_recurring_rule_returns_templates_and_next_pending() {
     .await;
 
     assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["schedule"], "monthly-first");
     assert_eq!(body["next_pending"], "2099-01-01");
     assert_eq!(body["templates"].as_array().unwrap().len(), 2);
 }
@@ -1905,8 +1911,8 @@ async fn delete_recurring_rule_excludes_from_list() {
         &mut session,
         json!({
             "description": "Rent",
-            "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
-            "dtstart": "2026-01-01",
+            "schedule": "monthly-first",
+            "dtstart": "2099-01-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
                 { "account_id": rent, "amount": 150000 },
@@ -1956,7 +1962,7 @@ async fn materialize_endpoint_idempotent() {
         &mut session,
         json!({
             "description": "Old rent",
-            "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
+            "schedule": "monthly-first",
             "dtstart": "2020-01-01",
             "templates": [
                 { "account_id": chequing, "amount": -150000 },
@@ -2003,8 +2009,8 @@ async fn non_member_cannot_create_recurring_rule() {
         &mut outsider,
         json!({
             "description": "Sneaky",
-            "rrule": "FREQ=MONTHLY",
-            "dtstart": "2026-01-01",
+            "schedule": "monthly-first",
+            "dtstart": "2099-01-01",
             "templates": []
         }),
     )

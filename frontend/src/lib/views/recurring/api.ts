@@ -2,6 +2,7 @@ import { apiFetch } from '$lib/api/client';
 import { workspaceState } from '$lib/workspace/state.svelte';
 import type { JSend } from '$lib/tabs/types';
 import type { RecurringRule } from './loader';
+import type { SchedulePresetId } from './schedules';
 
 export type TemplateInput = {
 	accountId: string;
@@ -11,7 +12,7 @@ export type TemplateInput = {
 
 export type CreateRecurringInput = {
 	description: string;
-	rrule: string;
+	schedule: SchedulePresetId;
 	dtstart: string;
 	templates: TemplateInput[];
 };
@@ -33,7 +34,7 @@ export async function createRecurring(input: CreateRecurringInput): Promise<JSen
 		method: 'POST',
 		body: JSON.stringify({
 			description: input.description,
-			rrule: input.rrule,
+			schedule: input.schedule,
 			dtstart: input.dtstart,
 			templates
 		})

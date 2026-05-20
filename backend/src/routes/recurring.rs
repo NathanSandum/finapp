@@ -14,6 +14,48 @@ use crate::error::AppError;
 use crate::jsend::{JSend, JSendResponse};
 use crate::DbPool;
 
+// ── Schedule preset enum (route-layer only) ─────────────────────────────────
+//
+// The wire format the frontend speaks is a tagged enum, not raw RRULE. This
+// keeps the API surface small: the backend owns the allowlist, and changing
+// the set of presets never breaks the storage shape (RRULE is the source of
+// truth in the domain).
+//
+// Conversion lives entirely here. The domain knows nothing about presets.
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum SchedulePreset {
+    Weekly,
+    Biweekly,
+    MonthlyFirst,
+    MonthlyLast,
+    Yearly,
+}
+
+impl SchedulePreset {
+    fn rrule(self) -> &'static str {
+        match self {
+            SchedulePreset::Weekly => "FREQ=WEEKLY",
+            SchedulePreset::Biweekly => "FREQ=WEEKLY;INTERVAL=2",
+            SchedulePreset::MonthlyFirst => "FREQ=MONTHLY;BYMONTHDAY=1",
+            SchedulePreset::MonthlyLast => "FREQ=MONTHLY;BYMONTHDAY=-1",
+            SchedulePreset::Yearly => "FREQ=YEARLY",
+        }
+    }
+
+    fn from_rrule(rrule: &str) -> Option<Self> {
+        match rrule {
+            "FREQ=WEEKLY" => Some(SchedulePreset::Weekly),
+            "FREQ=WEEKLY;INTERVAL=2" => Some(SchedulePreset::Biweekly),
+            "FREQ=MONTHLY;BYMONTHDAY=1" => Some(SchedulePreset::MonthlyFirst),
+            "FREQ=MONTHLY;BYMONTHDAY=-1" => Some(SchedulePreset::MonthlyLast),
+            "FREQ=YEARLY" => Some(SchedulePreset::Yearly),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Deserialize)]
 pub struct TemplateBody {
     account_id: AccountRef,
@@ -25,7 +67,7 @@ pub struct TemplateBody {
 #[derive(Deserialize)]
 pub struct CreateRecurringRequest {
     description: String,
-    rrule: String,
+    schedule: SchedulePreset,
     dtstart: NaiveDate,
     templates: Vec<TemplateBody>,
 }
@@ -34,6 +76,10 @@ pub struct CreateRecurringRequest {
 pub struct RecurringRuleResponse {
     #[serde(flatten)]
     rule: RecurringRule,
+    /// Tagged enum echoed back so the frontend can render a label without
+    /// parsing the stored RRULE. None if the stored RRULE doesn't match any
+    /// preset (e.g. a rule created before the enum existed).
+    schedule: Option<SchedulePreset>,
     templates: Vec<RecurringPostingTemplate>,
     next_pending: Option<NaiveDate>,
 }
@@ -45,8 +91,10 @@ impl RecurringRuleResponse {
     ) -> Result<Self, AppError> {
         let templates = rule.templates(conn)?;
         let next_pending = rule.next_pending()?;
+        let schedule = SchedulePreset::from_rrule(&rule.rrule);
         Ok(RecurringRuleResponse {
             rule,
+            schedule,
             templates,
             next_pending,
         })
@@ -63,7 +111,7 @@ pub async fn create(
         .get()
         .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
-    let schedule = Schedule::parse(&body.rrule, body.dtstart)?;
+    let schedule = Schedule::parse(body.schedule.rrule(), body.dtstart)?;
     let template_inputs: Vec<PostingTemplateInput> = body
         .templates
         .into_iter()

@@ -2,6 +2,7 @@ import { apiFetch } from '$lib/api/client';
 import { workspaceState } from '$lib/workspace/state.svelte';
 import type { JSend } from '$lib/tabs/types';
 import type { Account, Anchors } from '$lib/views/entries/loader';
+import type { SchedulePresetId } from './schedules';
 
 export type RecurringTemplate = {
 	id: string;
@@ -15,7 +16,7 @@ export type RecurringRule = {
 	id: string;
 	workspace: string;
 	description: string;
-	rrule: string;
+	schedule: SchedulePresetId | null;
 	dtstart: string;
 	last_fired_on: string | null;
 	deleted_at: string | null;

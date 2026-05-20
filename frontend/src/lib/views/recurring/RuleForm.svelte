@@ -82,12 +82,6 @@
 			return;
 		}
 
-		const preset = SCHEDULE_PRESETS.find((p) => p.id === presetId);
-		if (!preset) {
-			errorMessage = 'invalid schedule preset';
-			return;
-		}
-
 		const postings = buildVerbPostings(verb, counterpartyId, chequing.id, cents);
 		const trimmedNote = note.trim() || undefined;
 		const templates = postings.map((p) => ({
@@ -100,7 +94,7 @@
 		try {
 			const result = await createRecurring({
 				description: description.trim() || defaultDescription,
-				rrule: preset.rrule,
+				schedule: presetId,
 				dtstart,
 				templates
 			});
