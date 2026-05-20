@@ -201,19 +201,20 @@ pub async fn delete(
     Ok(JSend::success(Value::Null))
 }
 
-/// Materializes every due occurrence across all active rules in the workspace.
-/// Idempotent — calling repeatedly with no time passage posts zero new entries.
-/// Returns the count of entries posted.
-pub async fn materialize(
+/// Creates a "run": materializes every due occurrence across all active rules
+/// in the workspace. Idempotent — calling repeatedly with no time passage posts
+/// zero new entries. Returns the run summary.
+pub async fn create_run(
     Extension(db): Extension<DbPool>,
     member: WorkspaceMember,
-) -> Result<JSend<Value>, AppError> {
+) -> Result<JSendResponse<Value>, AppError> {
     member.require_role(&Role::Editor)?;
     let mut conn = db
         .get()
         .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
-    let today = chrono::Utc::now().naive_utc().date();
+    let now = chrono::Utc::now().naive_utc();
+    let today = now.date();
     let rules = member.workspace.recurring_rules(&mut conn)?;
 
     let mut posted_count: usize = 0;
@@ -221,5 +222,8 @@ pub async fn materialize(
         posted_count += rule.materialize_due(today, &mut conn)?.len();
     }
 
-    Ok(JSend::success(json!({ "posted": posted_count })))
+    Ok(JSendResponse::new(
+        StatusCode::CREATED,
+        JSend::success(json!({ "posted": posted_count, "at": now })),
+    ))
 }

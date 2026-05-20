@@ -20,7 +20,7 @@ Last updated: 2026-05-18
 - `Entry` + `NewEntry` gained `source_rule` (Option<RecurringRuleRef>). `NewEntry::source_rule(rule)` is a chainable opt-in.
 - `RecurringRule::materialize_due(up_to, conn)` walks the schedule, posts each occurrence via `NewEntry`, advances `last_fired_on`. Idempotent.
 - `NewRecurringRule::insert` now calls `materialize_due(today)` inside the same transaction — past dtstart dumps backfill immediately, future dtstart stays dormant.
-- `POST /workspaces/{ws}/recurring/materialize` endpoint iterates all active rules with `up_to = today`. Returns `{ posted: count }`. Intended trigger: frontend calls on workspace load.
+- `POST /workspaces/{ws}/recurring/runs` endpoint creates a run that iterates all active rules with `up_to = today`. Returns `{ posted: count, at: timestamp }`. Intended trigger: frontend calls on workspace load.
 - `entry_to_json` now exposes `source_rule` in API responses.
 
 ## What Wave 7 Did

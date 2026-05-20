@@ -46,7 +46,7 @@ backend/
       reports.rs                    # GET .../reports/balance-sheet, GET .../reports/income-statement
       baselines.rs                  # POST/GET /workspaces/:id/baselines, DELETE .../baselines/:id, GET .../variance
       recurring.rs                  # POST/GET /workspaces/:id/recurring, GET/DELETE .../recurring/:id
-                                    # POST .../recurring/materialize — fire all due rules (idempotent)
+                                    # POST .../recurring/runs — create a run, fires all due rules (idempotent)
                                     # Response embeds templates and computed next_pending
   migrations/
     00000000000001_initial/         # Empty placeholder

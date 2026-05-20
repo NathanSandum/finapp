@@ -1949,7 +1949,7 @@ async fn delete_recurring_rule_excludes_from_list() {
 }
 
 #[tokio::test]
-async fn materialize_endpoint_idempotent() {
+async fn create_run_is_idempotent() {
     let app = app();
     let (mut session, _, workspace_id) = setup_workspace(&app).await;
     let chequing = find_account_id(&app, &workspace_id, &mut session, "Chequing").await;
@@ -1974,13 +1974,14 @@ async fn materialize_endpoint_idempotent() {
 
     let (status, body) = post(
         &app,
-        &format!("/workspaces/{workspace_id}/recurring/materialize"),
+        &format!("/workspaces/{workspace_id}/recurring/runs"),
         &mut session,
         json!({}),
     )
     .await;
-    assert_eq!(status, StatusCode::OK, "materialize failed: {body}");
+    assert_eq!(status, StatusCode::CREATED, "create run failed: {body}");
     assert_eq!(body["posted"], 0, "create-time backfill should leave nothing due");
+    assert!(body["at"].is_string(), "response should carry timestamp");
 
     // Entries from backfill should be present on the workspace.
     let (_, entries_body) = get(

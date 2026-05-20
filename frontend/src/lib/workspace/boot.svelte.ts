@@ -2,7 +2,7 @@ import { cache } from '$lib/api/cache.svelte';
 import { workspaceState } from './state.svelte';
 import { listWorkspaces, type Workspace } from './api';
 import { load as loadOverview } from '$lib/views/overview/loader';
-import { materializeRecurring } from '$lib/views/recurring/api';
+import { createRecurringRun } from '$lib/views/recurring/api';
 import { latestActivityPeriod } from '$lib/views/period';
 import { periodState } from '$lib/views/period-state.svelte';
 import type { JSend } from '$lib/tabs/types';
@@ -31,11 +31,11 @@ export async function bootWorkspace(): Promise<JSend<{ workspace: Workspace }>> 
 
 	// Hybrid materialization: fire any past-due recurring rules into real entries
 	// before loading downstream data. Errors are logged but non-fatal — the app
-	// still boots if the materialize endpoint is unreachable.
-	const materializeResult = await materializeRecurring();
-	if (materializeResult.status !== 'success') {
-		console.warn('recurring materialize failed', materializeResult);
-	} else if (materializeResult.data.posted > 0) {
+	// still boots if the runs endpoint is unreachable.
+	const runResult = await createRecurringRun();
+	if (runResult.status !== 'success') {
+		console.warn('recurring run failed', runResult);
+	} else if (runResult.data.posted > 0) {
 		cache.invalidateAll();
 	}
 

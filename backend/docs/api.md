@@ -244,11 +244,11 @@ Active (non-deleted) rules, ordered by `dtstart` ascending.
 ### DELETE /workspaces/{workspace}/recurring/{rule}
 Requires Editor role. Soft-deletes the rule. `data` is `null`.
 
-### POST /workspaces/{workspace}/recurring/materialize
-Requires Editor role. Iterates every active rule and posts any due occurrences as real entries (one entry per occurrence, with `source_rule_id` set to the rule). Idempotent — calling it twice in a row posts zero the second time. Intended to be called by the frontend on workspace load.
+### POST /workspaces/{workspace}/recurring/runs
+Requires Editor role. Creates a "run": iterates every active rule and posts any due occurrences as real entries (one entry per occurrence, with `source_rule_id` set to the rule). Idempotent — calling it twice in a row posts zero the second time. Intended to be called by the frontend on workspace load.
 ```json
-// data on 200
-{ "posted": int }
+// data on 201
+{ "posted": int, "at": "timestamp" }
 ```
 
 ## Entry source_rule

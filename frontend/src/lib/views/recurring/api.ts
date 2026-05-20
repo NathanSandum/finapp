@@ -47,9 +47,9 @@ export function deleteRecurring(id: string): Promise<JSend<null>> {
 	});
 }
 
-export function materializeRecurring(): Promise<JSend<{ posted: number }>> {
-	return apiFetch<{ posted: number }>(
-		`/workspaces/${workspaceState.id()}/recurring/materialize`,
+export function createRecurringRun(): Promise<JSend<{ posted: number; at: string }>> {
+	return apiFetch<{ posted: number; at: string }>(
+		`/workspaces/${workspaceState.id()}/recurring/runs`,
 		{ method: 'POST', body: '{}' }
 	);
 }

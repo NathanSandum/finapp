@@ -2,7 +2,7 @@
 	import { cache } from '$lib/api/cache.svelte';
 	import { workspaceState } from './state.svelte';
 	import { createWorkspace, listWorkspaces, renameWorkspace, type Workspace } from './api';
-	import { materializeRecurring } from '$lib/views/recurring/api';
+	import { createRecurringRun } from '$lib/views/recurring/api';
 	import WorkspaceRow from './WorkspaceRow.svelte';
 	import WorkspaceCreate from './WorkspaceCreate.svelte';
 	import Popover from '$lib/components/Popover.svelte';
@@ -25,11 +25,11 @@
 	}
 
 	async function syncRecurringAfterSwitch() {
-		const result = await materializeRecurring();
+		const result = await createRecurringRun();
 		if (result.status === 'success' && result.data.posted > 0) {
 			cache.invalidateAll();
 		} else if (result.status !== 'success') {
-			console.warn('recurring materialize failed', result);
+			console.warn('recurring run failed', result);
 		}
 	}
 
