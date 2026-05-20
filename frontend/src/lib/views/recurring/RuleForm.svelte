@@ -7,6 +7,12 @@
 	import { SCHEDULE_PRESETS, type SchedulePresetId } from './schedules';
 	import { createRecurring } from './api';
 
+	const INPUT = 'border border-border bg-surface-card px-2 py-1.5';
+	const MONO = `${INPUT} font-mono tabular-nums`;
+	const ERROR = 'text-xs text-negative';
+	const BANNER = 'border border-negative-border bg-negative-tint px-3 py-2 text-xs text-negative-strong';
+	const LABEL = 'text-xs uppercase tracking-wide text-ink-muted';
+
 	let {
 		accounts,
 		anchors,
@@ -23,8 +29,6 @@
 		onCreated?: () => void;
 	} = $props();
 
-	const chequing = $derived(anchors.cash);
-
 	let verb = $state<VerbId>(initialVerb);
 	let counterpartyId = $state(initialCounterpartyId);
 	let amountText = $state('');
@@ -36,15 +40,14 @@
 	let errorMessage = $state<string | null>(null);
 	let fieldErrors = $state<Record<string, string>>({});
 
+	const chequing = $derived(anchors.cash);
 	const config = $derived(verbConfig(verb));
 	const counterparties = $derived(
 		accounts
 			.filter((a) => a.account_type === config.counterpartyType && a.id !== chequing.id)
 			.sort((a, b) => a.name.localeCompare(b.name))
 	);
-	const counterpartyName = $derived(
-		accounts.find((a) => a.id === counterpartyId)?.name ?? ''
-	);
+	const counterpartyName = $derived(accounts.find((a) => a.id === counterpartyId)?.name ?? '');
 	const defaultDescription = $derived(
 		counterpartyName
 			? config.counterpartyPreposition
@@ -73,18 +76,11 @@
 		fieldErrors = {};
 
 		const cents = parseAmount(amountText);
-		if (cents === null) {
-			fieldErrors = { amount: 'enter a positive amount' };
-			return;
-		}
-		if (!counterpartyId) {
-			fieldErrors = { counterparty: 'pick an account' };
-			return;
-		}
+		if (cents === null) return void (fieldErrors = { amount: 'enter a positive amount' });
+		if (!counterpartyId) return void (fieldErrors = { counterparty: 'pick an account' });
 
-		const postings = buildVerbPostings(verb, counterpartyId, chequing.id, cents);
 		const trimmedNote = note.trim() || undefined;
-		const templates = postings.map((p) => ({
+		const templates = buildVerbPostings(verb, counterpartyId, chequing.id, cents).map((p) => ({
 			accountId: p.accountId,
 			amount: p.amount,
 			...(trimmedNote ? { note: trimmedNote } : {})
@@ -117,11 +113,10 @@
 <form onsubmit={submit} class="flex flex-col gap-4 text-sm">
 	<div class="flex flex-wrap gap-1 border border-border bg-surface-sunken p-1">
 		{#each VERBS as v (v.id)}
-			{@const active = v.id === verb}
 			<button
 				type="button"
 				onclick={() => (verb = v.id)}
-				class="flex-1 px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] transition-colors {active
+				class="flex-1 px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] transition-colors {v.id === verb
 					? 'bg-surface-card text-ink shadow-sm'
 					: 'text-ink-muted hover:text-ink-body'}"
 			>
@@ -132,100 +127,58 @@
 
 	<div class="grid grid-cols-[1fr_auto] gap-3">
 		<label class="flex flex-col gap-1">
-			<span class="text-xs uppercase tracking-wide text-ink-muted">Schedule</span>
-			<select
-				bind:value={presetId}
-				class="border border-border bg-surface-card px-2 py-1.5"
-				required
-			>
+			<span class={LABEL}>Schedule</span>
+			<select bind:value={presetId} class={INPUT} required>
 				{#each SCHEDULE_PRESETS as preset (preset.id)}
 					<option value={preset.id}>{preset.label}</option>
 				{/each}
 			</select>
 		</label>
 		<label class="flex flex-col gap-1">
-			<span class="text-xs uppercase tracking-wide text-ink-muted">Starts</span>
-			<input
-				type="date"
-				bind:value={dtstart}
-				class="border border-border bg-surface-card px-2 py-1.5 font-mono"
-				required
-			/>
+			<span class={LABEL}>Starts</span>
+			<input type="date" bind:value={dtstart} class={MONO} required />
 		</label>
 	</div>
 
 	<div class="grid grid-cols-[auto_1fr] gap-3">
 		<label class="flex flex-col gap-1">
-			<span class="text-xs uppercase tracking-wide text-ink-muted">Amount</span>
+			<span class={LABEL}>Amount</span>
 			<input
 				type="text"
 				inputmode="decimal"
 				placeholder="0.00"
 				bind:value={amountText}
-				class="border border-border bg-surface-card px-2 py-1.5 font-mono tabular-nums"
+				class={MONO}
 				required
 			/>
-			{#if fieldErrors.amount}
-				<span class="text-xs text-negative">{fieldErrors.amount}</span>
-			{/if}
+			{#if fieldErrors.amount}<span class={ERROR}>{fieldErrors.amount}</span>{/if}
 		</label>
 		<label class="flex flex-col gap-1">
-			<span class="text-xs uppercase tracking-wide text-ink-muted">
+			<span class={LABEL}>
 				{config.label}{config.counterpartyPreposition ? ` ${config.counterpartyPreposition}` : ''}
 			</span>
-			<select
-				bind:value={counterpartyId}
-				class="border border-border bg-surface-card px-2 py-1.5"
-				required
-			>
+			<select bind:value={counterpartyId} class={INPUT} required>
 				<option value="" disabled>select…</option>
 				{#each counterparties as account (account.id)}
 					<option value={account.id}>{account.name}</option>
 				{/each}
 			</select>
-			{#if fieldErrors.counterparty}
-				<span class="text-xs text-negative">{fieldErrors.counterparty}</span>
-			{/if}
+			{#if fieldErrors.counterparty}<span class={ERROR}>{fieldErrors.counterparty}</span>{/if}
 		</label>
 	</div>
 
 	<label class="flex flex-col gap-1">
-		<span class="text-xs uppercase tracking-wide text-ink-muted">Description (optional)</span>
-		<input
-			type="text"
-			placeholder={defaultDescription}
-			bind:value={description}
-			class="border border-border bg-surface-card px-2 py-1.5"
-		/>
-		{#if fieldErrors.description}
-			<span class="text-xs text-negative">{fieldErrors.description}</span>
-		{/if}
+		<span class={LABEL}>Description (optional)</span>
+		<input type="text" placeholder={defaultDescription} bind:value={description} class={INPUT} />
 	</label>
 
 	<label class="flex flex-col gap-1">
-		<span class="text-xs uppercase tracking-wide text-ink-muted">Note (optional)</span>
-		<input
-			type="text"
-			bind:value={note}
-			class="border border-border bg-surface-card px-2 py-1.5"
-		/>
+		<span class={LABEL}>Note (optional)</span>
+		<input type="text" bind:value={note} class={INPUT} />
 	</label>
 
-	{#if fieldErrors.rrule}
-		<p class="border border-negative-border bg-negative-tint px-3 py-2 text-xs text-negative-strong">
-			{fieldErrors.rrule}
-		</p>
-	{/if}
-	{#if fieldErrors.templates}
-		<p class="border border-negative-border bg-negative-tint px-3 py-2 text-xs text-negative-strong">
-			{fieldErrors.templates}
-		</p>
-	{/if}
-	{#if errorMessage}
-		<p class="border border-negative-border bg-negative-tint px-3 py-2 text-xs text-negative-strong">
-			{errorMessage}
-		</p>
-	{/if}
+	{#if fieldErrors.templates}<p class={BANNER}>{fieldErrors.templates}</p>{/if}
+	{#if errorMessage}<p class={BANNER}>{errorMessage}</p>{/if}
 
 	<div class="flex gap-2 pt-2">
 		<SolidButton type="submit" disabled={submitting}>
