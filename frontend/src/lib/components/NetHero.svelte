@@ -54,7 +54,7 @@
 	onDestroy(() => trailSlots.destroy());
 </script>
 
-<section class="relative shrink-0 overflow-hidden border border-border bg-surface-card">
+<section class="relative shrink-0 overflow-hidden bg-surface-card">
 	<div class="halo absolute left-5 top-4 z-10">
 		<p class="text-[10px] font-medium uppercase tracking-wide text-ink-muted">{label}</p>
 		<p
