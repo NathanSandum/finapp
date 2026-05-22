@@ -12,7 +12,10 @@
 </svelte:head>
 
 <div class="grid h-screen w-screen grid-cols-[240px_1fr] bg-surface-card text-ink">
-	<aside class="flex flex-col bg-surface-inverse p-3 text-ink-inverse-body select-none">
+	<aside
+		class="flex flex-col bg-surface-inverse p-3 text-ink-inverse-body select-none"
+		style:font-family="var(--font-ui)"
+	>
 		<Sidebar />
 	</aside>
 	{@render children()}
