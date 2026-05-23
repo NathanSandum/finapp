@@ -1,7 +1,7 @@
 import { apiFetch } from '$lib/api/client';
 import { workspaceState } from '$lib/workspace/state.svelte';
 import type { JSend } from '$lib/tabs/types';
-import type { Entry } from './loader';
+import type { Entry } from '$lib/data';
 
 export type EntryPostingInput = {
 	accountId: string;

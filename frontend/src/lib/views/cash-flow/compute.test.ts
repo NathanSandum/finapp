@@ -5,7 +5,7 @@ import {
 	computeSectionTrails,
 	latestActivityPeriod
 } from './compute';
-import type { Account, Anchors, Entry } from '../entries/loader';
+import type { Account, Anchors, Entry } from '$lib/data';
 
 const accounts: Account[] = [
 	{ id: 'assets', parent_id: null, name: 'Assets', account_type: 'asset', currency: 'CAD', role: 'assets_root' },

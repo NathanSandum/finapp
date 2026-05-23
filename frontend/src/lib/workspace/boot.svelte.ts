@@ -1,4 +1,5 @@
 import { cache } from '$lib/api/cache.svelte';
+import { invalidateAll as invalidateData } from '$lib/data';
 import { workspaceState } from './state.svelte';
 import { listWorkspaces, type Workspace } from './api';
 import { load as loadOverview } from '$lib/views/overview/loader';
@@ -36,7 +37,7 @@ export async function bootWorkspace(): Promise<JSend<{ workspace: Workspace }>> 
 	if (runResult.status !== 'success') {
 		console.warn('recurring run failed', runResult);
 	} else if (runResult.data.posted > 0) {
-		cache.invalidateAll();
+		invalidateData();
 	}
 
 	const overviewResult = await cache.load('overview', loadOverview);

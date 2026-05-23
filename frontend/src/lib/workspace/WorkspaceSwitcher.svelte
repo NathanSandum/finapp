@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cache } from '$lib/api/cache.svelte';
+	import { invalidateAll as invalidateData } from '$lib/data';
 	import { workspaceState } from './state.svelte';
 	import { createWorkspace, listWorkspaces, renameWorkspace, type Workspace } from './api';
 	import { createRecurringRun } from '$lib/views/recurring/api';
@@ -27,7 +27,7 @@
 	async function syncRecurringAfterSwitch() {
 		const result = await createRecurringRun();
 		if (result.status === 'success' && result.data.posted > 0) {
-			cache.invalidateAll();
+			invalidateData();
 		} else if (result.status !== 'success') {
 			console.warn('recurring run failed', result);
 		}

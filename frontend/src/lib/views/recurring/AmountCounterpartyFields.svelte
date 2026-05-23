@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Account } from '$lib/views/entries/loader';
+	import type { Account } from '$lib/data';
 	import type { VerbConfig } from '$lib/views/entries/verbs';
 	import { INPUT, MONO, LABEL, ERROR } from './field-classes';
 

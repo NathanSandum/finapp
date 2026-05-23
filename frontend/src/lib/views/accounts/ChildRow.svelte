@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { cache } from '$lib/api/cache.svelte';
+	import { invalidateAll as invalidateData } from '$lib/data';
 	import { deleteAccount, renameAccount } from './api';
 	import { load as loadAccounts } from './loader';
 	import { ROLE_BADGE, type AccountNode } from './tree';
@@ -36,7 +37,7 @@
 		const result = await renameAccount(account.id, trimmed);
 		busy = false;
 		if (result.status === 'success') {
-			cache.invalidateAllExcept('accounts');
+			invalidateData();
 			await cache.refresh('accounts', loadAccounts);
 			editing = false;
 		} else {
@@ -55,7 +56,7 @@
 		const result = await deleteAccount(account.id);
 		busy = false;
 		if (result.status === 'success') {
-			cache.invalidateAllExcept('accounts');
+			invalidateData();
 			await cache.refresh('accounts', loadAccounts);
 		} else {
 			error =

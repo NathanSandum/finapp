@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { cache } from '$lib/api/cache.svelte';
+	import { invalidateAll as invalidateData } from '$lib/data';
 	import { createAccount, deleteAccount } from './api';
 	import { load as loadAccounts } from './loader';
 	import {
@@ -15,8 +16,8 @@
 	import { fmt } from '$lib/format';
 	import Num from '$lib/components/Num.svelte';
 	import BorderButton from '$lib/components/BorderButton.svelte';
-	import type { Account, Anchors, Entry } from '$lib/views/entries/loader';
-	import type { RecurringRule } from '$lib/views/recurring/loader';
+	import type { Account, Anchors, Entry } from '$lib/data';
+	import type { RecurringRule } from '$lib/data';
 	import RulesList from '$lib/views/recurring/RulesList.svelte';
 	import RuleForm from '$lib/views/recurring/RuleForm.svelte';
 	import SubAccountsPanel from './SubAccountsPanel.svelte';
@@ -96,7 +97,7 @@
 		deleteBusy = false;
 		if (result.status === 'success') {
 			const nextId = parentNode?.account.id ?? null;
-			cache.invalidateAllExcept('accounts');
+			invalidateData();
 			await cache.refresh('accounts', loadAccounts);
 			onAfterDelete(nextId);
 		} else {
@@ -122,7 +123,7 @@
 		});
 		addBusy = false;
 		if (result.status === 'success') {
-			cache.invalidateAllExcept('accounts');
+			invalidateData();
 			await cache.refresh('accounts', loadAccounts);
 			adding = false;
 		} else {

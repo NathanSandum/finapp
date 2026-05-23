@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { cache } from '$lib/api/cache.svelte';
-	import type { Account, Anchors } from '$lib/views/entries/loader';
+	import { invalidateAll as invalidateData } from '$lib/data';
+	import type { Account, Anchors } from '$lib/data';
 	import { VERBS, verbConfig, buildVerbPostings, type VerbId } from '$lib/views/entries/verbs';
 	import { today } from '$lib/views/today';
 	import SolidButton from '$lib/components/SolidButton.svelte';
@@ -95,7 +95,7 @@
 			});
 
 			if (result.status === 'success') {
-				cache.invalidateAll();
+				invalidateData();
 				onCreated?.();
 				onClose();
 			} else if (result.status === 'fail') {

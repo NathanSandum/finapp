@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { periodBounds } from '$lib/views/period';
 	import { periodState } from '$lib/views/period-state.svelte';
-	import { entryAmount, type EntriesData } from './loader';
+	import { entryAmount } from '$lib/data';
+	import type { EntriesData } from './loader';
 	import { fmt } from '$lib/format';
 	import Num from '$lib/components/Num.svelte';
 	import EntryForm from './EntryForm.svelte';

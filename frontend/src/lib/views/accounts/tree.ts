@@ -1,4 +1,4 @@
-import type { Account, AccountRole, Anchors } from '$lib/views/entries/loader';
+import type { Account, AccountRole, Anchors } from '$lib/data';
 
 export type AccountNode = {
 	account: Account;

@@ -10,7 +10,7 @@
 	import { entryIntent } from '$lib/views/entries/intent.svelte';
 	import { accountsSelection } from '$lib/views/accounts/selection.svelte';
 	import type { VerbId } from '$lib/views/entries/verbs';
-	import type { Account } from '$lib/views/entries/loader';
+	import type { Account } from '$lib/data';
 	import SolidButton from './SolidButton.svelte';
 
 	function intentForSelection(

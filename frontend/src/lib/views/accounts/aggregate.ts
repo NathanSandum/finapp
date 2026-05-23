@@ -1,4 +1,4 @@
-import type { Entry } from '$lib/views/entries/loader';
+import type { Entry } from '$lib/data';
 import { collectIds, type AccountNode } from './tree';
 
 const CUMULATIVE_TYPES = new Set(['asset', 'liability', 'equity']);

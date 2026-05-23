@@ -1,4 +1,4 @@
-import type { Account, Anchors, Entry } from '../entries/loader';
+import type { Account, Anchors, Entry } from '$lib/data';
 import {
 	asOfDate,
 	defaultTrailCount,

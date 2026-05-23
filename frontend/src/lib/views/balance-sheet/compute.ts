@@ -1,4 +1,4 @@
-import type { Account, Entry } from '../entries/loader';
+import type { Account, Entry } from '$lib/data';
 import {
 	asOfDate,
 	asOfLabel,
