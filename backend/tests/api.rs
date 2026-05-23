@@ -384,6 +384,31 @@ async fn anchors_endpoint_returns_all_seven() {
 }
 
 #[tokio::test]
+async fn bootstrap_returns_all_resources() {
+    let app = app();
+    let (mut session, _, workspace_id) = setup_workspace(&app).await;
+
+    let (status, body) = get(
+        &app,
+        &format!("/workspaces/{workspace_id}/bootstrap"),
+        &mut session,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    assert!(body["entries"].is_array(), "expected entries array: {body}");
+    assert!(body["accounts"].is_array(), "expected accounts array: {body}");
+    assert!(
+        body["anchors"]["cash"]["role"] == "cash",
+        "expected cash anchor: {body}"
+    );
+    assert!(
+        body["recurring_rules"].is_array(),
+        "expected recurring_rules array: {body}"
+    );
+}
+
+#[tokio::test]
 async fn create_child_account_via_api() {
     let app = app();
     let (mut session, _, workspace_id) = setup_workspace(&app).await;

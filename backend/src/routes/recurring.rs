@@ -85,7 +85,7 @@ pub struct RecurringRuleResponse {
 }
 
 impl RecurringRuleResponse {
-    fn build(
+    pub(crate) fn build(
         rule: RecurringRule,
         conn: &mut diesel::SqliteConnection,
     ) -> Result<Self, AppError> {

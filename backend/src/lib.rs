@@ -108,6 +108,11 @@ pub fn build_router(db: DbPool, mode: Mode) -> Router {
             "/workspaces/{workspace}/anchors",
             get(routes::accounts::anchors),
         )
+        // Bootstrap (bundle endpoint for client boot)
+        .route(
+            "/workspaces/{workspace}/bootstrap",
+            get(routes::bootstrap::bootstrap),
+        )
         // Entries
         .route(
             "/workspaces/{workspace}/entries",
