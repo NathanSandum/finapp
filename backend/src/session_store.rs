@@ -53,6 +53,33 @@ where
 
 #[async_trait]
 impl SessionStore for DbSessionStore {
+    async fn create(&self, record: &mut Record) -> session_store::Result<()> {
+        use diesel::result::{DatabaseErrorKind, Error};
+        loop {
+            let row = SessionRow {
+                id: record.id.to_string(),
+                data: encode_record(record)?,
+                expiry_date: record.expiry_date.unix_timestamp(),
+            };
+            let inserted = run_blocking(self.pool.clone(), move |conn| {
+                match diesel::insert_into(auth_sessions::table)
+                    .values(&row)
+                    .execute(conn)
+                {
+                    Ok(_) => Ok(true),
+                    Err(Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _)) => Ok(false),
+                    Err(err) => Err(backend_error(err)),
+                }
+            })
+            .await?;
+            if inserted {
+                return Ok(());
+            }
+            // ID collision (vanishingly rare): assign a fresh random id and retry.
+            record.id = Id::default();
+        }
+    }
+
     async fn save(&self, record: &Record) -> session_store::Result<()> {
         let row = SessionRow {
             id: record.id.to_string(),
@@ -167,6 +194,46 @@ mod tests {
         store.save(&record).await.expect("overwrite");
 
         let loaded = store.load(&record.id).await.unwrap().unwrap();
+        assert_eq!(loaded.expiry_date, record.expiry_date);
+    }
+
+    #[tokio::test]
+    async fn create_assigns_fresh_id_on_collision() {
+        let store = DbSessionStore::new(make_pool());
+        let first = make_record();
+        store.save(&first).await.unwrap();
+        let colliding_id = first.id;
+
+        let mut second = Record {
+            id: colliding_id,
+            data: HashMap::new(),
+            expiry_date: OffsetDateTime::now_utc() + Duration::hours(2),
+        };
+        store
+            .create(&mut second)
+            .await
+            .expect("create should retry on collision");
+
+        assert_ne!(
+            second.id, colliding_id,
+            "create must pick a fresh id when the requested one is taken"
+        );
+
+        let original = store.load(&colliding_id).await.unwrap().expect("first still present");
+        let inserted = store.load(&second.id).await.unwrap().expect("second present");
+        assert_eq!(original.expiry_date, first.expiry_date);
+        assert_eq!(inserted.expiry_date, second.expiry_date);
+    }
+
+    #[tokio::test]
+    async fn create_inserts_when_id_is_free() {
+        let store = DbSessionStore::new(make_pool());
+        let mut record = make_record();
+        let original_id = record.id;
+        store.create(&mut record).await.expect("create");
+
+        assert_eq!(record.id, original_id, "id must not change when no collision");
+        let loaded = store.load(&record.id).await.unwrap().expect("present");
         assert_eq!(loaded.expiry_date, record.expiry_date);
     }
 
