@@ -20,9 +20,13 @@ use axum::{
 use axum_login::tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
 use axum_login::AuthManagerLayerBuilder;
 use diesel::r2d2::{self, ConnectionManager};
-use diesel::SqliteConnection;
+use diesel::{RunQueryDsl, SqliteConnection};
 use serde_json::{json, Value};
 use time::Duration;
+use tower::ServiceBuilder;
+use tower_http::request_id::MakeRequestUuid;
+use tower_http::trace::{DefaultMakeSpan, TraceLayer};
+use tower_http::ServiceBuilderExt;
 
 use crate::auth_backend::AuthBackend;
 use crate::config::Mode;
@@ -31,8 +35,19 @@ use crate::session_store::DbSessionStore;
 
 pub type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 
-async fn health() -> JSend<Value> {
-    JSend::success(json!({ "service": "finapp" }))
+async fn health(Extension(db): Extension<DbPool>) -> JSend<Value> {
+    let db_status = match db.get() {
+        Ok(mut conn) => match diesel::sql_query("SELECT 1").execute(&mut conn) {
+            Ok(_) => "ok",
+            Err(_) => "error",
+        },
+        Err(_) => "error",
+    };
+    JSend::success(json!({
+        "service": "finapp",
+        "version": env!("CARGO_PKG_VERSION"),
+        "db": db_status,
+    }))
 }
 
 pub fn build_router(db: DbPool, mode: Mode) -> Router {
@@ -141,5 +156,16 @@ pub fn build_router(db: DbPool, mode: Mode) -> Router {
             post(routes::recurring::create_run),
         );
 
-    router.layer(auth_layer).layer(Extension(db))
+    let observability = ServiceBuilder::new()
+        .set_x_request_id(MakeRequestUuid)
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().include_headers(true)),
+        )
+        .propagate_x_request_id();
+
+    router
+        .layer(auth_layer)
+        .layer(Extension(db))
+        .layer(observability)
 }

@@ -178,6 +178,30 @@ async fn health_check() {
     let (status, body) = send(&app, Method::GET, "/health", &mut session, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["service"], "finapp");
+    assert_eq!(body["db"], "ok");
+    assert!(
+        body["version"].as_str().is_some(),
+        "expected version field: {body}"
+    );
+}
+
+#[tokio::test]
+async fn request_id_header_present() {
+    let app = app();
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri("/health")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    let header_value = resp
+        .headers()
+        .get("x-request-id")
+        .expect("x-request-id header missing")
+        .to_str()
+        .unwrap()
+        .to_string();
+    assert!(!header_value.is_empty(), "x-request-id was empty");
 }
 
 #[tokio::test]

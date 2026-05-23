@@ -15,6 +15,7 @@ argon2 = { version = "0.5", features = ["std"] }
 chrono = { version = "0.4", features = ["clock", "serde"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 uuid = { version = "1", features = ["v4"] }
+tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["cors", "trace", "request-id", "util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
