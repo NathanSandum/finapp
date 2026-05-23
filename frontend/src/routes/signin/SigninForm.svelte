@@ -1,12 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { signIn } from '$lib/api/auth';
-	import { authState } from '$lib/api/state.svelte';
+	import { signIn } from '$lib/auth/session';
 	import { getDiscrete, setDiscrete } from '$lib/ui/discrete.svelte';
-	import { cache } from '$lib/api/cache.svelte';
-	import { tabState } from '$lib/tabs/state.svelte';
-	import { overviewEntrance } from '$lib/views/overview/entrance';
-	import { bootWorkspace } from '$lib/workspace/boot.svelte';
 	import type { JSend } from '$lib/tabs/types';
 	import FailView from '$lib/components/FailView.svelte';
 	import ErrorView from '$lib/components/ErrorView.svelte';
@@ -57,18 +52,6 @@
 			submitting = false;
 			return;
 		}
-		cache.invalidateAll();
-		authState.set(signInResult.data.user);
-
-		const bootResult = await bootWorkspace();
-		if (bootResult.status !== 'success') {
-			result = bootResult;
-			submitting = false;
-			return;
-		}
-
-		tabState.set('overview');
-		overviewEntrance.arm();
 		submitting = false;
 		exiting = true;
 		onSignedIn();

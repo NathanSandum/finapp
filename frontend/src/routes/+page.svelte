@@ -5,8 +5,7 @@
 	import { tabState } from '$lib/tabs/state.svelte';
 	import { workspaceState } from '$lib/workspace/state.svelte';
 	import { bootWorkspace, bootState } from '$lib/workspace/boot.svelte';
-	import { fetchMe } from '$lib/api/auth';
-	import { authState } from '$lib/api/state.svelte';
+	import { fetchMe } from '$lib/auth/session';
 	import { goto } from '$app/navigation';
 
 	const current = $derived(tabs.find((t) => t.id === tabState.get()) ?? tabs[0]);
@@ -22,7 +21,6 @@
 				goto('/signin');
 				return;
 			}
-			authState.set(me.data.user);
 			const result = await bootWorkspace();
 			if (result.status === 'fail') {
 				bootError =

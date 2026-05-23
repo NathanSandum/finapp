@@ -11,17 +11,17 @@ export interface UserPayload {
 	user: AuthUser;
 }
 
-export function fetchMe(): Promise<JSend<UserPayload>> {
+export function apiFetchMe(): Promise<JSend<UserPayload>> {
 	return apiFetch<UserPayload>('/auth/me');
 }
 
-export function signIn(email: string, password: string): Promise<JSend<UserPayload>> {
+export function apiSignIn(email: string, password: string): Promise<JSend<UserPayload>> {
 	return apiFetch<UserPayload>('/auth/login', {
 		method: 'POST',
 		body: JSON.stringify({ email, password })
 	});
 }
 
-export function logout(): Promise<JSend<unknown>> {
+export function apiLogout(): Promise<JSend<unknown>> {
 	return apiFetch('/auth/logout', { method: 'POST' });
 }
