@@ -14,6 +14,7 @@ pub mod test_helpers;
 
 use axum::{
     extract::Extension,
+    http::Request,
     routing::{delete, get, post, put},
     Router,
 };
@@ -25,8 +26,9 @@ use serde_json::{json, Value};
 use time::Duration;
 use tower::ServiceBuilder;
 use tower_http::request_id::MakeRequestUuid;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
+use tower_http::trace::TraceLayer;
 use tower_http::ServiceBuilderExt;
+use tracing::{info_span, Span};
 
 use crate::auth_backend::AuthBackend;
 use crate::config::Mode;
@@ -34,6 +36,20 @@ use crate::jsend::JSend;
 use crate::session_store::DbSessionStore;
 
 pub type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
+
+fn make_request_span<B>(request: &Request<B>) -> Span {
+    let request_id = request
+        .headers()
+        .get("x-request-id")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("-");
+    info_span!(
+        "request",
+        method = %request.method(),
+        uri = %request.uri(),
+        request_id = request_id,
+    )
+}
 
 async fn health(Extension(db): Extension<DbPool>) -> JSend<Value> {
     let db_status = match db.get() {
@@ -158,10 +174,7 @@ pub fn build_router(db: DbPool, mode: Mode) -> Router {
 
     let observability = ServiceBuilder::new()
         .set_x_request_id(MakeRequestUuid)
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().include_headers(true)),
-        )
+        .layer(TraceLayer::new_for_http().make_span_with(make_request_span))
         .propagate_x_request_id();
 
     router
