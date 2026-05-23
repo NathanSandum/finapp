@@ -55,7 +55,10 @@ where
 impl SessionStore for DbSessionStore {
     async fn create(&self, record: &mut Record) -> session_store::Result<()> {
         use diesel::result::{DatabaseErrorKind, Error};
-        loop {
+        // 128-bit random ids make a collision a 2^-128 event; capping the loop
+        // at 3 just bounds any latent bug that could otherwise spin forever.
+        const MAX_ATTEMPTS: u32 = 3;
+        for _ in 0..MAX_ATTEMPTS {
             let row = SessionRow {
                 id: record.id.to_string(),
                 data: encode_record(record)?,
@@ -75,9 +78,11 @@ impl SessionStore for DbSessionStore {
             if inserted {
                 return Ok(());
             }
-            // ID collision (vanishingly rare): assign a fresh random id and retry.
             record.id = Id::default();
         }
+        Err(session_store::Error::Backend(format!(
+            "session id collision persisted across {MAX_ATTEMPTS} attempts"
+        )))
     }
 
     async fn save(&self, record: &Record) -> session_store::Result<()> {
