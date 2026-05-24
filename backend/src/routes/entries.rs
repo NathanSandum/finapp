@@ -66,12 +66,13 @@ pub async fn list(
         .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let entries = member.workspace.entries(&mut conn)?;
+    let grouped = Entry::postings_for(&entries, &mut conn)?;
 
-    let mut items = Vec::with_capacity(entries.len());
-    for entry in &entries {
-        let postings = entry.postings(&mut conn)?;
-        items.push(entry_to_json(entry, &postings));
-    }
+    let items: Vec<Value> = entries
+        .iter()
+        .zip(grouped.iter())
+        .map(|(entry, postings)| entry_to_json(entry, postings))
+        .collect();
 
     Ok(JSend::success(json!({ "entries": items })))
 }

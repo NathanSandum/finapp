@@ -178,7 +178,7 @@ pub async fn balance(
     })))
 }
 
-fn account_to_json(account: &Account) -> Value {
+pub(crate) fn account_to_json(account: &Account) -> Value {
     json!({
         "id": account.id,
         "parent_id": account.parent_id,

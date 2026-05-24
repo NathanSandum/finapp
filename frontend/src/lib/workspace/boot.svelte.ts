@@ -1,8 +1,6 @@
-import { cache } from '$lib/api/cache.svelte';
-import { invalidateAll as invalidateData } from '$lib/data';
+import { bootstrap, invalidateAll as invalidateData } from '$lib/data';
 import { workspaceState } from './state.svelte';
 import { listWorkspaces, type Workspace } from './api';
-import { load as loadOverview } from '$lib/views/overview/loader';
 import { createRecurringRun } from '$lib/views/recurring/api';
 import { latestActivityPeriod } from '$lib/views/period';
 import { periodState } from '$lib/views/period-state.svelte';
@@ -40,10 +38,12 @@ export async function bootWorkspace(): Promise<JSend<{ workspace: Workspace }>> 
 		invalidateData();
 	}
 
-	const overviewResult = await cache.load('overview', loadOverview);
-	if (overviewResult.status !== 'success') return overviewResult;
+	// One bundle fetch hydrates entries + accounts + anchors + recurring. Tab
+	// loaders mounting next will see cached data and not hit the network.
+	const bootstrapResult = await bootstrap();
+	if (bootstrapResult.status !== 'success') return bootstrapResult;
 
-	const period = latestActivityPeriod(overviewResult.data.entries);
+	const period = latestActivityPeriod(bootstrapResult.data.entries);
 	periodState.init(period.year, period.month);
 	state.ready = true;
 
