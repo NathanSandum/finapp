@@ -30,5 +30,9 @@ export const anchors = {
 	invalidate() {
 		state.data = null;
 		state.inFlight = null;
+	},
+	hydrate(value: Anchors) {
+		state.data = value;
+		state.inFlight = null;
 	}
 };

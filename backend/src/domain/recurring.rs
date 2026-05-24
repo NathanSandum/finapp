@@ -11,7 +11,7 @@ use crate::schema::{recurring_posting_templates, recurring_rules};
 
 // ── Refs ────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
 #[serde(transparent)]
 pub struct RecurringRuleRef(String);
 
@@ -21,7 +21,7 @@ impl std::fmt::Display for RecurringRuleRef {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
 #[serde(transparent)]
 pub struct RecurringPostingTemplateRef(String);
 
@@ -162,8 +162,9 @@ impl PostingTemplates {
 
 // ── RecurringRule ───────────────────────────────────────────────────────────
 
-#[derive(Debug, serde::Serialize, Queryable, Selectable)]
+#[derive(Debug, serde::Serialize, Queryable, Selectable, Identifiable)]
 #[diesel(table_name = recurring_rules)]
+#[diesel(primary_key(id))]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct RecurringRule {
     pub id: RecurringRuleRef,
@@ -201,6 +202,19 @@ impl RecurringRule {
             .select(RecurringPostingTemplate::as_select())
             .load(conn)
             .map_err(|err| AppError::Internal(format!("templates query failed: {err}")))
+    }
+
+    /// Batched companion to `templates`: one query for many rules, returned in
+    /// the same order as the input slice so callers can `zip` directly.
+    pub fn templates_for(
+        rules: &[RecurringRule],
+        conn: &mut SqliteConnection,
+    ) -> Result<Vec<Vec<RecurringPostingTemplate>>, AppError> {
+        let loaded = RecurringPostingTemplate::belonging_to(rules)
+            .select(RecurringPostingTemplate::as_select())
+            .load(conn)
+            .map_err(|err| AppError::Internal(format!("batch templates query failed: {err}")))?;
+        Ok(loaded.grouped_by(rules))
     }
 
     pub fn soft_delete(&self, conn: &mut SqliteConnection) -> Result<(), AppError> {
@@ -317,8 +331,10 @@ impl RecurringRule {
 
 // ── RecurringPostingTemplate ────────────────────────────────────────────────
 
-#[derive(Debug, serde::Serialize, Queryable, Selectable)]
+#[derive(Debug, serde::Serialize, Queryable, Selectable, Identifiable, Associations)]
 #[diesel(table_name = recurring_posting_templates)]
+#[diesel(primary_key(id))]
+#[diesel(belongs_to(RecurringRule, foreign_key = rule_id))]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct RecurringPostingTemplate {
     pub id: RecurringPostingTemplateRef,

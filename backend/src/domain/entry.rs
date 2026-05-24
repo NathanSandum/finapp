@@ -12,7 +12,7 @@ use crate::schema::{entries, postings};
 
 // ── EntryRef ────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
 #[serde(transparent)]
 pub struct EntryRef(String);
 
@@ -24,7 +24,7 @@ impl std::fmt::Display for EntryRef {
 
 // ── PostingRef ──────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize, DieselNewType)]
 #[serde(transparent)]
 pub struct PostingRef(String);
 
@@ -36,8 +36,9 @@ impl std::fmt::Display for PostingRef {
 
 // ── Entry ───────────────────────────────────────────────────────────────────
 
-#[derive(Debug, serde::Serialize, Queryable, Selectable)]
+#[derive(Debug, serde::Serialize, Queryable, Selectable, Identifiable)]
 #[diesel(table_name = entries)]
+#[diesel(primary_key(id))]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Entry {
     pub id: EntryRef,
@@ -75,6 +76,19 @@ impl Entry {
             .select(Posting::as_select())
             .load(conn)
             .map_err(|err| AppError::Internal(format!("postings query failed: {err}")))
+    }
+
+    /// Batched companion to `postings`: one query for many entries, returned
+    /// in the same order as the input slice so callers can `zip` directly.
+    pub fn postings_for(
+        entries: &[Entry],
+        conn: &mut SqliteConnection,
+    ) -> Result<Vec<Vec<Posting>>, AppError> {
+        let loaded = Posting::belonging_to(entries)
+            .select(Posting::as_select())
+            .load(conn)
+            .map_err(|err| AppError::Internal(format!("batch postings query failed: {err}")))?;
+        Ok(loaded.grouped_by(entries))
     }
 
     pub fn update(
@@ -264,8 +278,10 @@ impl WorkspaceRef {
 
 // ── Posting ─────────────────────────────────────────────────────────────────
 
-#[derive(Debug, serde::Serialize, Queryable, Selectable)]
+#[derive(Debug, serde::Serialize, Queryable, Selectable, Identifiable, Associations)]
 #[diesel(table_name = postings)]
+#[diesel(primary_key(id))]
+#[diesel(belongs_to(Entry, foreign_key = entry_id))]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Posting {
     pub id: PostingRef,

@@ -32,6 +32,10 @@ export const entries = {
 	invalidate() {
 		state.data = null;
 		state.inFlight = null;
+	},
+	hydrate(value: Entry[]) {
+		state.data = value;
+		state.inFlight = null;
 	}
 };
 

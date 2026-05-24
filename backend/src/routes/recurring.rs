@@ -85,11 +85,32 @@ pub struct RecurringRuleResponse {
 }
 
 impl RecurringRuleResponse {
-    fn build(
+    pub(crate) fn build(
         rule: RecurringRule,
         conn: &mut diesel::SqliteConnection,
     ) -> Result<Self, AppError> {
         let templates = rule.templates(conn)?;
+        Self::assemble(rule, templates)
+    }
+
+    /// Batched companion to `build`: takes a parallel slice of pre-fetched
+    /// templates (one Vec per rule, same order) and assembles responses without
+    /// issuing further queries.
+    pub(crate) fn build_batch(
+        rules: Vec<RecurringRule>,
+        templates_by_rule: Vec<Vec<RecurringPostingTemplate>>,
+    ) -> Result<Vec<Self>, AppError> {
+        rules
+            .into_iter()
+            .zip(templates_by_rule.into_iter())
+            .map(|(rule, templates)| Self::assemble(rule, templates))
+            .collect()
+    }
+
+    fn assemble(
+        rule: RecurringRule,
+        templates: Vec<RecurringPostingTemplate>,
+    ) -> Result<Self, AppError> {
         let next_pending = rule.next_pending()?;
         let schedule = SchedulePreset::from_rrule(&rule.rrule);
         Ok(RecurringRuleResponse {
@@ -146,10 +167,8 @@ pub async fn list(
         .map_err(|err| AppError::Internal(format!("db: {err}")))?;
 
     let rules = member.workspace.recurring_rules(&mut conn)?;
-    let mut payload = Vec::with_capacity(rules.len());
-    for rule in rules {
-        payload.push(RecurringRuleResponse::build(rule, &mut conn)?);
-    }
+    let templates_by_rule = RecurringRule::templates_for(&rules, &mut conn)?;
+    let payload = RecurringRuleResponse::build_batch(rules, templates_by_rule)?;
 
     Ok(JSend::success(json!({ "recurring_rules": payload })))
 }

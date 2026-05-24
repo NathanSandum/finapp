@@ -59,5 +59,9 @@ export const recurring = {
 	invalidate() {
 		state.data = null;
 		state.inFlight = null;
+	},
+	hydrate(value: RecurringRule[]) {
+		state.data = value;
+		state.inFlight = null;
 	}
 };

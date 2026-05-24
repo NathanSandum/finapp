@@ -32,5 +32,9 @@ export const accounts = {
 	invalidate() {
 		state.data = null;
 		state.inFlight = null;
+	},
+	hydrate(value: Account[]) {
+		state.data = value;
+		state.inFlight = null;
 	}
 };
