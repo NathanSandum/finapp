@@ -1,11 +1,10 @@
 <script lang="ts">
-	import { cache } from '$lib/api/cache.svelte';
-	import { invalidateAll as invalidateData } from '$lib/data';
-	import { deleteAccount, renameAccount } from './api';
-	import { load as loadAccounts } from './loader';
+	import { fly } from 'svelte/transition';
+	import { accounts } from '$lib/data';
 	import { ROLE_BADGE, type AccountNode } from './tree';
 	import NameEditor from './NameEditor.svelte';
 	import ChildRowDisplay from './ChildRowDisplay.svelte';
+	import { DURATION } from '$lib/utils/motion';
 
 	let {
 		node,
@@ -23,6 +22,7 @@
 	const badge = $derived(account.role ? ROLE_BADGE[account.role] : undefined);
 
 	let editing = $state(false);
+	let confirming = $state(false);
 	let busy = $state(false);
 	let error = $state<string | null>(null);
 
@@ -34,11 +34,9 @@
 		}
 		busy = true;
 		error = null;
-		const result = await renameAccount(account.id, trimmed);
+		const result = await accounts.rename(account.id, trimmed);
 		busy = false;
 		if (result.status === 'success') {
-			invalidateData();
-			await cache.refresh('accounts', loadAccounts);
 			editing = false;
 		} else {
 			error =
@@ -50,24 +48,21 @@
 
 	async function commitDelete() {
 		if (!canDelete) return;
-		if (!confirm(`Delete "${account.name}"?`)) return;
 		busy = true;
 		error = null;
-		const result = await deleteAccount(account.id);
+		const result = await accounts.remove(account.id);
 		busy = false;
-		if (result.status === 'success') {
-			invalidateData();
-			await cache.refresh('accounts', loadAccounts);
-		} else {
+		if (result.status !== 'success') {
 			error =
 				result.status === 'fail'
 					? String(Object.values(result.data)[0] ?? 'delete failed')
 					: result.message;
 		}
+		confirming = false;
 	}
 </script>
 
-<div class="group flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface-hover-faint">
+<div class="group flex items-center gap-2 px-3 py-2 text-[13px] transition-colors hover:bg-surface-hover-faint">
 	{#if editing}
 		<NameEditor
 			initial={account.name}
@@ -75,6 +70,24 @@
 			onCommit={commitRename}
 			onCancel={() => (editing = false)}
 		/>
+	{:else if confirming}
+		<span class="flex-1 text-[11px] text-ink-muted">Delete "{account.name}"?</span>
+		<button
+			type="button"
+			onclick={() => (confirming = false)}
+			disabled={busy}
+			class="border border-border bg-surface-card px-1.5 py-0.5 text-[10px] uppercase tracking-[0.06em] text-ink-body hover:border-ink-faint disabled:opacity-50"
+		>
+			cancel
+		</button>
+		<button
+			type="button"
+			onclick={commitDelete}
+			disabled={busy}
+			class="border border-negative-border bg-negative-tint px-1.5 py-0.5 text-[10px] uppercase tracking-[0.06em] text-negative-strong hover:border-negative-strong disabled:opacity-50"
+		>
+			{busy ? '…' : 'confirm'}
+		</button>
 	{:else}
 		<ChildRowDisplay
 			{node}
@@ -84,11 +97,16 @@
 			{busy}
 			{onSelect}
 			onStartEdit={() => (editing = true)}
-			onDelete={commitDelete}
+			onDelete={() => (confirming = true)}
 		/>
 	{/if}
 </div>
 
 {#if error}
-	<p class="px-3 pb-1 text-[11px] text-negative">{error}</p>
+	<p
+		in:fly={{ y: -3, duration: DURATION.fast }}
+		class="px-3 pb-1 text-[11px] text-negative"
+	>
+		{error}
+	</p>
 {/if}

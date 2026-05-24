@@ -1,3 +1,5 @@
+import type { SchedulePresetId } from '$lib/views/recurring/schedules';
+
 export type Posting = {
 	id: string;
 	account_id: string;
@@ -38,4 +40,26 @@ export type Anchors = {
 	expenses: Account;
 	cash: Account;
 	opening_equity: Account;
+};
+
+export type RecurringTemplate = {
+	id: string;
+	rule: string;
+	account: string;
+	amount: number;
+	note: string;
+};
+
+export type RecurringRule = {
+	id: string;
+	workspace: string;
+	description: string;
+	schedule: SchedulePresetId | null;
+	dtstart: string;
+	last_fired_on: string | null;
+	deleted_at: string | null;
+	created_at: string;
+	updated_at: string;
+	templates: RecurringTemplate[];
+	next_pending: string | null;
 };

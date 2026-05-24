@@ -1,16 +1,18 @@
 <script lang="ts">
-	import { invalidateAll as invalidateData } from '$lib/data';
+	import { fly } from 'svelte/transition';
+	import { expoOut } from 'svelte/easing';
+	import { recurring } from '$lib/data';
 	import type { Account, Anchors } from '$lib/data';
 	import { VERBS, verbConfig, buildVerbPostings, type VerbId } from '$lib/views/entries/verbs';
 	import { today } from '$lib/views/today';
 	import SolidButton from '$lib/components/SolidButton.svelte';
+	import BorderButton from '$lib/components/BorderButton.svelte';
 	import { type SchedulePresetId } from './schedules';
-	import { createRecurring } from './api';
 	import { BANNER } from './field-classes';
-	import VerbButton from './VerbButton.svelte';
 	import ScheduleFields from './ScheduleFields.svelte';
 	import AmountCounterpartyFields from './AmountCounterpartyFields.svelte';
 	import TextFieldRow from './TextFieldRow.svelte';
+	import { DURATION } from '$lib/utils/motion';
 
 	let {
 		accounts,
@@ -87,7 +89,7 @@
 
 		submitting = true;
 		try {
-			const result = await createRecurring({
+			const result = await recurring.create({
 				description: description.trim() || defaultDescription,
 				schedule: presetId,
 				dtstart,
@@ -95,7 +97,6 @@
 			});
 
 			if (result.status === 'success') {
-				invalidateData();
 				onCreated?.();
 				onClose();
 			} else if (result.status === 'fail') {
@@ -109,12 +110,29 @@
 	}
 </script>
 
-<form onsubmit={submit} class="flex flex-col gap-4 text-sm">
-	<div class="flex flex-wrap gap-1 border border-border bg-surface-sunken p-1">
-		{#each VERBS as v (v.id)}
-			<VerbButton {v} active={v.id === verb} onclick={() => (verb = v.id)} />
+<form onsubmit={submit} class="flex flex-col gap-5 text-sm">
+	<div class="relative grid grid-cols-6 gap-1 border border-border bg-surface-sunken p-1">
+		{#each VERBS as v, i (v.id)}
+			{@const active = v.id === verb}
+			<button
+				type="button"
+				onclick={() => (verb = v.id)}
+				in:fly={{ y: 4, duration: DURATION.fast, delay: i * 20, easing: expoOut }}
+				class="relative z-10 px-2 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] transition-colors duration-200 {active
+					? 'text-ink'
+					: 'text-ink-muted hover:text-ink-body'}"
+			>
+				{#if active}
+					<span
+						in:fly={{ duration: DURATION.base, easing: expoOut }}
+						class="absolute inset-0 -z-10 bg-surface-card shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
+					></span>
+				{/if}
+				{v.label}
+			</button>
 		{/each}
 	</div>
+
 	<ScheduleFields bind:presetId bind:dtstart />
 	<AmountCounterpartyFields
 		bind:amountText
@@ -124,23 +142,24 @@
 		amountError={fieldErrors.amount}
 		counterpartyError={fieldErrors.counterparty}
 	/>
-	<TextFieldRow label="Description (optional)" bind:value={description} placeholder={defaultDescription} />
-	<TextFieldRow label="Note (optional)" bind:value={note} />
+	<TextFieldRow
+		label="Description"
+		bind:value={description}
+		placeholder={defaultDescription}
+	/>
+	<TextFieldRow label="Note" bind:value={note} />
 
-	{#if fieldErrors.templates}<p class={BANNER}>{fieldErrors.templates}</p>{/if}
-	{#if errorMessage}<p class={BANNER}>{errorMessage}</p>{/if}
+	{#if fieldErrors.templates}
+		<p in:fly={{ y: -3, duration: DURATION.base }} class={BANNER}>{fieldErrors.templates}</p>
+	{/if}
+	{#if errorMessage}
+		<p in:fly={{ y: -3, duration: DURATION.base }} class={BANNER}>{errorMessage}</p>
+	{/if}
 
-	<div class="flex gap-2 pt-2">
+	<div class="flex gap-2 pt-1">
 		<SolidButton type="submit" disabled={submitting}>
 			{submitting ? 'Saving…' : 'Save rule'}
 		</SolidButton>
-		<button
-			type="button"
-			onclick={onClose}
-			disabled={submitting}
-			class="border border-border bg-surface-card px-4 py-2 text-sm text-ink-body hover:bg-surface-hover-faint disabled:opacity-50"
-		>
-			Cancel
-		</button>
+		<BorderButton onclick={onClose} disabled={submitting}>cancel</BorderButton>
 	</div>
 </form>

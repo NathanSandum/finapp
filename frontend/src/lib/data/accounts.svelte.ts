@@ -1,40 +1,58 @@
-import { apiFetch } from '$lib/api/client';
-import { workspaceState } from '$lib/workspace/state.svelte';
 import type { JSend } from '$lib/tabs/types';
 import type { Account } from './types';
+import * as backend from '$lib/acl/accounts';
+import { invalidateDependentTabs } from './invalidate';
 
-const state = $state<{ data: Account[] | null; inFlight: Promise<JSend<Account[]>> | null }>({
-	data: null,
+const state = $state<{ list: Account[] | null; inFlight: Promise<JSend<Account[]>> | null }>({
+	list: null,
 	inFlight: null
 });
 
-async function fetchAccounts(workspaceId: string): Promise<JSend<Account[]>> {
-	const result = await apiFetch<{ accounts: Account[] }>(`/workspaces/${workspaceId}/accounts`);
-	if (result.status !== 'success') return result;
-	return { status: 'success', data: result.data.accounts };
-}
-
 export const accounts = {
 	get value(): Account[] | null {
-		return state.data;
+		return state.list;
 	},
 	async load(): Promise<JSend<Account[]>> {
-		if (state.data !== null) return { status: 'success', data: state.data };
+		if (state.list !== null) return { status: 'success', data: state.list };
 		if (state.inFlight) return state.inFlight;
-		const promise = fetchAccounts(workspaceState.id()).then((result) => {
-			if (result.status === 'success') state.data = result.data;
+		const promise = backend.fetchAll().then((result) => {
+			if (result.status === 'success') state.list = result.data;
 			state.inFlight = null;
 			return result;
 		});
 		state.inFlight = promise;
 		return promise;
 	},
-	invalidate() {
-		state.data = null;
+	hydrate(list: Account[]) {
+		state.list = list;
 		state.inFlight = null;
 	},
-	hydrate(value: Account[]) {
-		state.data = value;
+	clear() {
+		state.list = null;
 		state.inFlight = null;
+	},
+	async create(input: backend.CreateInput): Promise<JSend<Account>> {
+		const result = await backend.create(input);
+		if (result.status === 'success') {
+			state.list = [...(state.list ?? []), result.data];
+			invalidateDependentTabs();
+		}
+		return result;
+	},
+	async rename(id: string, name: string): Promise<JSend<Account>> {
+		const result = await backend.rename(id, name);
+		if (result.status === 'success' && state.list !== null) {
+			state.list = state.list.map((a) => (a.id === id ? result.data : a));
+			invalidateDependentTabs();
+		}
+		return result;
+	},
+	async remove(id: string): Promise<JSend<null>> {
+		const result = await backend.remove(id);
+		if (result.status === 'success' && state.list !== null) {
+			state.list = state.list.filter((a) => a.id !== id);
+			invalidateDependentTabs();
+		}
+		return result;
 	}
 };

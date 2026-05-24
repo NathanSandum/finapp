@@ -1,20 +1,24 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
+	import { accounts, anchors } from '$lib/data';
 	import { buildSubtree, pathTo, ROOT_ORDER } from './tree';
-	import type { AccountsData } from './loader';
 	import AccountsSidebar from './AccountsSidebar.svelte';
 	import AccountDetail from './AccountDetail.svelte';
 	import { accountsSelection } from './selection.svelte';
-	import { onDestroy } from 'svelte';
-
-	let { data }: { data: AccountsData } = $props();
+	import { panelEnter } from '$lib/utils/motion';
 
 	let selectedId = $state<string | null>(null);
 
+	const accountList = $derived(accounts.value ?? []);
+	const anchorData = $derived(anchors.value);
+
 	const subtrees = $derived(
-		ROOT_ORDER.map((key) => ({
-			key,
-			tree: buildSubtree(data.anchors[key].id, data.accounts)
-		}))
+		anchorData
+			? ROOT_ORDER.map((key) => ({
+					key,
+					tree: buildSubtree(anchorData[key].id, accountList)
+				}))
+			: []
 	);
 
 	const selectedTrail = $derived(selectedId ? pathTo(subtrees, selectedId) : null);
@@ -33,23 +37,39 @@
 	}
 </script>
 
-<div class="grid h-full grid-cols-[320px_1fr] border border-border bg-surface-card">
-	<AccountsSidebar {subtrees} {selectedId} onSelect={select} />
+<div class="flex h-full flex-col gap-3">
+	<header class="flex items-baseline justify-between px-1">
+		<div class="flex items-baseline gap-3">
+			<h2 class="font-display text-xl font-semibold tracking-tight text-ink">Accounts</h2>
+			<span class="font-ui text-[11px] uppercase tracking-[0.1em] text-ink-muted">
+				{accountList.length} total
+			</span>
+		</div>
+	</header>
 
-	{#if selected && selectedTrail}
-		<AccountDetail
-			{selected}
-			trail={selectedTrail}
-			entries={data.entries}
-			accounts={data.accounts}
-			anchors={data.anchors}
-			recurringRules={data.recurringRules}
-			onSelect={select}
-			onAfterDelete={(nextId) => (selectedId = nextId)}
-		/>
-	{:else}
-		<section class="h-full overflow-y-auto p-6">
-			<p class="text-sm text-ink-muted">Select an account on the left.</p>
+	<div
+		class="grid min-h-0 flex-1 grid-cols-[340px_1fr] overflow-hidden border border-border bg-surface-card shadow-[0_1px_0_rgba(0,0,0,0.02)]"
+	>
+		<AccountsSidebar {subtrees} {selectedId} onSelect={select} />
+
+		<section class="relative overflow-y-auto">
+			{#if selected && selectedTrail && anchorData}
+				{#key selected.account.id}
+					<div in:panelEnter class="h-full">
+						<AccountDetail
+							{selected}
+							trail={selectedTrail}
+							anchors={anchorData}
+							onSelect={select}
+							onAfterDelete={(nextId) => (selectedId = nextId)}
+						/>
+					</div>
+				{/key}
+			{:else}
+				<div class="flex h-full items-center justify-center text-[12px] text-ink-muted">
+					Select an account on the left.
+				</div>
+			{/if}
 		</section>
-	{/if}
+	</div>
 </div>

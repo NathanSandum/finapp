@@ -1,9 +1,13 @@
 <script lang="ts">
-	import { invalidateAll as invalidateData, type Account, type Anchors } from '$lib/data';
-	import { createEntry } from './api';
+	import { fly } from 'svelte/transition';
+	import { expoOut } from 'svelte/easing';
+	import { entries } from '$lib/data';
+	import type { Account, Anchors } from '$lib/data';
 	import { VERBS, verbConfig, buildVerbPostings, type VerbId } from './verbs';
 	import { today } from '../today';
 	import SolidButton from '$lib/components/SolidButton.svelte';
+	import BorderButton from '$lib/components/BorderButton.svelte';
+	import { DURATION } from '$lib/utils/motion';
 
 	let {
 		accounts,
@@ -18,7 +22,7 @@
 		initialVerb?: VerbId;
 		initialCounterpartyId?: string;
 		onClose: () => void;
-		onCreated?: () => void;
+		onCreated?: (id: string) => void;
 	} = $props();
 
 	const chequing = $derived(anchors.cash);
@@ -85,7 +89,7 @@
 
 		submitting = true;
 		try {
-			const result = await createEntry({
+			const result = await entries.create({
 				date,
 				description: description.trim() || defaultDescription,
 				postings,
@@ -93,8 +97,7 @@
 			});
 
 			if (result.status === 'success') {
-				invalidateData();
-				onCreated?.();
+				onCreated?.(result.data.id);
 				onClose();
 			} else if (result.status === 'fail') {
 				fieldErrors = result.data ?? {};
@@ -107,17 +110,26 @@
 	}
 </script>
 
-<form onsubmit={submit} class="flex flex-col gap-4 text-sm">
-	<div class="flex flex-wrap gap-1 border border-border bg-surface-sunken p-1">
-		{#each VERBS as v (v.id)}
+<form onsubmit={submit} class="flex flex-col gap-5 text-sm">
+	<div
+		class="relative grid grid-cols-6 gap-1 border border-border bg-surface-sunken p-1"
+	>
+		{#each VERBS as v, i (v.id)}
 			{@const active = v.id === verb}
 			<button
 				type="button"
 				onclick={() => (verb = v.id)}
-				class="flex-1 px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] transition-colors {active
-					? 'bg-surface-card text-ink shadow-sm'
+				in:fly={{ y: 4, duration: DURATION.fast, delay: i * 20, easing: expoOut }}
+				class="relative z-10 px-2 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] transition-colors duration-200 {active
+					? 'text-ink'
 					: 'text-ink-muted hover:text-ink-body'}"
 			>
+				{#if active}
+					<span
+						in:fly={{ duration: DURATION.base, easing: expoOut }}
+						class="absolute inset-0 -z-10 bg-surface-card shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
+					></span>
+				{/if}
 				{v.label}
 			</button>
 		{/each}
@@ -125,37 +137,39 @@
 
 	<div class="grid grid-cols-[auto_1fr] gap-3">
 		<label class="flex flex-col gap-1">
-			<span class="text-xs uppercase tracking-wide text-ink-muted">Date</span>
+			<span class="font-ui text-[10px] uppercase tracking-[0.1em] text-ink-muted">Date</span>
 			<input
 				type="date"
 				bind:value={date}
-				class="border border-border bg-surface-card px-2 py-1.5 font-mono"
+				class="border border-border bg-surface-card px-2 py-1.5 font-mono text-[13px] focus:border-brand focus:outline-none"
 				required
 			/>
 		</label>
 		<label class="flex flex-col gap-1">
-			<span class="text-xs uppercase tracking-wide text-ink-muted">Amount</span>
+			<span class="font-ui text-[10px] uppercase tracking-[0.1em] text-ink-muted">Amount</span>
 			<input
 				type="text"
 				inputmode="decimal"
 				placeholder="0.00"
 				bind:value={amountText}
-				class="border border-border bg-surface-card px-2 py-1.5 font-mono tabular-nums"
+				class="border border-border bg-surface-card px-2 py-1.5 font-mono text-[13px] tabular-nums focus:border-brand focus:outline-none"
 				required
 			/>
 			{#if fieldErrors.amount}
-				<span class="text-xs text-negative">{fieldErrors.amount}</span>
+				<span in:fly={{ y: -3, duration: DURATION.fast }} class="text-[11px] text-negative">
+					{fieldErrors.amount}
+				</span>
 			{/if}
 		</label>
 	</div>
 
 	<label class="flex flex-col gap-1">
-		<span class="text-xs uppercase tracking-wide text-ink-muted">
+		<span class="font-ui text-[10px] uppercase tracking-[0.1em] text-ink-muted">
 			{config.label}{config.counterpartyPreposition ? ` ${config.counterpartyPreposition}` : ''}
 		</span>
 		<select
 			bind:value={counterpartyId}
-			class="border border-border bg-surface-card px-2 py-1.5"
+			class="border border-border bg-surface-card px-2 py-1.5 text-[13px] focus:border-brand focus:outline-none"
 			required
 		>
 			<option value="" disabled>select…</option>
@@ -164,49 +178,51 @@
 			{/each}
 		</select>
 		{#if fieldErrors.counterparty}
-			<span class="text-xs text-negative">{fieldErrors.counterparty}</span>
+			<span in:fly={{ y: -3, duration: DURATION.fast }} class="text-[11px] text-negative">
+				{fieldErrors.counterparty}
+			</span>
 		{/if}
 	</label>
 
 	<label class="flex flex-col gap-1">
-		<span class="text-xs uppercase tracking-wide text-ink-muted">Description (optional)</span>
+		<span class="font-ui text-[10px] uppercase tracking-[0.1em] text-ink-muted">
+			Description
+		</span>
 		<input
 			type="text"
 			placeholder={defaultDescription}
 			bind:value={description}
-			class="border border-border bg-surface-card px-2 py-1.5"
+			class="border border-border bg-surface-card px-2 py-1.5 text-[13px] focus:border-brand focus:outline-none"
 		/>
 		{#if fieldErrors.description}
-			<span class="text-xs text-negative">{fieldErrors.description}</span>
+			<span in:fly={{ y: -3, duration: DURATION.fast }} class="text-[11px] text-negative">
+				{fieldErrors.description}
+			</span>
 		{/if}
 	</label>
 
 	<label class="flex flex-col gap-1">
-		<span class="text-xs uppercase tracking-wide text-ink-muted">Note (optional)</span>
+		<span class="font-ui text-[10px] uppercase tracking-[0.1em] text-ink-muted">Note</span>
 		<input
 			type="text"
 			bind:value={note}
-			class="border border-border bg-surface-card px-2 py-1.5"
+			class="border border-border bg-surface-card px-2 py-1.5 text-[13px] focus:border-brand focus:outline-none"
 		/>
 	</label>
 
 	{#if errorMessage}
-		<p class="border border-negative-border bg-negative-tint px-3 py-2 text-xs text-negative-strong">
+		<p
+			in:fly={{ y: -3, duration: DURATION.base }}
+			class="border border-negative-border bg-negative-tint px-3 py-2 text-[11px] text-negative-strong"
+		>
 			{errorMessage}
 		</p>
 	{/if}
 
-	<div class="flex gap-2 pt-2">
+	<div class="flex gap-2 pt-1">
 		<SolidButton type="submit" disabled={submitting}>
 			{submitting ? 'Saving…' : 'Save entry'}
 		</SolidButton>
-		<button
-			type="button"
-			onclick={onClose}
-			disabled={submitting}
-			class="border border-border bg-surface-card px-4 py-2 text-sm text-ink-body hover:bg-surface-hover-faint disabled:opacity-50"
-		>
-			Cancel
-		</button>
+		<BorderButton onclick={onClose} disabled={submitting}>cancel</BorderButton>
 	</div>
 </form>

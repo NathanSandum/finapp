@@ -1,67 +1,58 @@
-import { apiFetch } from '$lib/api/client';
-import { workspaceState } from '$lib/workspace/state.svelte';
 import type { JSend } from '$lib/tabs/types';
-import type { SchedulePresetId } from '$lib/views/recurring/schedules';
-
-export type RecurringTemplate = {
-	id: string;
-	rule: string;
-	account: string;
-	amount: number;
-	note: string;
-};
-
-export type RecurringRule = {
-	id: string;
-	workspace: string;
-	description: string;
-	schedule: SchedulePresetId | null;
-	dtstart: string;
-	last_fired_on: string | null;
-	deleted_at: string | null;
-	created_at: string;
-	updated_at: string;
-	templates: RecurringTemplate[];
-	next_pending: string | null;
-};
+import type { RecurringRule } from './types';
+import * as backend from '$lib/acl/recurring';
+import { invalidateDependentTabs } from './invalidate';
 
 const state = $state<{
-	data: RecurringRule[] | null;
+	list: RecurringRule[] | null;
 	inFlight: Promise<JSend<RecurringRule[]>> | null;
 }>({
-	data: null,
+	list: null,
 	inFlight: null
 });
 
-async function fetchRecurring(workspaceId: string): Promise<JSend<RecurringRule[]>> {
-	const result = await apiFetch<{ recurring_rules: RecurringRule[] }>(
-		`/workspaces/${workspaceId}/recurring`
-	);
-	if (result.status !== 'success') return result;
-	return { status: 'success', data: result.data.recurring_rules };
-}
-
 export const recurring = {
 	get value(): RecurringRule[] | null {
-		return state.data;
+		return state.list;
 	},
 	async load(): Promise<JSend<RecurringRule[]>> {
-		if (state.data !== null) return { status: 'success', data: state.data };
+		if (state.list !== null) return { status: 'success', data: state.list };
 		if (state.inFlight) return state.inFlight;
-		const promise = fetchRecurring(workspaceState.id()).then((result) => {
-			if (result.status === 'success') state.data = result.data;
+		const promise = backend.fetchAll().then((result) => {
+			if (result.status === 'success') state.list = result.data;
 			state.inFlight = null;
 			return result;
 		});
 		state.inFlight = promise;
 		return promise;
 	},
-	invalidate() {
-		state.data = null;
+	hydrate(list: RecurringRule[]) {
+		state.list = list;
 		state.inFlight = null;
 	},
-	hydrate(value: RecurringRule[]) {
-		state.data = value;
+	clear() {
+		state.list = null;
 		state.inFlight = null;
+	},
+	async create(input: backend.CreateInput): Promise<JSend<RecurringRule>> {
+		const result = await backend.create(input);
+		if (result.status === 'success') {
+			state.list = [...(state.list ?? []), result.data];
+		}
+		return result;
+	},
+	async remove(id: string): Promise<JSend<null>> {
+		const result = await backend.remove(id);
+		if (result.status === 'success' && state.list !== null) {
+			state.list = state.list.filter((r) => r.id !== id);
+		}
+		return result;
+	},
+	async runScheduled(): Promise<JSend<backend.RunResult>> {
+		const result = await backend.runScheduled();
+		if (result.status === 'success' && result.data.posted > 0) {
+			invalidateDependentTabs();
+		}
+		return result;
 	}
 };
