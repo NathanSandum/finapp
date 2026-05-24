@@ -31,10 +31,13 @@
 	);
 </script>
 
-<div class="overview-root flex h-full flex-col gap-3 overflow-hidden" class:entered>
-	<section class="grid grid-cols-2 gap-12">
-		<div class="entrance-item" style="--d: 90ms">
-			<p class="text-[10px] font-medium uppercase tracking-[0.1em] text-ink-muted">Net Worth</p>
+<div
+	class="overview-root glass flex h-full flex-col gap-8 overflow-hidden rounded-2xl p-8"
+	class:entered
+>
+	<section class="grid grid-cols-2 gap-6">
+		<div class="glass-faint entrance-item rounded-xl px-6 py-5" style="--d: 90ms">
+			<p class="text-[10px] font-medium uppercase tracking-[0.12em] text-ink-muted">Net Worth</p>
 			<p class="mt-2 font-mono text-5xl font-semibold tabular-nums text-ink">
 				<Num text={fmt(metrics.netWorth)} />
 			</p>
@@ -42,8 +45,10 @@
 				{pct(metrics.netWorth, metrics.priorNetWorth)} vs prior
 			</p>
 		</div>
-		<div class="entrance-item" style="--d: 170ms">
-			<p class="text-[10px] font-medium uppercase tracking-[0.1em] text-ink-muted">Income · 12 mo</p>
+		<div class="glass-faint entrance-item rounded-xl px-6 py-5" style="--d: 170ms">
+			<p class="text-[10px] font-medium uppercase tracking-[0.12em] text-ink-muted">
+				Income · 12 mo
+			</p>
 			<p class="mt-2 font-mono text-5xl font-semibold tabular-nums text-ink">
 				<Num text={fmt(metrics.income12mo)} />
 			</p>

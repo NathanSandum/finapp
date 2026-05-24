@@ -1,38 +1,33 @@
-import { apiFetch } from '$lib/api/client';
-import { workspaceState } from '$lib/workspace/state.svelte';
 import type { JSend } from '$lib/tabs/types';
 import type { Anchors } from './types';
+import * as backend from '$lib/acl/anchors';
 
-const state = $state<{ data: Anchors | null; inFlight: Promise<JSend<Anchors>> | null }>({
-	data: null,
+const state = $state<{ value: Anchors | null; inFlight: Promise<JSend<Anchors>> | null }>({
+	value: null,
 	inFlight: null
 });
 
-function fetchAnchors(workspaceId: string): Promise<JSend<Anchors>> {
-	return apiFetch<Anchors>(`/workspaces/${workspaceId}/anchors`);
-}
-
 export const anchors = {
 	get value(): Anchors | null {
-		return state.data;
+		return state.value;
 	},
 	async load(): Promise<JSend<Anchors>> {
-		if (state.data !== null) return { status: 'success', data: state.data };
+		if (state.value !== null) return { status: 'success', data: state.value };
 		if (state.inFlight) return state.inFlight;
-		const promise = fetchAnchors(workspaceState.id()).then((result) => {
-			if (result.status === 'success') state.data = result.data;
+		const promise = backend.fetchAll().then((result) => {
+			if (result.status === 'success') state.value = result.data;
 			state.inFlight = null;
 			return result;
 		});
 		state.inFlight = promise;
 		return promise;
 	},
-	invalidate() {
-		state.data = null;
+	hydrate(value: Anchors) {
+		state.value = value;
 		state.inFlight = null;
 	},
-	hydrate(value: Anchors) {
-		state.data = value;
+	clear() {
+		state.value = null;
 		state.inFlight = null;
 	}
 };

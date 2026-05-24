@@ -11,7 +11,7 @@
 	<title>FinApp</title>
 </svelte:head>
 
-<div class="grid h-screen w-screen grid-cols-[240px_1fr] bg-surface-card text-ink">
+<div class="ambient grid h-screen w-screen grid-cols-[240px_1fr] bg-surface text-ink">
 	<aside
 		class="flex flex-col bg-surface-inverse p-3 text-ink-inverse-body select-none"
 		style:font-family="var(--font-ui)"

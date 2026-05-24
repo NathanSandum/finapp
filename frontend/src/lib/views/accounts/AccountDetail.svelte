@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { cache } from '$lib/api/cache.svelte';
-	import { invalidateAll as invalidateData } from '$lib/data';
-	import { createAccount, deleteAccount } from './api';
-	import { load as loadAccounts } from './loader';
+	import { fly, slide } from 'svelte/transition';
+	import { expoOut } from 'svelte/easing';
+	import { accounts, entries, recurring } from '$lib/data';
 	import {
 		ROLE_BADGE,
 		ROOT_ACCENT,
@@ -16,34 +15,32 @@
 	import { fmt } from '$lib/format';
 	import Num from '$lib/components/Num.svelte';
 	import BorderButton from '$lib/components/BorderButton.svelte';
-	import type { Account, Anchors, Entry } from '$lib/data';
-	import type { RecurringRule } from '$lib/data';
+	import type { Anchors } from '$lib/data';
 	import RulesList from '$lib/views/recurring/RulesList.svelte';
 	import RuleForm from '$lib/views/recurring/RuleForm.svelte';
 	import SubAccountsPanel from './SubAccountsPanel.svelte';
 	import RecentEntriesPanel from './RecentEntriesPanel.svelte';
+	import { DURATION } from '$lib/utils/motion';
 
 	const RECENT_LIMIT = 10;
 
 	let {
 		selected,
 		trail,
-		entries,
-		accounts,
 		anchors,
-		recurringRules,
 		onSelect,
 		onAfterDelete
 	}: {
 		selected: AccountNode;
 		trail: AccountTrail;
-		entries: Entry[];
-		accounts: Account[];
 		anchors: Anchors;
-		recurringRules: RecurringRule[];
 		onSelect: (id: string) => void;
 		onAfterDelete: (nextId: string | null) => void;
 	} = $props();
+
+	const accountList = $derived(accounts.value ?? []);
+	const entryList = $derived(entries.value ?? []);
+	const recurringRules = $derived(recurring.value ?? []);
 
 	const badge = $derived(selected.account.role ? ROLE_BADGE[selected.account.role] : undefined);
 	const canDelete = $derived(
@@ -58,19 +55,22 @@
 	const valueLabel = $derived(
 		periodPrefix(periodState.year, periodState.month, periodState.granularity)
 	);
-	const periodValue = $derived(periodValueOf(selected, entries, bounds, displaySign));
-	const recentEntries = $derived(recentEntriesOf(selected, entries, displaySign, RECENT_LIMIT));
+	const periodValue = $derived(periodValueOf(selected, entryList, bounds, displaySign));
+	const recentEntries = $derived(
+		recentEntriesOf(selected, entryList, displaySign, RECENT_LIMIT)
+	);
 
 	let adding = $state(false);
 	let addBusy = $state(false);
 	let addError = $state<string | null>(null);
+	let confirmingDelete = $state(false);
 	let deleteBusy = $state(false);
 	let deleteError = $state<string | null>(null);
 	let addingRule = $state(false);
 
 	const accountNames = $derived.by(() => {
 		const map: Record<string, string> = {};
-		for (const account of accounts) map[account.id] = account.name;
+		for (const account of accountList) map[account.id] = account.name;
 		return map;
 	});
 
@@ -86,19 +86,17 @@
 		addingRule = false;
 		addError = null;
 		deleteError = null;
+		confirmingDelete = false;
 	});
 
 	async function commitDelete() {
 		if (!canDelete) return;
-		if (!confirm(`Delete "${selected.account.name}"?`)) return;
 		deleteBusy = true;
 		deleteError = null;
-		const result = await deleteAccount(selected.account.id);
+		const result = await accounts.remove(selected.account.id);
 		deleteBusy = false;
 		if (result.status === 'success') {
 			const nextId = parentNode?.account.id ?? null;
-			invalidateData();
-			await cache.refresh('accounts', loadAccounts);
 			onAfterDelete(nextId);
 		} else {
 			deleteError =
@@ -106,6 +104,7 @@
 					? String(Object.values(result.data)[0] ?? 'delete failed')
 					: result.message;
 		}
+		confirmingDelete = false;
 	}
 
 	async function commitAdd(name: string) {
@@ -116,15 +115,13 @@
 		}
 		addBusy = true;
 		addError = null;
-		const result = await createAccount({
+		const result = await accounts.create({
 			name: trimmed,
-			parent_id: selected.account.id,
+			parentId: selected.account.id,
 			currency: selected.account.currency
 		});
 		addBusy = false;
 		if (result.status === 'success') {
-			invalidateData();
-			await cache.refresh('accounts', loadAccounts);
 			adding = false;
 		} else {
 			addError =
@@ -135,38 +132,60 @@
 	}
 </script>
 
-<section class="h-full overflow-y-auto p-6">
-	<nav class="mb-2 flex flex-wrap items-center gap-1 font-mono text-[11px] text-ink-muted">
-		<span class={ROOT_ACCENT[trail.key]}>{ROOT_LABEL[trail.key]}</span>
-		{#each trail.nodes.slice(1) as n (n.account.id)}
-			<span>/</span>
-			<span>{n.account.name}</span>
+<div class="flex h-full flex-col gap-5 p-6">
+	<nav class="flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-ink-muted">
+		<span class="{ROOT_ACCENT[trail.key]} font-semibold uppercase tracking-[0.08em]">
+			{ROOT_LABEL[trail.key]}
+		</span>
+		{#each trail.nodes.slice(1, -1) as n (n.account.id)}
+			<span class="opacity-50">/</span>
+			<button
+				type="button"
+				class="hover:text-ink-body"
+				onclick={() => onSelect(n.account.id)}
+			>
+				{n.account.name}
+			</button>
 		{/each}
 	</nav>
-	<header class="mb-6 flex items-baseline justify-between">
+
+	<header class="flex items-baseline justify-between gap-4">
 		<div class="flex items-baseline gap-2">
-			<h3 class="text-lg font-semibold text-ink">{selected.account.name}</h3>
+			<h3 class="font-display text-3xl font-semibold tracking-tight text-ink">
+				{selected.account.name}
+			</h3>
 			{#if badge}
-				<span class="bg-surface-sunken px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em] text-ink-muted">
+				<span
+					class="rounded-full bg-[oklch(75%_0.14_268_/_0.16)] px-2 py-0.5 font-ui text-[10px] font-medium uppercase tracking-[0.1em] text-[oklch(46%_0.18_268)]"
+				>
 					{badge}
 				</span>
 			{/if}
-			{#if canDelete}
-				<BorderButton tone="negative" onclick={commitDelete} disabled={deleteBusy} class="ml-2">
-					delete
-				</BorderButton>
-			{/if}
 		</div>
-		<span class="font-mono text-[11px] text-ink-muted">{selected.children.length} children</span>
+		<span class="font-ui text-[10px] uppercase tracking-[0.1em] text-ink-muted">
+			{selected.children.length}
+			{selected.children.length === 1 ? 'child' : 'children'}
+		</span>
 	</header>
-	<p class="mb-6 flex items-baseline gap-2 text-sm text-ink-muted">
-		<span class="font-mono text-[11px] uppercase tracking-[0.06em]">{valueLabel} Value:</span>
-		<span class="font-mono tabular-nums text-ink {periodValue < 0 ? 'text-negative' : ''}">
+
+	<div class="value-strip glass-faint flex items-baseline gap-4 rounded-xl px-5 py-4">
+		<span class="font-ui text-[10px] uppercase tracking-[0.12em] text-ink-muted">
+			{valueLabel} value
+		</span>
+		<span
+			class="font-mono text-3xl tabular-nums {periodValue < 0 ? 'text-negative' : 'text-ink'}"
+		>
 			<Num text={fmt(periodValue)} />
 		</span>
-	</p>
+	</div>
+
 	{#if deleteError}
-		<p class="mb-3 text-[11px] text-negative">{deleteError}</p>
+		<p
+			in:fly={{ y: -4, duration: DURATION.fast }}
+			class="border border-negative-border bg-negative-tint px-3 py-2 text-[11px] text-negative-strong"
+		>
+			{deleteError}
+		</p>
 	{/if}
 
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -187,18 +206,25 @@
 			}}
 		/>
 
-		<div class="flex flex-col gap-4">
+		<div class="flex flex-col gap-6">
 			<div>
 				<div class="mb-2 flex items-baseline justify-between">
-					<h4 class="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Recurring</h4>
+					<h4
+						class="font-ui text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted"
+					>
+						Recurring
+					</h4>
 					{#if !addingRule}
-						<BorderButton onclick={() => (addingRule = true)}>New rule</BorderButton>
+						<BorderButton onclick={() => (addingRule = true)}>+ new rule</BorderButton>
 					{/if}
 				</div>
 				{#if addingRule}
-					<div class="mb-3 border border-border bg-surface-card p-3">
+					<div
+						transition:slide={{ duration: DURATION.base, easing: expoOut }}
+						class="glass-faint mb-3 rounded-xl p-4"
+					>
 						<RuleForm
-							{accounts}
+							accounts={accountList}
 							{anchors}
 							initialCounterpartyId={selected.account.id}
 							onClose={() => (addingRule = false)}
@@ -214,4 +240,22 @@
 			<RecentEntriesPanel entries={recentEntries} />
 		</div>
 	</div>
-</section>
+
+	{#if canDelete}
+		<footer class="mt-auto flex items-center justify-end gap-2 border-t border-border-faint pt-4">
+			{#if confirmingDelete}
+				<span class="text-[11px] text-ink-muted">Delete this account?</span>
+				<BorderButton onclick={() => (confirmingDelete = false)} disabled={deleteBusy}>
+					cancel
+				</BorderButton>
+				<BorderButton tone="negative" onclick={commitDelete} disabled={deleteBusy}>
+					{deleteBusy ? 'deleting…' : 'confirm'}
+				</BorderButton>
+			{:else}
+				<BorderButton tone="negative" onclick={() => (confirmingDelete = true)}>
+					delete account
+				</BorderButton>
+			{/if}
+		</footer>
+	{/if}
+</div>

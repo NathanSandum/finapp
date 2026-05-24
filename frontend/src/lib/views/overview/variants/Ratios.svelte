@@ -45,10 +45,10 @@
 		{@const fillDelay = animating ? itemDelay + 60 : 0}
 		{@const offset = !animating || entered ? fillOffset(ratio.health) : TRACK_LEN}
 		<div
-			class="entrance-item flex flex-col items-center px-3 py-3"
+			class="glass-faint entrance-item flex flex-col items-center rounded-xl px-3 py-4"
 			style:--d="{itemDelay}ms"
 		>
-			<p class="text-[10px] font-medium uppercase tracking-[0.1em] text-ink-muted">{label}</p>
+			<p class="text-[10px] font-medium uppercase tracking-[0.12em] text-ink-muted">{label}</p>
 			<svg width={SIZE} height={SIZE * 0.62} viewBox="0 0 {SIZE} {SIZE * 0.62}" class="mt-1">
 				<path
 					d={trackPath}

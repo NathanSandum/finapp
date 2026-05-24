@@ -1,41 +1,55 @@
-import { apiFetch } from '$lib/api/client';
-import { workspaceState } from '$lib/workspace/state.svelte';
 import type { JSend } from '$lib/tabs/types';
 import type { Entry } from './types';
+import * as backend from '$lib/acl/entries';
+import { invalidateDependentTabs } from './invalidate';
 
-const state = $state<{ data: Entry[] | null; inFlight: Promise<JSend<Entry[]>> | null }>({
-	data: null,
+const state = $state<{ list: Entry[] | null; inFlight: Promise<JSend<Entry[]>> | null }>({
+	list: null,
 	inFlight: null
 });
 
-async function fetchEntries(workspaceId: string): Promise<JSend<Entry[]>> {
-	const result = await apiFetch<{ entries: Entry[] }>(`/workspaces/${workspaceId}/entries`);
-	if (result.status !== 'success') return result;
-	return { status: 'success', data: result.data.entries };
+function sortDesc(list: Entry[]): Entry[] {
+	return [...list].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 }
 
 export const entries = {
 	get value(): Entry[] | null {
-		return state.data;
+		return state.list;
 	},
 	async load(): Promise<JSend<Entry[]>> {
-		if (state.data !== null) return { status: 'success', data: state.data };
+		if (state.list !== null) return { status: 'success', data: state.list };
 		if (state.inFlight) return state.inFlight;
-		const promise = fetchEntries(workspaceState.id()).then((result) => {
-			if (result.status === 'success') state.data = result.data;
+		const promise = backend.fetchAll().then((result) => {
+			if (result.status === 'success') state.list = result.data;
 			state.inFlight = null;
 			return result;
 		});
 		state.inFlight = promise;
 		return promise;
 	},
-	invalidate() {
-		state.data = null;
+	hydrate(list: Entry[]) {
+		state.list = list;
 		state.inFlight = null;
 	},
-	hydrate(value: Entry[]) {
-		state.data = value;
+	clear() {
+		state.list = null;
 		state.inFlight = null;
+	},
+	async create(input: backend.CreateInput): Promise<JSend<Entry>> {
+		const result = await backend.create(input);
+		if (result.status === 'success') {
+			state.list = sortDesc([...(state.list ?? []), result.data]);
+			invalidateDependentTabs();
+		}
+		return result;
+	},
+	async remove(id: string): Promise<JSend<null>> {
+		const result = await backend.remove(id);
+		if (result.status === 'success' && state.list !== null) {
+			state.list = state.list.filter((e) => e.id !== id);
+			invalidateDependentTabs();
+		}
+		return result;
 	}
 };
 

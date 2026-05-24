@@ -48,9 +48,9 @@
 	const displayPrior = $derived(verbs ? Math.abs(prior) : prior);
 </script>
 
-<div class="mx-auto max-w-xs px-2 py-3">
+<div class="glass-faint mx-auto w-full max-w-xs rounded-xl px-4 py-3">
 	<div class="flex items-baseline justify-between">
-		<p class="text-[10px] font-medium uppercase tracking-[0.1em] {accentText}">{displayLabel}</p>
+		<p class="text-[10px] font-medium uppercase tracking-[0.12em] {accentText}">{displayLabel}</p>
 		<p class="font-mono text-[10px] tabular-nums {arrowClass}">
 			<span aria-hidden="true">{arrow}</span> {pct(total, prior)}
 		</p>

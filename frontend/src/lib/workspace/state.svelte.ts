@@ -1,4 +1,4 @@
-import { invalidateAll as invalidateData } from '$lib/data';
+import { clearAll } from '$lib/data';
 import type { Workspace } from './api';
 
 const STORAGE_KEY = 'finapp.activeWorkspaceId';
@@ -45,7 +45,7 @@ export const workspaceState = {
 		const switched = state.active?.workspace !== workspace.workspace;
 		state.active = workspace;
 		persist(workspace.workspace);
-		if (switched) invalidateData();
+		if (switched) clearAll();
 	},
 	pickInitial(workspaces: Workspace[]): Workspace | null {
 		if (workspaces.length === 0) return null;

@@ -1,21 +1,38 @@
 <script lang="ts">
+	import { flip } from 'svelte/animate';
+	import { entries, accounts, anchors, entryAmount } from '$lib/data';
 	import { periodBounds } from '$lib/views/period';
 	import { periodState } from '$lib/views/period-state.svelte';
-	import { entryAmount } from '$lib/data';
-	import type { EntriesData } from './loader';
+	import { tabState } from '$lib/tabs/state.svelte';
 	import { fmt } from '$lib/format';
 	import Num from '$lib/components/Num.svelte';
 	import EntryForm from './EntryForm.svelte';
+	import EntryDetail from './EntryDetail.svelte';
+	import BorderButton from '$lib/components/BorderButton.svelte';
 	import { entryIntent } from './intent.svelte';
-	import { tabState } from '$lib/tabs/state.svelte';
+	import { rowEnter, rowExit, panelEnter, DURATION } from '$lib/utils/motion';
 	import type { VerbId } from './verbs';
-
-	let { data }: { data: EntriesData } = $props();
 
 	let selectedId = $state<string | null>(null);
 	let creating = $state(false);
 	let formVerb = $state<VerbId>('spent');
 	let formCounterpartyId = $state('');
+
+	const entryList = $derived(entries.value ?? []);
+	const accountList = $derived(accounts.value ?? []);
+	const anchorData = $derived(anchors.value);
+	const accountNames = $derived.by(() => {
+		const map: Record<string, string> = {};
+		for (const account of accountList) map[account.id] = account.name;
+		return map;
+	});
+	const bounds = $derived(
+		periodBounds(periodState.year, periodState.month, periodState.granularity)
+	);
+	const filtered = $derived(
+		entryList.filter((e) => e.date >= bounds.start && e.date <= bounds.end)
+	);
+	const visibleSelected = $derived(filtered.find((e) => e.id === selectedId) ?? filtered[0]);
 
 	const incomingIntent = $derived(entryIntent.get());
 	$effect(() => {
@@ -40,98 +57,121 @@
 		returnToSourceTab();
 	}
 
-	const bounds = $derived(periodBounds(periodState.year, periodState.month, periodState.granularity));
-	const filteredEntries = $derived(
-		data.entries.filter((e) => e.date >= bounds.start && e.date <= bounds.end)
-	);
-	const selected = $derived(
-		filteredEntries.find((e) => e.id === selectedId) ?? filteredEntries[0]
-	);
-	const postings = $derived(
-		selected
-			? [...selected.postings].sort((a, b) => (b.amount > 0 ? 1 : 0) - (a.amount > 0 ? 1 : 0))
-			: []
-	);
+	function handleCreated(id: string) {
+		selectedId = id;
+	}
+
+	async function deleteEntry(id: string) {
+		const next = filtered.find((e) => e.id !== id);
+		await entries.remove(id);
+		selectedId = next?.id ?? null;
+	}
 </script>
 
-<div class="flex h-full flex-col gap-4">
-	<div class="grid min-h-0 flex-1 grid-cols-[320px_1fr] gap-0 overflow-hidden border border-border bg-surface-card">
-		<ul class="h-full divide-y divide-border-faint overflow-y-auto border-r border-ink-faint">
-			{#each filteredEntries as entry (entry.id)}
-				{@const isSel = selected?.id === entry.id}
-				<li>
+<div class="flex h-full flex-col">
+	<div class="glass grid min-h-0 flex-1 grid-cols-[360px_1fr] overflow-hidden rounded-2xl">
+		<ul
+			class="relative h-full overflow-y-auto border-r border-[var(--color-glass-divider)] p-2"
+		>
+			{#each filtered as entry (entry.id)}
+				{@const isSel = visibleSelected?.id === entry.id && !creating}
+				<li
+					animate:flip={{ duration: DURATION.base }}
+					in:rowEnter
+					out:rowExit
+					class="relative mb-1"
+				>
 					<button
 						type="button"
-						onclick={() => (selectedId = entry.id)}
-						class="flex w-full flex-col items-start gap-0.5 px-4 py-3 text-left transition-colors {isSel
-							? 'bg-surface-inverse text-ink-inverse'
-							: 'hover:bg-surface-hover-faint'}"
+						onclick={() => {
+							selectedId = entry.id;
+							creating = false;
+						}}
+						class="entry-row group relative flex w-full flex-col items-start gap-1 rounded-xl px-3.5 py-3 text-left transition-all duration-300 {isSel
+							? 'is-selected'
+							: ''}"
 					>
-						<span class="flex w-full items-baseline justify-between">
-							<span class="font-mono text-xs {isSel ? 'text-ink-inverse-muted' : 'text-ink-muted'}">
+						<span class="entry-row__sheen pointer-events-none absolute inset-0 rounded-xl"></span>
+						<span class="relative flex w-full items-baseline justify-between">
+							<span class="font-mono text-[11px] tracking-tight text-ink-muted">
 								{entry.date}
 							</span>
-							<span
-								class="font-mono text-xs tabular-nums {isSel ? 'text-ink-inverse' : 'text-ink-body'}"
-							>
+							<span class="font-mono text-[12px] tabular-nums text-ink">
 								<Num text={fmt(entryAmount(entry))} />
 							</span>
 						</span>
-						<span class="text-sm font-medium">{entry.description}</span>
+						<span class="relative line-clamp-1 text-[13px] font-medium text-ink">
+							{entry.description}
+						</span>
 					</button>
+				</li>
+			{:else}
+				<li class="px-4 py-10 text-center text-[12px] text-ink-muted">
+					No entries in this period.
 				</li>
 			{/each}
 		</ul>
 
-		<section class="overflow-y-auto p-6">
-			{#if creating}
-				<header class="mb-4 flex items-baseline justify-between">
-					<h3 class="text-lg font-semibold text-ink">New entry</h3>
-				</header>
+		<section class="relative overflow-y-auto">
+			{#if creating && anchorData}
 				{#key formVerb}
-					<EntryForm
-						accounts={data.accounts}
-						anchors={data.anchors}
-						initialVerb={formVerb}
-						initialCounterpartyId={formCounterpartyId}
-						onClose={closeForm}
-					/>
-				{/key}
-			{:else if selected}
-				<header class="mb-4 flex items-baseline justify-between">
-					<div>
-						<h3 class="text-lg font-semibold text-ink">{selected.description}</h3>
-						<p class="font-mono text-xs text-ink-muted">{selected.date} · {selected.id}</p>
+					<div in:panelEnter class="p-7">
+						<header class="mb-6 flex items-baseline justify-between">
+							<h3 class="font-display text-xl font-semibold tracking-tight text-ink">
+								New entry
+							</h3>
+							<BorderButton onclick={closeForm}>cancel</BorderButton>
+						</header>
+						<EntryForm
+							accounts={accountList}
+							anchors={anchorData}
+							initialVerb={formVerb}
+							initialCounterpartyId={formCounterpartyId}
+							onClose={closeForm}
+							onCreated={handleCreated}
+						/>
 					</div>
-					<span class="font-mono text-xl tabular-nums text-ink"><Num text={fmt(entryAmount(selected))} /></span>
-				</header>
-
-				<ul class="divide-y divide-border-faint">
-					{#each postings as posting (posting.id)}
-						{@const isDebit = posting.amount > 0}
-						<li class="flex items-center gap-4 py-3">
-							<span
-								class="inline-flex h-5 w-10 items-center justify-center text-[10px] font-semibold uppercase tracking-[0.08em] {isDebit
-									? 'bg-positive-tint-strong text-positive'
-									: 'bg-negative-tint text-negative-strong'}"
-							>
-								{isDebit ? 'DR' : 'CR'}
-							</span>
-							<div class="flex flex-1 flex-col gap-0.5 min-w-0">
-								<span class="truncate text-sm text-ink">
-									{data.accountNames[posting.account_id] ?? posting.account_id}
-								</span>
-								{#if posting.note}
-									<span class="truncate text-[11px] text-ink-muted">{posting.note}</span>
-								{/if}
-							</div>
-							<span class="font-mono text-base tabular-nums {isDebit ? 'text-ink' : 'text-ink-body'}">
-								<Num text={fmt(Math.abs(posting.amount))} />
-							</span>
-						</li>
-					{/each}
-				</ul>
+				{/key}
+			{:else if visibleSelected}
+				{#key visibleSelected.id}
+					<div in:panelEnter class="p-7">
+						<EntryDetail
+							entry={visibleSelected}
+							{accountNames}
+							onDelete={() => deleteEntry(visibleSelected.id)}
+						/>
+					</div>
+				{/key}
+			{:else}
+				<div class="flex h-full items-center justify-center p-6 text-[12px] text-ink-muted">
+					Select an entry to inspect — or create one.
+				</div>
 			{/if}
 		</section>
 	</div>
 </div>
+
+<style>
+	.entry-row__sheen {
+		opacity: 0;
+		background: linear-gradient(
+			135deg,
+			oklch(75% 0.14 268 / 0.12) 0%,
+			oklch(82% 0.1 220 / 0.06) 60%,
+			transparent 100%
+		);
+		transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	.entry-row:hover .entry-row__sheen {
+		opacity: 1;
+	}
+	.entry-row.is-selected {
+		background: oklch(75% 0.14 268 / 0.14);
+		box-shadow:
+			inset 0 0 0 1px oklch(58% 0.2 268 / 0.4),
+			0 8px 24px -10px oklch(58% 0.2 268 / 0.35);
+	}
+	.entry-row.is-selected .entry-row__sheen {
+		opacity: 1;
+	}
+</style>

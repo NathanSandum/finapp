@@ -1,7 +1,7 @@
 import { goto } from '$app/navigation';
 import { apiFetchMe, apiLogout, apiSignIn, type UserPayload } from '$lib/api/auth';
 import { authState } from '$lib/api/state.svelte';
-import { invalidateAll as invalidateData } from '$lib/data';
+import { clearAll } from '$lib/data';
 import { workspaceState } from '$lib/workspace/state.svelte';
 import { bootState, bootWorkspace } from '$lib/workspace/boot.svelte';
 import { tabState } from '$lib/tabs/state.svelte';
@@ -17,7 +17,7 @@ export async function fetchMe(): Promise<JSend<UserPayload>> {
 export async function signIn(email: string, password: string): Promise<JSend<unknown>> {
 	const result = await apiSignIn(email, password);
 	if (result.status !== 'success') return result;
-	invalidateData();
+	clearAll();
 	authState.set(result.data.user);
 	const bootResult = await bootWorkspace();
 	if (bootResult.status !== 'success') return bootResult;
@@ -35,5 +35,5 @@ export async function logout(): Promise<void> {
 	authState.clear();
 	workspaceState.clear();
 	bootState.reset();
-	invalidateData();
+	clearAll();
 }

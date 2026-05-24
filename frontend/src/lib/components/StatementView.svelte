@@ -43,7 +43,7 @@
 	});
 </script>
 
-<div class="flex h-full flex-col gap-3 overflow-hidden">
+<div class="glass flex h-full flex-col gap-4 overflow-hidden rounded-2xl p-5">
 	{@render hero()}
 	{@render tiles()}
 
@@ -53,7 +53,7 @@
 		<div
 			bind:this={scrollEl}
 			onscroll={recompute}
-			class="h-full overflow-y-auto"
+			class="h-full overflow-y-auto pr-1"
 		>
 			{#if mode === 'summary'}
 				{@render summary()}
@@ -65,13 +65,13 @@
 		</div>
 		<div
 			aria-hidden="true"
-			class="pointer-events-none absolute inset-x-0 top-0 z-10 h-4 bg-gradient-to-b from-black/12 to-transparent transition-opacity duration-150 {atTop
+			class="pointer-events-none absolute inset-x-0 top-0 z-10 h-4 bg-gradient-to-b from-[oklch(40%_0.05_260_/_0.08)] to-transparent transition-opacity duration-150 {atTop
 				? 'opacity-0'
 				: 'opacity-100'}"
 		></div>
 		<div
 			aria-hidden="true"
-			class="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-4 bg-gradient-to-t from-black/12 to-transparent transition-opacity duration-150 {atBottom
+			class="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-4 bg-gradient-to-t from-[oklch(40%_0.05_260_/_0.08)] to-transparent transition-opacity duration-150 {atBottom
 				? 'opacity-0'
 				: 'opacity-100'}"
 		></div>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createEntry } from './api';
+import { create as createEntry } from './entries';
 
 type FetchArgs = { url: string; init: RequestInit };
 
@@ -17,7 +17,7 @@ function mockFetch(response: { status: number; body: unknown }) {
 	return calls;
 }
 
-describe('createEntry', () => {
+describe('acl/entries.create', () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();
 	});

@@ -1,37 +1,48 @@
 <script lang="ts">
-	import BorderButton from '$lib/components/BorderButton.svelte';
+	import { slide } from 'svelte/transition';
+	import { expoOut } from 'svelte/easing';
+	import { accounts, anchors, recurring } from '$lib/data';
+	import SolidButton from '$lib/components/SolidButton.svelte';
 	import RuleForm from './RuleForm.svelte';
 	import RulesList from './RulesList.svelte';
-	import type { RecurringData } from './loader';
-
-	let { data }: { data: RecurringData } = $props();
+	import { DURATION, panelEnter } from '$lib/utils/motion';
 
 	let creating = $state(false);
 
+	const ruleList = $derived(recurring.value ?? []);
+	const accountList = $derived(accounts.value ?? []);
+	const anchorData = $derived(anchors.value);
+
 	const accountNames = $derived.by(() => {
 		const map: Record<string, string> = {};
-		for (const account of data.accounts) map[account.id] = account.name;
+		for (const account of accountList) map[account.id] = account.name;
 		return map;
 	});
 </script>
 
-<section class="h-full overflow-y-auto p-6">
-	<header class="mb-6 flex items-baseline justify-between">
-		<h3 class="text-lg font-semibold text-ink">Recurring rules</h3>
-		{#if !creating}
-			<BorderButton onclick={() => (creating = true)}>New rule</BorderButton>
+<div class="flex h-full flex-col">
+	<section class="glass flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto rounded-2xl p-6">
+		<header class="flex items-baseline justify-end">
+			{#if !creating}
+				<div in:panelEnter={{ offset: 8 }}>
+					<SolidButton size="sm" onclick={() => (creating = true)}>+ New rule</SolidButton>
+				</div>
+			{/if}
+		</header>
+
+		{#if creating && anchorData}
+			<div
+				transition:slide={{ duration: DURATION.base, easing: expoOut }}
+				class="glass-faint rounded-xl p-5"
+			>
+				<RuleForm
+					accounts={accountList}
+					anchors={anchorData}
+					onClose={() => (creating = false)}
+				/>
+			</div>
 		{/if}
-	</header>
 
-	{#if creating}
-		<div class="mb-6 border border-border bg-surface-card p-4">
-			<RuleForm
-				accounts={data.accounts}
-				anchors={data.anchors}
-				onClose={() => (creating = false)}
-			/>
-		</div>
-	{/if}
-
-	<RulesList rules={data.rules} {accountNames} />
-</section>
+		<RulesList rules={ruleList} {accountNames} />
+	</section>
+</div>
