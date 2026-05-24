@@ -1,4 +1,4 @@
-import type { Account } from '$lib/views/entries/loader';
+import type { Account } from '$lib/data';
 
 const state: { current: Account | null } = $state({ current: null });
 

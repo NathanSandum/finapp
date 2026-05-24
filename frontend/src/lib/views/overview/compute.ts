@@ -1,4 +1,4 @@
-import type { Account, Anchors, Entry } from '../entries/loader';
+import type { Account, Anchors, Entry } from '$lib/data';
 import { periodBounds, periodLabel, type Granularity } from '../period';
 
 const MONTH_SHORT = [

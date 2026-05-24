@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cache } from '$lib/api/cache.svelte';
+	import { invalidateAll as invalidateData } from '$lib/data';
 	import { fmt } from '$lib/format';
 	import Num from '$lib/components/Num.svelte';
 	import BorderButton from '$lib/components/BorderButton.svelte';
@@ -41,7 +41,7 @@
 		const result = await deleteRecurring(rule.id);
 		busyId = null;
 		if (result.status === 'success') {
-			cache.invalidateAll();
+			invalidateData();
 		} else if (result.status === 'fail') {
 			errorMessage = String(Object.values(result.data)[0] ?? 'delete failed');
 		} else {

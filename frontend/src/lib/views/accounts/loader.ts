@@ -1,8 +1,14 @@
-import { apiFetch } from '$lib/api/client';
-import { workspaceState } from '$lib/workspace/state.svelte';
+import {
+	entries,
+	accounts,
+	anchors,
+	recurring,
+	type Account,
+	type Anchors,
+	type Entry,
+	type RecurringRule
+} from '$lib/data';
 import type { JSend } from '$lib/tabs/types';
-import type { Account, Anchors, Entry } from '$lib/views/entries/loader';
-import type { RecurringRule } from '$lib/views/recurring/loader';
 
 export type AccountsData = {
 	accounts: Account[];
@@ -12,12 +18,11 @@ export type AccountsData = {
 };
 
 export async function load(): Promise<JSend<AccountsData>> {
-	const id = workspaceState.id();
 	const [accountsResult, anchorsResult, entriesResult, recurringResult] = await Promise.all([
-		apiFetch<{ accounts: Account[] }>(`/workspaces/${id}/accounts`),
-		apiFetch<Anchors>(`/workspaces/${id}/anchors`),
-		apiFetch<{ entries: Entry[] }>(`/workspaces/${id}/entries`),
-		apiFetch<{ recurring_rules: RecurringRule[] }>(`/workspaces/${id}/recurring`)
+		accounts.load(),
+		anchors.load(),
+		entries.load(),
+		recurring.load()
 	]);
 
 	if (accountsResult.status !== 'success') return accountsResult;
@@ -28,10 +33,10 @@ export async function load(): Promise<JSend<AccountsData>> {
 	return {
 		status: 'success',
 		data: {
-			accounts: accountsResult.data.accounts,
+			accounts: accountsResult.data,
 			anchors: anchorsResult.data,
-			entries: entriesResult.data.entries,
-			recurringRules: recurringResult.data.recurring_rules
+			entries: entriesResult.data,
+			recurringRules: recurringResult.data
 		}
 	};
 }

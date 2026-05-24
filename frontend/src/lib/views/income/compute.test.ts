@@ -8,7 +8,7 @@ import {
 	shiftPeriod,
 	snapToGranularity
 } from './compute';
-import type { Account, Entry } from '../entries/loader';
+import type { Account, Entry } from '$lib/data';
 
 const accounts: Account[] = [
 	{ id: 'rev', parent_id: null, name: 'Revenue', account_type: 'revenue', currency: 'CAD', role: 'revenue_root' },

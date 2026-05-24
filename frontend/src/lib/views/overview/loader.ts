@@ -1,7 +1,5 @@
-import { apiFetch } from '$lib/api/client';
-import { workspaceState } from '$lib/workspace/state.svelte';
+import { entries, accounts, anchors, type Account, type Anchors, type Entry } from '$lib/data';
 import type { JSend } from '$lib/tabs/types';
-import { fetchAnchors, type Account, type Anchors, type Entry } from '../entries/loader';
 
 export type OverviewRaw = {
 	entries: Entry[];
@@ -10,11 +8,10 @@ export type OverviewRaw = {
 };
 
 export async function load(): Promise<JSend<OverviewRaw>> {
-	const id = workspaceState.id();
 	const [entriesResult, accountsResult, anchorsResult] = await Promise.all([
-		apiFetch<{ entries: Entry[] }>(`/workspaces/${id}/entries`),
-		apiFetch<{ accounts: Account[] }>(`/workspaces/${id}/accounts`),
-		fetchAnchors()
+		entries.load(),
+		accounts.load(),
+		anchors.load()
 	]);
 
 	if (entriesResult.status !== 'success') return entriesResult;
@@ -24,8 +21,8 @@ export async function load(): Promise<JSend<OverviewRaw>> {
 	return {
 		status: 'success',
 		data: {
-			entries: entriesResult.data.entries,
-			accounts: accountsResult.data.accounts,
+			entries: entriesResult.data,
+			accounts: accountsResult.data,
 			anchors: anchorsResult.data
 		}
 	};

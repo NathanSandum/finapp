@@ -1,7 +1,7 @@
 import { apiFetch } from '$lib/api/client';
 import { workspaceState } from '$lib/workspace/state.svelte';
 import type { JSend } from '$lib/tabs/types';
-import type { Account } from '$lib/views/entries/loader';
+import type { Account } from '$lib/data';
 
 export function createAccount(input: {
 	name: string;

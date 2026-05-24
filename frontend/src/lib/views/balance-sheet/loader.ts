@@ -1,7 +1,5 @@
-import { apiFetch } from '$lib/api/client';
-import { workspaceState } from '$lib/workspace/state.svelte';
+import { entries, accounts, type Account, type Entry } from '$lib/data';
 import type { JSend } from '$lib/tabs/types';
-import type { Account, Entry } from '../entries/loader';
 
 export type BalanceSheetRaw = {
 	entries: Entry[];
@@ -9,11 +7,7 @@ export type BalanceSheetRaw = {
 };
 
 export async function load(): Promise<JSend<BalanceSheetRaw>> {
-	const id = workspaceState.id();
-	const [entriesResult, accountsResult] = await Promise.all([
-		apiFetch<{ entries: Entry[] }>(`/workspaces/${id}/entries`),
-		apiFetch<{ accounts: Account[] }>(`/workspaces/${id}/accounts`)
-	]);
+	const [entriesResult, accountsResult] = await Promise.all([entries.load(), accounts.load()]);
 
 	if (entriesResult.status !== 'success') return entriesResult;
 	if (accountsResult.status !== 'success') return accountsResult;
@@ -21,8 +15,8 @@ export async function load(): Promise<JSend<BalanceSheetRaw>> {
 	return {
 		status: 'success',
 		data: {
-			entries: entriesResult.data.entries,
-			accounts: accountsResult.data.accounts
+			entries: entriesResult.data,
+			accounts: accountsResult.data
 		}
 	};
 }
