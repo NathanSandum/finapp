@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { flip } from 'svelte/animate';
 	import { entries, accounts, anchors, entryAmount } from '$lib/data';
-	import { periodBounds, periodPrefix } from '$lib/views/period';
+	import { periodBounds } from '$lib/views/period';
 	import { periodState } from '$lib/views/period-state.svelte';
 	import { tabState } from '$lib/tabs/state.svelte';
 	import { fmt } from '$lib/format';
@@ -9,7 +9,6 @@
 	import EntryForm from './EntryForm.svelte';
 	import EntryDetail from './EntryDetail.svelte';
 	import BorderButton from '$lib/components/BorderButton.svelte';
-	import SolidButton from '$lib/components/SolidButton.svelte';
 	import { entryIntent } from './intent.svelte';
 	import { rowEnter, rowExit, panelEnter, DURATION } from '$lib/utils/motion';
 	import type { VerbId } from './verbs';
@@ -29,9 +28,6 @@
 	});
 	const bounds = $derived(
 		periodBounds(periodState.year, periodState.month, periodState.granularity)
-	);
-	const periodLabel = $derived(
-		periodPrefix(periodState.year, periodState.month, periodState.granularity)
 	);
 	const filtered = $derived(
 		entryList.filter((e) => e.date >= bounds.start && e.date <= bounds.end)
@@ -56,12 +52,6 @@
 		}
 	}
 
-	function openCreate() {
-		formVerb = 'spent';
-		formCounterpartyId = '';
-		creating = true;
-	}
-
 	function closeForm() {
 		creating = false;
 		returnToSourceTab();
@@ -78,21 +68,7 @@
 	}
 </script>
 
-<div class="flex h-full flex-col gap-3">
-	<header class="flex items-baseline justify-between px-1">
-		<div class="flex items-baseline gap-3">
-			<h2 class="font-display text-xl font-semibold tracking-tight text-ink">Entries</h2>
-			<span class="font-ui text-[11px] uppercase tracking-[0.1em] text-ink-muted">
-				{filtered.length} · {periodLabel}
-			</span>
-		</div>
-		{#if !creating}
-			<div in:panelEnter={{ offset: 8 }}>
-				<SolidButton size="sm" onclick={openCreate}>+ New entry</SolidButton>
-			</div>
-		{/if}
-	</header>
-
+<div class="flex h-full flex-col">
 	<div
 		class="grid min-h-0 flex-1 grid-cols-[360px_1fr] overflow-hidden border border-border bg-surface-card shadow-[0_1px_0_rgba(0,0,0,0.02)]"
 	>

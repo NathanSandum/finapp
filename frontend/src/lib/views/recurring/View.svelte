@@ -20,24 +20,18 @@
 	});
 </script>
 
-<div class="flex h-full flex-col gap-3">
-	<header class="flex items-baseline justify-between px-1">
-		<div class="flex items-baseline gap-3">
-			<h2 class="font-display text-xl font-semibold tracking-tight text-ink">Recurring</h2>
-			<span class="font-ui text-[11px] uppercase tracking-[0.1em] text-ink-muted">
-				{ruleList.length} {ruleList.length === 1 ? 'rule' : 'rules'}
-			</span>
-		</div>
-		{#if !creating}
-			<div in:panelEnter={{ offset: 8 }}>
-				<SolidButton size="sm" onclick={() => (creating = true)}>+ New rule</SolidButton>
-			</div>
-		{/if}
-	</header>
-
+<div class="flex h-full flex-col">
 	<section
 		class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto border border-border bg-surface-card p-6 shadow-[0_1px_0_rgba(0,0,0,0.02)]"
 	>
+		<header class="flex items-baseline justify-end">
+			{#if !creating}
+				<div in:panelEnter={{ offset: 8 }}>
+					<SolidButton size="sm" onclick={() => (creating = true)}>+ New rule</SolidButton>
+				</div>
+			{/if}
+		</header>
+
 		{#if creating && anchorData}
 			<div
 				transition:slide={{ duration: DURATION.base, easing: expoOut }}
