@@ -38,9 +38,7 @@
 </script>
 
 <div class="flex h-full flex-col">
-	<div
-		class="grid min-h-0 flex-1 grid-cols-[340px_1fr] overflow-hidden border border-border bg-surface-card shadow-[0_1px_0_rgba(0,0,0,0.02)]"
-	>
+	<div class="glass grid min-h-0 flex-1 grid-cols-[340px_1fr] overflow-hidden rounded-2xl">
 		<AccountsSidebar {subtrees} {selectedId} onSelect={select} />
 
 		<section class="relative overflow-y-auto">

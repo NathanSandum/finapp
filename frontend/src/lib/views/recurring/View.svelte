@@ -21,9 +21,7 @@
 </script>
 
 <div class="flex h-full flex-col">
-	<section
-		class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto border border-border bg-surface-card p-6 shadow-[0_1px_0_rgba(0,0,0,0.02)]"
-	>
+	<section class="glass flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto rounded-2xl p-6">
 		<header class="flex items-baseline justify-end">
 			{#if !creating}
 				<div in:panelEnter={{ offset: 8 }}>
@@ -35,7 +33,7 @@
 		{#if creating && anchorData}
 			<div
 				transition:slide={{ duration: DURATION.base, easing: expoOut }}
-				class="border border-border bg-surface p-5"
+				class="glass-faint rounded-xl p-5"
 			>
 				<RuleForm
 					accounts={accountList}

@@ -151,12 +151,12 @@
 
 	<header class="flex items-baseline justify-between gap-4">
 		<div class="flex items-baseline gap-2">
-			<h3 class="font-display text-2xl font-semibold tracking-tight text-ink">
+			<h3 class="font-display text-3xl font-semibold tracking-tight text-ink">
 				{selected.account.name}
 			</h3>
 			{#if badge}
 				<span
-					class="bg-surface-sunken px-1.5 py-0.5 font-ui text-[10px] font-medium uppercase tracking-[0.08em] text-ink-muted"
+					class="rounded-full bg-[oklch(75%_0.14_268_/_0.16)] px-2 py-0.5 font-ui text-[10px] font-medium uppercase tracking-[0.1em] text-[oklch(46%_0.18_268)]"
 				>
 					{badge}
 				</span>
@@ -168,12 +168,12 @@
 		</span>
 	</header>
 
-	<div class="flex items-baseline gap-3 border-y border-border-faint py-3">
-		<span class="font-ui text-[10px] uppercase tracking-[0.1em] text-ink-muted">
+	<div class="value-strip glass-faint flex items-baseline gap-4 rounded-xl px-5 py-4">
+		<span class="font-ui text-[10px] uppercase tracking-[0.12em] text-ink-muted">
 			{valueLabel} value
 		</span>
 		<span
-			class="font-mono text-2xl tabular-nums {periodValue < 0 ? 'text-negative' : 'text-ink'}"
+			class="font-mono text-3xl tabular-nums {periodValue < 0 ? 'text-negative' : 'text-ink'}"
 		>
 			<Num text={fmt(periodValue)} />
 		</span>
@@ -221,7 +221,7 @@
 				{#if addingRule}
 					<div
 						transition:slide={{ duration: DURATION.base, easing: expoOut }}
-						class="mb-3 border border-border bg-surface-card p-4"
+						class="glass-faint mb-3 rounded-xl p-4"
 					>
 						<RuleForm
 							accounts={accountList}

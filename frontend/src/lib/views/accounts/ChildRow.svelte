@@ -62,7 +62,8 @@
 	}
 </script>
 
-<div class="group flex items-center gap-2 px-3 py-2 text-[13px] transition-colors hover:bg-surface-hover-faint">
+<div class="child-row group relative flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-all duration-300">
+	<span class="child-row__sheen pointer-events-none absolute inset-0 rounded-lg"></span>
 	{#if editing}
 		<NameEditor
 			initial={account.name}
@@ -110,3 +111,21 @@
 		{error}
 	</p>
 {/if}
+
+<style>
+	.child-row__sheen {
+		opacity: 0;
+		background: linear-gradient(
+			90deg,
+			oklch(75% 0.14 268 / 0.1) 0%,
+			transparent 80%
+		);
+		transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	.child-row:hover .child-row__sheen {
+		opacity: 1;
+	}
+	.child-row > :global(*) {
+		position: relative;
+	}
+</style>

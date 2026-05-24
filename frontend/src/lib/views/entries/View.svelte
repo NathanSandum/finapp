@@ -69,17 +69,17 @@
 </script>
 
 <div class="flex h-full flex-col">
-	<div
-		class="grid min-h-0 flex-1 grid-cols-[360px_1fr] overflow-hidden border border-border bg-surface-card shadow-[0_1px_0_rgba(0,0,0,0.02)]"
-	>
-		<ul class="relative h-full divide-y divide-border-faint overflow-y-auto border-r border-border-faint">
+	<div class="glass grid min-h-0 flex-1 grid-cols-[360px_1fr] overflow-hidden rounded-2xl">
+		<ul
+			class="relative h-full overflow-y-auto border-r border-[var(--color-glass-divider)] p-2"
+		>
 			{#each filtered as entry (entry.id)}
 				{@const isSel = visibleSelected?.id === entry.id && !creating}
 				<li
 					animate:flip={{ duration: DURATION.base }}
 					in:rowEnter
 					out:rowExit
-					class="relative"
+					class="relative mb-1"
 				>
 					<button
 						type="button"
@@ -87,34 +87,23 @@
 							selectedId = entry.id;
 							creating = false;
 						}}
-						class="flex w-full flex-col items-start gap-1 px-4 py-3 text-left transition-colors duration-200 {isSel
-							? 'bg-surface-inverse text-ink-inverse'
-							: 'hover:bg-surface-hover-faint'}"
+						class="entry-row group relative flex w-full flex-col items-start gap-1 rounded-xl px-3.5 py-3 text-left transition-all duration-300 {isSel
+							? 'is-selected'
+							: ''}"
 					>
-						<span class="flex w-full items-baseline justify-between">
-							<span
-								class="font-mono text-[11px] tracking-tight {isSel
-									? 'text-ink-inverse-muted'
-									: 'text-ink-muted'}"
-							>
+						<span class="entry-row__sheen pointer-events-none absolute inset-0 rounded-xl"></span>
+						<span class="relative flex w-full items-baseline justify-between">
+							<span class="font-mono text-[11px] tracking-tight text-ink-muted">
 								{entry.date}
 							</span>
-							<span
-								class="font-mono text-[12px] tabular-nums {isSel
-									? 'text-ink-inverse'
-									: 'text-ink-body'}"
-							>
+							<span class="font-mono text-[12px] tabular-nums text-ink">
 								<Num text={fmt(entryAmount(entry))} />
 							</span>
 						</span>
-						<span class="line-clamp-1 text-[13px] font-medium">{entry.description}</span>
+						<span class="relative line-clamp-1 text-[13px] font-medium text-ink">
+							{entry.description}
+						</span>
 					</button>
-					{#if isSel}
-						<span
-							in:panelEnter={{ offset: 4, duration: DURATION.fast }}
-							class="pointer-events-none absolute inset-y-0 left-0 w-[2px] bg-brand"
-						></span>
-					{/if}
 				</li>
 			{:else}
 				<li class="px-4 py-10 text-center text-[12px] text-ink-muted">
@@ -126,9 +115,11 @@
 		<section class="relative overflow-y-auto">
 			{#if creating && anchorData}
 				{#key formVerb}
-					<div in:panelEnter class="p-6">
-						<header class="mb-5 flex items-baseline justify-between">
-							<h3 class="font-display text-lg font-semibold text-ink">New entry</h3>
+					<div in:panelEnter class="p-7">
+						<header class="mb-6 flex items-baseline justify-between">
+							<h3 class="font-display text-xl font-semibold tracking-tight text-ink">
+								New entry
+							</h3>
 							<BorderButton onclick={closeForm}>cancel</BorderButton>
 						</header>
 						<EntryForm
@@ -143,7 +134,7 @@
 				{/key}
 			{:else if visibleSelected}
 				{#key visibleSelected.id}
-					<div in:panelEnter class="p-6">
+					<div in:panelEnter class="p-7">
 						<EntryDetail
 							entry={visibleSelected}
 							{accountNames}
@@ -159,3 +150,28 @@
 		</section>
 	</div>
 </div>
+
+<style>
+	.entry-row__sheen {
+		opacity: 0;
+		background: linear-gradient(
+			135deg,
+			oklch(75% 0.14 268 / 0.12) 0%,
+			oklch(82% 0.1 220 / 0.06) 60%,
+			transparent 100%
+		);
+		transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	.entry-row:hover .entry-row__sheen {
+		opacity: 1;
+	}
+	.entry-row.is-selected {
+		background: oklch(75% 0.14 268 / 0.14);
+		box-shadow:
+			inset 0 0 0 1px oklch(58% 0.2 268 / 0.4),
+			0 8px 24px -10px oklch(58% 0.2 268 / 0.35);
+	}
+	.entry-row.is-selected .entry-row__sheen {
+		opacity: 1;
+	}
+</style>

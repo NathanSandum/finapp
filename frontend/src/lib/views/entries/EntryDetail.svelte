@@ -37,50 +37,53 @@
 	}
 </script>
 
-<header class="mb-5 flex items-baseline justify-between gap-4">
+<header class="mb-6 flex items-baseline justify-between gap-4">
 	<div class="min-w-0">
-		<h3 class="truncate font-display text-lg font-semibold text-ink">{entry.description}</h3>
-		<p class="mt-0.5 flex items-center gap-2 font-mono text-[11px] text-ink-muted">
+		<h3 class="truncate font-display text-2xl font-semibold tracking-tight text-ink">
+			{entry.description}
+		</h3>
+		<p class="mt-1 flex items-center gap-2 font-mono text-[11px] text-ink-muted">
 			<span>{entry.date}</span>
-			<span class="opacity-50">·</span>
+			<span class="opacity-40">·</span>
 			<span class="truncate">{entry.id}</span>
 		</p>
 	</div>
-	<span class="font-mono text-2xl tabular-nums text-ink"><Num text={fmt(total)} /></span>
+	<span class="font-mono text-3xl tabular-nums text-ink"><Num text={fmt(total)} /></span>
 </header>
 
-<ul class="divide-y divide-border-faint border-y border-border-faint">
+<ul class="flex flex-col gap-2">
 	{#each postings as posting, i (posting.id)}
 		{@const isDebit = posting.amount > 0}
 		<li
-			class="flex items-center gap-4 px-1 py-3"
-			in:fly={{ y: 6, duration: DURATION.base, delay: i * 35, easing: expoOut }}
+			class="posting-row group relative flex items-center gap-4 rounded-xl px-4 py-3 transition-all duration-300"
+			class:is-debit={isDebit}
+			class:is-credit={!isDebit}
+			in:fly={{ y: 8, duration: DURATION.base, delay: i * 50, easing: expoOut }}
 		>
+			<span class="posting-row__bg pointer-events-none absolute inset-0 rounded-xl"></span>
 			<span
-				class="inline-flex h-5 w-10 items-center justify-center text-[10px] font-semibold uppercase tracking-[0.08em] {isDebit
+				class="relative inline-flex h-6 w-12 items-center justify-center rounded-md text-[10px] font-semibold uppercase tracking-[0.1em] {isDebit
 					? 'bg-positive-tint-strong text-positive'
 					: 'bg-negative-tint text-negative-strong'}"
 			>
 				{isDebit ? 'DR' : 'CR'}
 			</span>
-			<div class="flex min-w-0 flex-1 flex-col gap-0.5">
-				<span class="truncate text-[13px] text-ink">
+			<div class="relative flex min-w-0 flex-1 flex-col gap-0.5">
+				<span class="truncate text-[13px] font-medium text-ink">
 					{accountNames[posting.account_id] ?? posting.account_id}
 				</span>
 				{#if posting.note}
 					<span class="truncate text-[11px] text-ink-muted">{posting.note}</span>
 				{/if}
 			</div>
-			<span
-				class="font-mono text-[14px] tabular-nums {isDebit ? 'text-ink' : 'text-ink-body'}"
-			>
+			<span class="relative font-mono text-[15px] tabular-nums text-ink">
 				<Num text={fmt(Math.abs(posting.amount))} />
 			</span>
 		</li>
 	{/each}
 </ul>
 
-<footer class="mt-6 flex items-center justify-end gap-2">
+<footer class="mt-8 flex items-center justify-end gap-2 border-t border-[var(--color-glass-divider)] pt-5">
 	{#if confirming}
 		<span class="text-[11px] text-ink-muted">Delete this entry?</span>
 		<BorderButton onclick={() => (confirming = false)} disabled={removing}>cancel</BorderButton>
@@ -91,3 +94,34 @@
 		<BorderButton tone="negative" onclick={() => (confirming = true)}>delete</BorderButton>
 	{/if}
 </footer>
+
+<style>
+	.posting-row__bg {
+		background: oklch(100% 0 0 / 0.45);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		box-shadow:
+			inset 0 0 0 1px oklch(100% 0 0 / 0.55),
+			0 1px 2px oklch(40% 0.05 260 / 0.05);
+		transition: box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	.posting-row.is-debit .posting-row__bg {
+		background: linear-gradient(
+			90deg,
+			oklch(95% 0.04 180 / 0.5) 0%,
+			oklch(100% 0 0 / 0.45) 60%
+		);
+	}
+	.posting-row.is-credit .posting-row__bg {
+		background: linear-gradient(
+			90deg,
+			oklch(96.5% 0.018 12 / 0.5) 0%,
+			oklch(100% 0 0 / 0.45) 60%
+		);
+	}
+	.posting-row:hover .posting-row__bg {
+		box-shadow:
+			inset 0 0 0 1px oklch(100% 0 0 / 0.8),
+			0 4px 12px -4px oklch(40% 0.05 260 / 0.12);
+	}
+</style>

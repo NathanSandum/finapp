@@ -49,34 +49,35 @@
 </script>
 
 {#if rules.length === 0}
-	<p class="border border-dashed border-border-faint px-4 py-6 text-center text-[12px] text-ink-muted">
+	<p class="glass-faint rounded-xl px-4 py-6 text-center text-[12px] text-ink-muted">
 		{emptyMessage}
 	</p>
 {:else}
-	<ul class="divide-y divide-border-faint border border-border bg-surface-card">
+	<ul class="flex flex-col gap-2">
 		{#each rules as rule (rule.id)}
 			{@const isConfirming = confirmingId === rule.id}
 			<li
 				animate:flip={{ duration: DURATION.base }}
 				in:rowEnter
 				out:rowExit
-				class="group flex items-center gap-3 px-4 py-3 text-[13px] transition-colors hover:bg-surface-hover-faint"
+				class="rule-row group relative flex items-center gap-3 rounded-xl px-4 py-3 text-[13px] transition-all duration-300"
 			>
-				<div class="min-w-0 flex-1">
+				<span class="rule-row__bg pointer-events-none absolute inset-0 rounded-xl"></span>
+				<div class="relative min-w-0 flex-1">
 					<div class="flex items-baseline gap-2">
 						<span class="truncate font-medium text-ink">{rule.description}</span>
-						<span class="font-ui text-[10px] uppercase tracking-[0.08em] text-ink-muted">
+						<span class="font-ui text-[10px] uppercase tracking-[0.1em] text-ink-muted">
 							{scheduleLabel(rule.schedule)}
 						</span>
 					</div>
 					<div class="truncate text-[11px] text-ink-muted">
 						{counterpartyLabel(rule)}
 						{#if rule.next_pending}
-							<span class="opacity-50">·</span> next {rule.next_pending}
+							<span class="opacity-40">·</span> next {rule.next_pending}
 						{/if}
 					</div>
 				</div>
-				<span class="font-mono text-[14px] tabular-nums text-ink">
+				<span class="relative font-mono text-[15px] tabular-nums text-ink">
 					<Num text={fmt(templateAmount(rule))} />
 				</span>
 
@@ -85,7 +86,7 @@
 						type="button"
 						onclick={() => (confirmingId = null)}
 						disabled={busyId === rule.id}
-						class="border border-border bg-surface-card px-2 py-1 text-[10px] uppercase tracking-[0.06em] text-ink-body hover:border-ink-faint disabled:opacity-50"
+						class="relative rounded-md border border-[oklch(72%_0.012_260_/_0.4)] bg-[oklch(100%_0_0_/_0.7)] px-2 py-1 text-[10px] uppercase tracking-[0.08em] text-ink-body hover:border-ink-faint disabled:opacity-50"
 					>
 						cancel
 					</button>
@@ -93,7 +94,7 @@
 						type="button"
 						onclick={() => commitDelete(rule)}
 						disabled={busyId === rule.id}
-						class="border border-negative-border bg-negative-tint px-2 py-1 text-[10px] uppercase tracking-[0.06em] text-negative-strong hover:border-negative-strong disabled:opacity-50"
+						class="relative rounded-md border border-negative-border bg-negative-tint px-2 py-1 text-[10px] uppercase tracking-[0.08em] text-negative-strong hover:border-negative-strong disabled:opacity-50"
 					>
 						{busyId === rule.id ? '…' : 'confirm'}
 					</button>
@@ -101,7 +102,7 @@
 					<button
 						type="button"
 						onclick={() => (confirmingId = rule.id)}
-						class="border border-border bg-surface-card px-2 py-1 text-[10px] uppercase tracking-[0.06em] text-ink-body opacity-0 transition-opacity hover:border-negative-strong hover:text-negative-strong group-hover:opacity-100"
+						class="relative rounded-md border border-[oklch(72%_0.012_260_/_0.4)] bg-[oklch(100%_0_0_/_0.5)] px-2 py-1 text-[10px] uppercase tracking-[0.08em] text-ink-body opacity-0 transition-opacity hover:border-negative-strong hover:text-negative-strong group-hover:opacity-100"
 					>
 						delete
 					</button>
@@ -116,3 +117,25 @@
 		{errorMessage}
 	</p>
 {/if}
+
+<style>
+	.rule-row__bg {
+		background: oklch(100% 0 0 / 0.5);
+		backdrop-filter: blur(10px);
+		-webkit-backdrop-filter: blur(10px);
+		box-shadow:
+			inset 0 0 0 1px oklch(100% 0 0 / 0.55),
+			0 1px 2px oklch(40% 0.05 260 / 0.05);
+		transition: all 240ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	.rule-row:hover .rule-row__bg {
+		background: linear-gradient(
+			135deg,
+			oklch(75% 0.14 268 / 0.08) 0%,
+			oklch(100% 0 0 / 0.7) 70%
+		);
+		box-shadow:
+			inset 0 0 0 1px oklch(58% 0.2 268 / 0.25),
+			0 6px 18px -6px oklch(58% 0.2 268 / 0.18);
+	}
+</style>

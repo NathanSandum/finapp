@@ -40,7 +40,7 @@
 	</header>
 
 	{#if selected.children.length > 0}
-		<ul class="divide-y divide-border-faint border border-border-faint">
+		<ul class="glass-faint flex flex-col gap-px rounded-xl p-1">
 			{#each selected.children as c (c.account.id)}
 				<li animate:flip={{ duration: DURATION.base }} in:rowEnter out:rowExit>
 					<ChildRow node={c} {onSelect} />
@@ -48,7 +48,7 @@
 			{/each}
 		</ul>
 	{:else if !adding}
-		<p class="border border-dashed border-border-faint px-3 py-4 text-[12px] text-ink-muted">
+		<p class="glass-faint rounded-xl px-4 py-5 text-center text-[12px] text-ink-muted">
 			No sub-accounts.
 		</p>
 	{/if}
@@ -56,7 +56,7 @@
 	{#if adding}
 		<div
 			transition:slide={{ duration: DURATION.base, easing: expoOut }}
-			class="mt-2 border border-border-faint px-3 py-2"
+			class="glass-faint mt-2 rounded-xl px-3 py-2"
 		>
 			<AddChildInput busy={addBusy} onCommit={onCommitAdd} onCancel={onCancelAdd} />
 		</div>

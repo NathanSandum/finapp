@@ -111,23 +111,21 @@
 </script>
 
 <form onsubmit={submit} class="flex flex-col gap-5 text-sm">
-	<div
-		class="relative grid grid-cols-6 gap-1 border border-border bg-surface-sunken p-1"
-	>
+	<div class="verb-strip relative grid grid-cols-6 gap-1 rounded-xl p-1">
 		{#each VERBS as v, i (v.id)}
 			{@const active = v.id === verb}
 			<button
 				type="button"
 				onclick={() => (verb = v.id)}
 				in:fly={{ y: 4, duration: DURATION.fast, delay: i * 20, easing: expoOut }}
-				class="relative z-10 px-2 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] transition-colors duration-200 {active
+				class="relative z-10 rounded-lg px-2 py-2 text-[11px] font-medium uppercase tracking-[0.1em] transition-colors duration-300 {active
 					? 'text-ink'
 					: 'text-ink-muted hover:text-ink-body'}"
 			>
 				{#if active}
 					<span
 						in:fly={{ duration: DURATION.base, easing: expoOut }}
-						class="absolute inset-0 -z-10 bg-surface-card shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
+						class="verb-pill absolute inset-0 -z-10 rounded-lg"
 					></span>
 				{/if}
 				{v.label}
@@ -136,23 +134,23 @@
 	</div>
 
 	<div class="grid grid-cols-[auto_1fr] gap-3">
-		<label class="flex flex-col gap-1">
-			<span class="font-ui text-[10px] uppercase tracking-[0.1em] text-ink-muted">Date</span>
+		<label class="flex flex-col gap-1.5">
+			<span class="font-ui text-[10px] uppercase tracking-[0.12em] text-ink-muted">Date</span>
 			<input
 				type="date"
 				bind:value={date}
-				class="border border-border bg-surface-card px-2 py-1.5 font-mono text-[13px] focus:border-brand focus:outline-none"
+				class="glass-input font-mono text-[13px]"
 				required
 			/>
 		</label>
-		<label class="flex flex-col gap-1">
-			<span class="font-ui text-[10px] uppercase tracking-[0.1em] text-ink-muted">Amount</span>
+		<label class="flex flex-col gap-1.5">
+			<span class="font-ui text-[10px] uppercase tracking-[0.12em] text-ink-muted">Amount</span>
 			<input
 				type="text"
 				inputmode="decimal"
 				placeholder="0.00"
 				bind:value={amountText}
-				class="border border-border bg-surface-card px-2 py-1.5 font-mono text-[13px] tabular-nums focus:border-brand focus:outline-none"
+				class="glass-input font-mono text-[13px] tabular-nums"
 				required
 			/>
 			{#if fieldErrors.amount}
@@ -163,13 +161,13 @@
 		</label>
 	</div>
 
-	<label class="flex flex-col gap-1">
-		<span class="font-ui text-[10px] uppercase tracking-[0.1em] text-ink-muted">
+	<label class="flex flex-col gap-1.5">
+		<span class="font-ui text-[10px] uppercase tracking-[0.12em] text-ink-muted">
 			{config.label}{config.counterpartyPreposition ? ` ${config.counterpartyPreposition}` : ''}
 		</span>
 		<select
 			bind:value={counterpartyId}
-			class="border border-border bg-surface-card px-2 py-1.5 text-[13px] focus:border-brand focus:outline-none"
+			class="glass-input text-[13px]"
 			required
 		>
 			<option value="" disabled>select…</option>
@@ -184,15 +182,15 @@
 		{/if}
 	</label>
 
-	<label class="flex flex-col gap-1">
-		<span class="font-ui text-[10px] uppercase tracking-[0.1em] text-ink-muted">
+	<label class="flex flex-col gap-1.5">
+		<span class="font-ui text-[10px] uppercase tracking-[0.12em] text-ink-muted">
 			Description
 		</span>
 		<input
 			type="text"
 			placeholder={defaultDescription}
 			bind:value={description}
-			class="border border-border bg-surface-card px-2 py-1.5 text-[13px] focus:border-brand focus:outline-none"
+			class="glass-input text-[13px]"
 		/>
 		{#if fieldErrors.description}
 			<span in:fly={{ y: -3, duration: DURATION.fast }} class="text-[11px] text-negative">
@@ -201,19 +199,15 @@
 		{/if}
 	</label>
 
-	<label class="flex flex-col gap-1">
-		<span class="font-ui text-[10px] uppercase tracking-[0.1em] text-ink-muted">Note</span>
-		<input
-			type="text"
-			bind:value={note}
-			class="border border-border bg-surface-card px-2 py-1.5 text-[13px] focus:border-brand focus:outline-none"
-		/>
+	<label class="flex flex-col gap-1.5">
+		<span class="font-ui text-[10px] uppercase tracking-[0.12em] text-ink-muted">Note</span>
+		<input type="text" bind:value={note} class="glass-input text-[13px]" />
 	</label>
 
 	{#if errorMessage}
 		<p
 			in:fly={{ y: -3, duration: DURATION.base }}
-			class="border border-negative-border bg-negative-tint px-3 py-2 text-[11px] text-negative-strong"
+			class="rounded-lg border border-negative-border bg-negative-tint px-3 py-2 text-[11px] text-negative-strong"
 		>
 			{errorMessage}
 		</p>
@@ -226,3 +220,22 @@
 		<BorderButton onclick={onClose} disabled={submitting}>cancel</BorderButton>
 	</div>
 </form>
+
+<style>
+	.verb-strip {
+		background: oklch(100% 0 0 / 0.4);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+		box-shadow: inset 0 0 0 1px oklch(100% 0 0 / 0.5);
+	}
+	.verb-pill {
+		background: linear-gradient(
+			135deg,
+			oklch(75% 0.14 268 / 0.22) 0%,
+			oklch(100% 0 0 / 0.85) 100%
+		);
+		box-shadow:
+			inset 0 0 0 1px oklch(58% 0.2 268 / 0.4),
+			0 4px 14px -6px oklch(58% 0.2 268 / 0.3);
+	}
+</style>

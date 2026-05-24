@@ -40,14 +40,11 @@
 	<button
 		type="button"
 		onclick={() => onSelect(node.account.id)}
-		class="relative flex-1 truncate px-2 py-1 text-left text-[12px] transition-colors duration-200 {isSelected
-			? 'bg-surface-inverse text-ink-inverse'
-			: 'hover:bg-surface-hover-faint'}"
+		class="tree-leaf relative flex-1 truncate rounded-md px-2 py-1 text-left text-[12px] transition-all duration-300"
+		class:is-selected={isSelected}
 	>
-		{node.account.name}
-		{#if isSelected}
-			<span class="pointer-events-none absolute inset-y-0 left-0 w-[2px] bg-brand"></span>
-		{/if}
+		<span class="tree-leaf__sheen pointer-events-none absolute inset-0 rounded-md"></span>
+		<span class="relative text-ink">{node.account.name}</span>
 	</button>
 </div>
 
@@ -60,3 +57,25 @@
 		{/each}
 	</div>
 {/if}
+
+<style>
+	.tree-leaf__sheen {
+		opacity: 0;
+		background: linear-gradient(
+			90deg,
+			oklch(75% 0.14 268 / 0.1) 0%,
+			transparent 80%
+		);
+		transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	.tree-leaf:hover .tree-leaf__sheen {
+		opacity: 1;
+	}
+	.tree-leaf.is-selected {
+		background: oklch(75% 0.14 268 / 0.18);
+		box-shadow: inset 0 0 0 1px oklch(58% 0.2 268 / 0.4);
+	}
+	.tree-leaf.is-selected .tree-leaf__sheen {
+		opacity: 1;
+	}
+</style>

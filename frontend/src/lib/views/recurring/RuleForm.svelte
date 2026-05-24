@@ -111,21 +111,21 @@
 </script>
 
 <form onsubmit={submit} class="flex flex-col gap-5 text-sm">
-	<div class="relative grid grid-cols-6 gap-1 border border-border bg-surface-sunken p-1">
+	<div class="verb-strip relative grid grid-cols-6 gap-1 rounded-xl p-1">
 		{#each VERBS as v, i (v.id)}
 			{@const active = v.id === verb}
 			<button
 				type="button"
 				onclick={() => (verb = v.id)}
 				in:fly={{ y: 4, duration: DURATION.fast, delay: i * 20, easing: expoOut }}
-				class="relative z-10 px-2 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] transition-colors duration-200 {active
+				class="relative z-10 rounded-lg px-2 py-2 text-[11px] font-medium uppercase tracking-[0.1em] transition-colors duration-300 {active
 					? 'text-ink'
 					: 'text-ink-muted hover:text-ink-body'}"
 			>
 				{#if active}
 					<span
 						in:fly={{ duration: DURATION.base, easing: expoOut }}
-						class="absolute inset-0 -z-10 bg-surface-card shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
+						class="verb-pill absolute inset-0 -z-10 rounded-lg"
 					></span>
 				{/if}
 				{v.label}
@@ -163,3 +163,22 @@
 		<BorderButton onclick={onClose} disabled={submitting}>cancel</BorderButton>
 	</div>
 </form>
+
+<style>
+	.verb-strip {
+		background: oklch(100% 0 0 / 0.4);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+		box-shadow: inset 0 0 0 1px oklch(100% 0 0 / 0.5);
+	}
+	.verb-pill {
+		background: linear-gradient(
+			135deg,
+			oklch(75% 0.14 268 / 0.22) 0%,
+			oklch(100% 0 0 / 0.85) 100%
+		);
+		box-shadow:
+			inset 0 0 0 1px oklch(58% 0.2 268 / 0.4),
+			0 4px 14px -6px oklch(58% 0.2 268 / 0.3);
+	}
+</style>
